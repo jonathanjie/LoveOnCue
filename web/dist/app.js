@@ -365,12 +365,40 @@ function renderGuests() {
                 await command({ type: 'arrival', person_ids: [g.id], status: 'onsite' });
                 await searchGuests();
             } }, 'small-button'));
+        if (coordinator())
+            card.append(button('Edit guest / family role', () => editGuest(g.id, card), 'small-button'));
         results.append(card);
     }
     results.append(text('Showing up to 50 matches. Narrow the name to find additional guests.', 'small muted'));
 }
+async function editGuest(id, card) {
+    const entry = await api(`/api/guests/${encodeURIComponent(id)}/details`);
+    card.querySelector('.guest-editor')?.remove();
+    const name = field('Guest name', entry.name);
+    const table = selectField('Assigned table', [{ id: '', name: 'Unassigned' }, ...snapshot.tables.map(t => ({ id: t.id, name: `Table ${t.label}` }))], entry.table_id || '');
+    const rsvp = selectField('RSVP', ['yes', 'no', 'unknown'].map(v => ({ id: v, name: v })), entry.rsvp);
+    const relation = field('Family role (blank removes family access)', entry.relationship || '');
+    relation.input.placeholder = 'father_of_bride, mother_of_groom, or another descriptive role';
+    const dietary = field('Dietary service notes', entry.dietary || '');
+    const phone = field('Private contact phone', entry.private_phone || '');
+    const editor = group('guest-editor form-card', text('Private contact phones are available only to the coordinator and designated family liaison.', 'small warning-text'), name.wrap, table.wrap, rsvp.wrap, relation.wrap, dietary.wrap, phone.wrap, button('Save reviewed guest details', async () => { if (confirm('Save these guest details and family-contact visibility?')) {
+        await command({ type: 'edit_guest', person_id: id, expected_version: entry.version, name: name.input.value, table_id: table.input.value || null, rsvp: rsvp.input.value, relationship: relation.input.value || null, dietary: dietary.input.value || null, private_phone: phone.input.value || null });
+        await searchGuests();
+    } }, 'primary'));
+    const role = selectField('Helper role', ['helper', 'registration', 'usher', 'photographer', 'family_liaison', 'banquet', 'mc', 'av', 'transport', 'team_lead'].map(v => ({ id: v, name: v.replaceAll('_', ' ') })));
+    const team = selectField('Helper team', snapshot.teams);
+    editor.append(text('A guest can also be a helper without duplicating their guest record.', 'small muted'), role.wrap, team.wrap, button('Create membership for this guest', async () => { if (confirm('Grant this guest the selected role and team?'))
+        await command({ type: 'create_member', person_id: id, roles: [role.input.value], team_ids: [team.input.value] }); }, 'small-button'));
+    card.append(editor);
+}
 function people() {
     const s = section('People & teams', 'Permissions are assigned by the coordinator, never inferred from a chat message.');
+    if (has('family:contacts')) {
+        const box = el('div');
+        s.append(button('Show authorized family contacts', async () => { const response = await api('/api/family/contacts'); box.replaceChildren(); for (const person of response.items)
+            box.append(group('person-card', text(`${person.name} · ${person.relationship.replaceAll('_', ' ')}`), text(person.private_phone || 'No contact number recorded', 'small'))); if (!response.items.length)
+            box.append(empty('No designated family contacts. A coordinator can assign family roles in Guest desk.')); }, 'small-button'), box);
+    }
     for (const m of snapshot.members) {
         const card = group('person-card', group('', el('h3', '', m.name), text(m.team_ids.map(teamName).join(' · '), 'small muted')), group('badges', ...m.roles.map(r => badge(r))), badge(m.active ? 'Active' : 'Revoked', m.active ? 'green' : 'danger'));
         if (coordinator() && m.active) {

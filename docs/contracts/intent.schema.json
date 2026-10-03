@@ -1,0 +1,47 @@
+{
+  "additionalProperties": false,
+  "description": "Untrusted model output. No approval, broadcast, admin, IDs or arbitrary tools.",
+  "properties": {
+    "kind": {
+      "enum": [
+        "now",
+        "guest",
+        "location",
+        "vendor",
+        "knowledge",
+        "family_status",
+        "arrival",
+        "missing_family",
+        "delay",
+        "unknown"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "query": {
+      "default": "",
+      "maxLength": 160,
+      "title": "Query",
+      "type": "string"
+    },
+    "minutes": {
+      "anyOf": [
+        {
+          "maximum": 180,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Minutes"
+    }
+  },
+  "required": [
+    "kind"
+  ],
+  "title": "Intent",
+  "type": "object"
+}

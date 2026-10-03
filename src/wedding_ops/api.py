@@ -206,6 +206,14 @@ def create_app(settings: Settings | None = None, db: Database | None = None, clo
         if len(q)>120: raise OpsError("validation","Search is too long")
         return {"items":queries.guests(actor,q,sensitive=sensitive),"limit":50}
 
+    @app.get("/api/guests/{person_id}/details")
+    def guest_details(person_id:str,actor:Actor=Depends(reader)):
+        return queries.guest_details(actor,person_id)
+
+    @app.get("/api/family/contacts")
+    def family_contacts(actor:Actor=Depends(reader)):
+        return {"items":queries.family_contacts(actor)}
+
     @app.get("/api/family")
     def family(q:str="",actor:Actor=Depends(reader)): return {"items":queries.family(actor,q[:160])}
 

@@ -126,3 +126,17 @@ def test_utc_timestamp_roundtrip(db):
 
 def test_demo_external_send_refused():
     with pytest.raises(ValueError):Settings(mode='demo',send_notifications=True,telegram_bot_token='not-real').validate()
+
+
+def test_postgres_migration_runtime_when_configured(db,monkeypatch):
+    """This case is explicitly skipped without a disposable PostgreSQL service."""
+    if db.sqlite:pytest.skip('PostgreSQL service not available in local build environment')
+    from sqlalchemy import text
+    Base.metadata.drop_all(db.engine)
+    with db.engine.begin() as connection:connection.execute(text('DROP TABLE IF EXISTS alembic_version'))
+    monkeypatch.setenv('WEDDINGOPS_DATABASE_URL',db.engine.url.render_as_string(hide_password=False))
+    config=Config(str(Path(__file__).resolve().parents[1]/'alembic.ini'))
+    command.upgrade(config,'head')
+    command.check(config)
+    assert set(Base.metadata.tables).issubset(inspect(db.engine).get_table_names())
+    command.downgrade(config,'base')

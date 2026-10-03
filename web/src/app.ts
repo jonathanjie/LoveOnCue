@@ -9,6 +9,7 @@ type Notice = {id:string;topic:string;message:string;state:string;created_at:str
 type Issue = {id:string;title:string;details:string;severity:string;kind:string;status:string;created_at:string};
 type Knowledge = {id:string;title:string;source_name:string;revision:number;status:string;verified_at:string|null;text:string|null;audience_team_ids:string[]};
 type Guest = {id:string;name:string;table:string|null;location_id:string|null;attendance:string;rsvp:string;version:number;dietary?:string|null};
+type GuestDetails = {id:string;name:string;table_id:string|null;rsvp:string;relationship:string|null;dietary:string|null;private_phone:string|null;version:number};
 type Vendor = {id:string;name:string;category:string;status:string;contact_name:string;contact_phone:string;team_id:string;expected_at:string};
 type Location = {id:string;name:string;directions:string;x:number;y:number};
 type Table = {id:string;label:string;location_id:string;capacity:number;x:number;y:number};
@@ -180,11 +181,27 @@ async function searchGuests():Promise<void>{const sequence=++guestSequence;const
 function renderGuests():void{
  const results=document.querySelector('#guest-results');if(!results)return;results.replaceChildren();if(!guestRows.length)results.append(empty('No matching guests. Ask the coordinator to check the list.'));
  for(const g of guestRows){const card=group('guest-card',group('',el('h3','',g.name),text(`Table ${g.table||'unassigned'} · ${locationName(g.location_id)}`,'muted small')),badge(g.attendance,g.attendance==='onsite'?'green':''));if(g.dietary)card.append(text(g.dietary,'dietary small'));
- if(has('guests:arrival')&&g.attendance!=='onsite')card.append(button('Confirm arrival',async()=>{if(confirm(`Confirm ${g.name} is onsite?`)){await command({type:'arrival',person_ids:[g.id],status:'onsite'});await searchGuests();}},'small-button'));results.append(card);}
+ if(has('guests:arrival')&&g.attendance!=='onsite')card.append(button('Confirm arrival',async()=>{if(confirm(`Confirm ${g.name} is onsite?`)){await command({type:'arrival',person_ids:[g.id],status:'onsite'});await searchGuests();}},'small-button'));if(coordinator())card.append(button('Edit guest / family role',()=>editGuest(g.id,card),'small-button'));results.append(card);}
  results.append(text('Showing up to 50 matches. Narrow the name to find additional guests.','small muted'));
+}
+async function editGuest(id:string,card:HTMLElement):Promise<void>{
+ const entry=await api<GuestDetails>(`/api/guests/${encodeURIComponent(id)}/details`);
+ card.querySelector('.guest-editor')?.remove();
+ const name=field('Guest name',entry.name);const table=selectField('Assigned table',[{id:'',name:'Unassigned'},...snapshot.tables.map(t=>({id:t.id,name:`Table ${t.label}`}))],entry.table_id||'');
+ const rsvp=selectField('RSVP',['yes','no','unknown'].map(v=>({id:v,name:v})),entry.rsvp);
+ const relation=field('Family role (blank removes family access)',entry.relationship||'');
+ relation.input.placeholder='father_of_bride, mother_of_groom, or another descriptive role';
+ const dietary=field('Dietary service notes',entry.dietary||'');const phone=field('Private contact phone',entry.private_phone||'');
+ const editor=group('guest-editor form-card',text('Private contact phones are available only to the coordinator and designated family liaison.','small warning-text'),name.wrap,table.wrap,rsvp.wrap,relation.wrap,dietary.wrap,phone.wrap,
+ button('Save reviewed guest details',async()=>{if(confirm('Save these guest details and family-contact visibility?')){await command({type:'edit_guest',person_id:id,expected_version:entry.version,name:name.input.value,table_id:table.input.value||null,rsvp:rsvp.input.value,relationship:relation.input.value||null,dietary:dietary.input.value||null,private_phone:phone.input.value||null});await searchGuests();}},'primary'));
+ const role=selectField('Helper role',['helper','registration','usher','photographer','family_liaison','banquet','mc','av','transport','team_lead'].map(v=>({id:v,name:v.replaceAll('_',' ')})));const team=selectField('Helper team',snapshot.teams);
+ editor.append(text('A guest can also be a helper without duplicating their guest record.','small muted'),role.wrap,team.wrap,button('Create membership for this guest',async()=>{if(confirm('Grant this guest the selected role and team?'))await command({type:'create_member',person_id:id,roles:[role.input.value],team_ids:[team.input.value]});},'small-button'));
+ card.append(editor);
 }
 function people():void{
  const s=section('People & teams','Permissions are assigned by the coordinator, never inferred from a chat message.');
+ if(has('family:contacts')){const box=el('div');s.append(button('Show authorized family contacts',async()=>{const response=await api<{items:{name:string;relationship:string;private_phone:string|null}[]}>('/api/family/contacts');box.replaceChildren();for(const person of response.items)box.append(group('person-card',text(`${person.name} · ${person.relationship.replaceAll('_',' ')}`),text(person.private_phone||'No contact number recorded','small')));if(!response.items.length)box.append(empty('No designated family contacts. A coordinator can assign family roles in Guest desk.'));},'small-button'),box);}
+
  for(const m of snapshot.members){const card=group('person-card',group('',el('h3','',m.name),text(m.team_ids.map(teamName).join(' · '),'small muted')),group('badges',...m.roles.map(r=>badge(r))),badge(m.active?'Active':'Revoked',m.active?'green':'danger'));
  if(coordinator()&&m.active){card.append(text(m.telegram_linked?'Telegram linked':'Not linked to Telegram','small muted'),button('Personal invitation',async()=>{const invite=await api<{web_url:string;telegram_url:string|null}>('/api/invitations',{member_id:m.id});const box=group('invite-box',text('Secret, one-use link. Share only with this person. Expires in 24 hours.','small warning-text'));const input=field('Invitation link',invite.telegram_url||invite.web_url);input.input.readOnly=true;box.append(input.wrap,button('Copy link',async()=>{await navigator.clipboard.writeText(input.input.value);announce('Invitation copied.');},'small-button'));card.append(box);},'small-button'));
  if(m.id!==snapshot.me.id)card.append(button('Revoke access',async()=>{if(confirm(`Revoke ${m.name}'s access immediately?`))await command({type:'revoke_member',member_id:m.id});},'small-button danger-button'));}s.append(card);

@@ -1,0 +1,122 @@
+{
+  "av": [
+    "context:read",
+    "incidents:report",
+    "knowledge:read",
+    "notifications:own",
+    "tasks:own",
+    "tasks:read",
+    "timeline:read",
+    "vendors:team"
+  ],
+  "banquet": [
+    "context:read",
+    "guests:dietary",
+    "incidents:report",
+    "knowledge:read",
+    "notifications:own",
+    "tasks:own",
+    "tasks:read",
+    "timeline:propose",
+    "timeline:read",
+    "vendors:team"
+  ],
+  "coordinator": [
+    "*"
+  ],
+  "couple": [
+    "context:read",
+    "knowledge:read",
+    "notifications:own",
+    "timeline:read"
+  ],
+  "family_liaison": [
+    "context:read",
+    "family:contacts",
+    "family:report",
+    "family:status",
+    "guests:arrival",
+    "incidents:report",
+    "knowledge:read",
+    "notifications:own",
+    "tasks:own",
+    "tasks:read",
+    "timeline:read"
+  ],
+  "helper": [
+    "context:read",
+    "incidents:report",
+    "knowledge:read",
+    "notifications:own",
+    "tasks:own",
+    "tasks:read",
+    "timeline:read"
+  ],
+  "mc": [
+    "context:read",
+    "incidents:report",
+    "knowledge:read",
+    "notifications:own",
+    "tasks:own",
+    "tasks:read",
+    "timeline:propose",
+    "timeline:read",
+    "vendors:team"
+  ],
+  "photographer": [
+    "context:read",
+    "family:report",
+    "family:status",
+    "incidents:report",
+    "knowledge:read",
+    "notifications:own",
+    "tasks:own",
+    "tasks:read",
+    "timeline:read",
+    "vendors:team"
+  ],
+  "registration": [
+    "context:read",
+    "family:status",
+    "guests:arrival",
+    "guests:seating",
+    "incidents:report",
+    "knowledge:read",
+    "notifications:own",
+    "tasks:own",
+    "tasks:read",
+    "timeline:read"
+  ],
+  "team_lead": [
+    "context:read",
+    "incidents:report",
+    "knowledge:read",
+    "notifications:own",
+    "tasks:own",
+    "tasks:read",
+    "tasks:team",
+    "timeline:read",
+    "vendors:team"
+  ],
+  "transport": [
+    "context:read",
+    "family:status",
+    "incidents:report",
+    "knowledge:read",
+    "notifications:own",
+    "tasks:own",
+    "tasks:read",
+    "timeline:read",
+    "vendors:team"
+  ],
+  "usher": [
+    "context:read",
+    "guests:seating",
+    "incidents:report",
+    "knowledge:read",
+    "notifications:own",
+    "tasks:own",
+    "tasks:read",
+    "timeline:read"
+  ]
+}

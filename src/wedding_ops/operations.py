@@ -63,7 +63,7 @@ CAPABILITY = {
     "acknowledge_notification": "notifications:own", "add_knowledge": "knowledge:manage",
     "review_knowledge": "knowledge:manage", "revoke_member": "members:manage", "broadcast": "messages:broadcast",
     "set_wedding_status": "wedding:manage", "apply_guest_import": "guests:manage",
-    "create_team": "members:manage", "create_member": "members:manage", "create_task": "tasks:manage",
+    "edit_guest": "guests:manage", "create_team": "members:manage", "create_member": "members:manage", "create_task": "tasks:manage",
     "create_location": "wedding:manage", "create_table": "wedding:manage", "create_timeline_item": "timeline:manage",
     "timeline_action": "timeline:manage", "create_vendor": "vendors:manage", "vendor_status": "vendors:team",
 }
@@ -316,15 +316,39 @@ class Operations:
             if not set(cmd.roles).issubset(ROLES):
                 raise OpsError("invalid_role", "Unknown role")
             assert_teams(s, wid, cmd.team_ids)
-            person = Person(id=new_id(), wedding_id=wid, name=cmd.name, is_guest=False)
-            s.add(person)
-            s.flush()
+            if cmd.person_id:
+                person = row(s, Person, wid, cmd.person_id)
+                if s.scalar(select(Member.id).where(Member.wedding_id == wid, Member.person_id == person.id)):
+                    raise conflict("This person already has a membership, including any revoked membership")
+            else:
+                person = Person(id=new_id(), wedding_id=wid, name=cmd.name, is_guest=False)
+                s.add(person)
+                s.flush()
             member = Member(id=new_id(), wedding_id=wid, person_id=person.id, roles=sorted(set(cmd.roles)), active=True)
             s.add(member)
             s.flush()
             for team in set(cmd.team_ids):
                 s.add(MemberTeam(wedding_id=wid, member_id=member.id, team_id=team))
             return {"id": member.id, "status": "created"}
+
+        if cmd.type == "edit_guest":
+            person = row(s, Person, wid, cmd.person_id)
+            if not person.is_guest:
+                raise conflict("This endpoint edits guest records only")
+            if person.version != cmd.expected_version:
+                raise conflict("Guest changed since you viewed it. Refresh before editing")
+            if cmd.table_id:
+                table = row(s, SeatingTable, wid, cmd.table_id)
+                occupied = sum(p.is_guest and p.id != person.id and p.table_id == table.id
+                               for p in rows(s, Person, wid))
+                if occupied >= table.capacity:
+                    raise conflict("The selected table has no spare seats")
+            person.name, person.table_id, person.rsvp = cmd.name, cmd.table_id, cmd.rsvp
+            person.relationship = cmd.relationship
+            person.dietary_private, person.private_phone = cmd.dietary or None, cmd.private_phone or None
+            person.version += 1
+            # Receipt and audit intentionally omit edited PII values.
+            return {"id": person.id, "status": "updated", "version": person.version}
 
         if cmd.type == "create_task":
             row(s, Location, wid, cmd.location_id)

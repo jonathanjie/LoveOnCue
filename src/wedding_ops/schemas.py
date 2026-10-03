@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
 ID = Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")]
 Text = Annotated[str, Field(min_length=1, max_length=2000)]
@@ -105,9 +105,29 @@ class CreateTeam(Strict):
 
 class CreateMember(Strict):
     type: Literal["create_member"]
-    name: Annotated[str, Field(min_length=2, max_length=120)]
+    # A person may be both guest and helper. Reuse their record rather than duplicate it.
+    name: Annotated[str, Field(min_length=2, max_length=120)] | None = None
+    person_id: ID | None = None
     roles: list[str] = Field(min_length=1, max_length=6)
     team_ids: list[ID] = Field(min_length=1, max_length=10)
+
+    @model_validator(mode="after")
+    def identity_source(self):
+        if (self.name is None) == (self.person_id is None):
+            raise ValueError("Supply exactly one of name or existing person_id")
+        return self
+
+
+class EditGuest(Strict):
+    type: Literal["edit_guest"]
+    person_id: ID
+    expected_version: int = Field(ge=1)
+    name: Annotated[str, Field(min_length=2, max_length=120)]
+    table_id: ID | None
+    rsvp: Literal["yes", "no", "unknown"]
+    relationship: Annotated[str, Field(min_length=1, max_length=80)] | None
+    dietary: Annotated[str, Field(max_length=300)] | None
+    private_phone: Annotated[str, Field(max_length=64)] | None
 
 
 class CreateTask(Strict):
@@ -198,7 +218,7 @@ Command = Annotated[
     TaskAction | Arrival | ReportIncident | ResolveIncident | ProposeDelay | DecideApproval |
     AcknowledgeNotification | AddKnowledge | ReviewKnowledge | RevokeMember | Broadcast |
     SetWeddingStatus | ApplyGuestImport | CreateTeam | CreateMember | CreateTask |
-    CreateLocation | CreateTable | CreateTimelineItem | TimelineAction | CreateVendor | VendorStatus,
+    CreateLocation | CreateTable | CreateTimelineItem | TimelineAction | CreateVendor | VendorStatus | EditGuest,
     Field(discriminator="type"),
 ]
 COMMAND = TypeAdapter(Command)

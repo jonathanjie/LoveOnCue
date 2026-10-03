@@ -1,0 +1,1157 @@
+{
+  "$defs": {
+    "AcknowledgeNotification": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "acknowledge_notification",
+          "title": "Type",
+          "type": "string"
+        },
+        "notification_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Notification Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "notification_id"
+      ],
+      "title": "AcknowledgeNotification",
+      "type": "object"
+    },
+    "AddKnowledge": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "add_knowledge",
+          "title": "Type",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 160,
+          "minLength": 3,
+          "title": "Title",
+          "type": "string"
+        },
+        "source_name": {
+          "maxLength": 180,
+          "minLength": 1,
+          "title": "Source Name",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 60000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "audience_team_ids": {
+          "items": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Audience Team Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "source_name",
+        "text"
+      ],
+      "title": "AddKnowledge",
+      "type": "object"
+    },
+    "ApplyGuestImport": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "apply_guest_import",
+          "title": "Type",
+          "type": "string"
+        },
+        "import_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Import Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "import_id"
+      ],
+      "title": "ApplyGuestImport",
+      "type": "object"
+    },
+    "Arrival": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "arrival",
+          "title": "Type",
+          "type": "string"
+        },
+        "person_ids": {
+          "items": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Person Ids",
+          "type": "array"
+        },
+        "status": {
+          "default": "onsite",
+          "enum": [
+            "onsite",
+            "departed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "person_ids"
+      ],
+      "title": "Arrival",
+      "type": "object"
+    },
+    "Broadcast": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "broadcast",
+          "title": "Type",
+          "type": "string"
+        },
+        "team_ids": {
+          "items": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Team Ids",
+          "type": "array"
+        },
+        "message": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "team_ids",
+        "message"
+      ],
+      "title": "Broadcast",
+      "type": "object"
+    },
+    "CreateLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "create_location",
+          "title": "Type",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 120,
+          "minLength": 2,
+          "title": "Name",
+          "type": "string"
+        },
+        "directions": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Directions",
+          "type": "string"
+        },
+        "x": {
+          "default": 50,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "X",
+          "type": "integer"
+        },
+        "y": {
+          "default": 50,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Y",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "name"
+      ],
+      "title": "CreateLocation",
+      "type": "object"
+    },
+    "CreateMember": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "create_member",
+          "title": "Type",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 2,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "person_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Person Id"
+        },
+        "roles": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "title": "Roles",
+          "type": "array"
+        },
+        "team_ids": {
+          "items": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "title": "Team Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "roles",
+        "team_ids"
+      ],
+      "title": "CreateMember",
+      "type": "object"
+    },
+    "CreateTable": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "create_table",
+          "title": "Type",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "location_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Location Id",
+          "type": "string"
+        },
+        "capacity": {
+          "default": 10,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Capacity",
+          "type": "integer"
+        },
+        "x": {
+          "default": 50,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "X",
+          "type": "integer"
+        },
+        "y": {
+          "default": 50,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Y",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "label",
+        "location_id"
+      ],
+      "title": "CreateTable",
+      "type": "object"
+    },
+    "CreateTask": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "create_task",
+          "title": "Type",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 160,
+          "minLength": 3,
+          "title": "Title",
+          "type": "string"
+        },
+        "instructions": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Instructions",
+          "type": "string"
+        },
+        "owner_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Owner Id",
+          "type": "string"
+        },
+        "team_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Team Id",
+          "type": "string"
+        },
+        "location_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Location Id",
+          "type": "string"
+        },
+        "due_at": {
+          "format": "date-time",
+          "title": "Due At",
+          "type": "string"
+        },
+        "depends_on_ids": {
+          "items": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Depends On Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "owner_id",
+        "team_id",
+        "location_id",
+        "due_at"
+      ],
+      "title": "CreateTask",
+      "type": "object"
+    },
+    "CreateTeam": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "create_team",
+          "title": "Type",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 2,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "name"
+      ],
+      "title": "CreateTeam",
+      "type": "object"
+    },
+    "CreateTimelineItem": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "create_timeline_item",
+          "title": "Type",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 160,
+          "minLength": 3,
+          "title": "Title",
+          "type": "string"
+        },
+        "instructions": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Instructions",
+          "type": "string"
+        },
+        "starts_at": {
+          "format": "date-time",
+          "title": "Starts At",
+          "type": "string"
+        },
+        "duration_minutes": {
+          "maximum": 1440,
+          "minimum": 1,
+          "title": "Duration Minutes",
+          "type": "integer"
+        },
+        "latest_end": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latest End"
+        },
+        "location_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Location Id",
+          "type": "string"
+        },
+        "team_ids": {
+          "items": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Team Ids",
+          "type": "array"
+        },
+        "depends_on_ids": {
+          "items": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Depends On Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "starts_at",
+        "duration_minutes",
+        "location_id",
+        "team_ids"
+      ],
+      "title": "CreateTimelineItem",
+      "type": "object"
+    },
+    "CreateVendor": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "create_vendor",
+          "title": "Type",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 120,
+          "minLength": 2,
+          "title": "Name",
+          "type": "string"
+        },
+        "category": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Category",
+          "type": "string"
+        },
+        "contact_name": {
+          "maxLength": 120,
+          "minLength": 2,
+          "title": "Contact Name",
+          "type": "string"
+        },
+        "contact_phone": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Contact Phone",
+          "type": "string"
+        },
+        "team_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Team Id",
+          "type": "string"
+        },
+        "expected_at": {
+          "format": "date-time",
+          "title": "Expected At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "name",
+        "category",
+        "contact_name",
+        "contact_phone",
+        "team_id",
+        "expected_at"
+      ],
+      "title": "CreateVendor",
+      "type": "object"
+    },
+    "DecideApproval": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "decide_approval",
+          "title": "Type",
+          "type": "string"
+        },
+        "approval_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Approval Id",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "reject"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "maxLength": 1000,
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "approval_id",
+        "decision"
+      ],
+      "title": "DecideApproval",
+      "type": "object"
+    },
+    "EditGuest": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "edit_guest",
+          "title": "Type",
+          "type": "string"
+        },
+        "person_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Person Id",
+          "type": "string"
+        },
+        "expected_version": {
+          "minimum": 1,
+          "title": "Expected Version",
+          "type": "integer"
+        },
+        "name": {
+          "maxLength": 120,
+          "minLength": 2,
+          "title": "Name",
+          "type": "string"
+        },
+        "table_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Table Id"
+        },
+        "rsvp": {
+          "enum": [
+            "yes",
+            "no",
+            "unknown"
+          ],
+          "title": "Rsvp",
+          "type": "string"
+        },
+        "relationship": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Relationship"
+        },
+        "dietary": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Dietary"
+        },
+        "private_phone": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Private Phone"
+        }
+      },
+      "required": [
+        "type",
+        "person_id",
+        "expected_version",
+        "name",
+        "table_id",
+        "rsvp",
+        "relationship",
+        "dietary",
+        "private_phone"
+      ],
+      "title": "EditGuest",
+      "type": "object"
+    },
+    "ProposeDelay": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "propose_delay",
+          "title": "Type",
+          "type": "string"
+        },
+        "item_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "minutes": {
+          "maximum": 180,
+          "minimum": 1,
+          "title": "Minutes",
+          "type": "integer"
+        },
+        "reason": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "item_id",
+        "minutes",
+        "reason"
+      ],
+      "title": "ProposeDelay",
+      "type": "object"
+    },
+    "ReportIncident": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "report_incident",
+          "title": "Type",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "location_unconfirmed",
+            "vendor",
+            "logistics",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 160,
+          "minLength": 3,
+          "title": "Title",
+          "type": "string"
+        },
+        "details": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Details",
+          "type": "string"
+        },
+        "subject_person_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subject Person Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
+        "severity": {
+          "default": "normal",
+          "enum": [
+            "normal",
+            "urgent"
+          ],
+          "title": "Severity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "kind",
+        "title",
+        "details"
+      ],
+      "title": "ReportIncident",
+      "type": "object"
+    },
+    "ResolveIncident": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "resolve_incident",
+          "title": "Type",
+          "type": "string"
+        },
+        "incident_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Incident Id",
+          "type": "string"
+        },
+        "note": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "incident_id",
+        "note"
+      ],
+      "title": "ResolveIncident",
+      "type": "object"
+    },
+    "ReviewKnowledge": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "review_knowledge",
+          "title": "Type",
+          "type": "string"
+        },
+        "document_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Document Id",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "retire"
+          ],
+          "title": "Decision",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "document_id",
+        "decision"
+      ],
+      "title": "ReviewKnowledge",
+      "type": "object"
+    },
+    "RevokeMember": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "revoke_member",
+          "title": "Type",
+          "type": "string"
+        },
+        "member_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Member Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "member_id"
+      ],
+      "title": "RevokeMember",
+      "type": "object"
+    },
+    "SetWeddingStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "set_wedding_status",
+          "title": "Type",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "live",
+            "archived"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "status"
+      ],
+      "title": "SetWeddingStatus",
+      "type": "object"
+    },
+    "TaskAction": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "task_action",
+          "title": "Type",
+          "type": "string"
+        },
+        "task_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Task Id",
+          "type": "string"
+        },
+        "action": {
+          "enum": [
+            "acknowledge",
+            "start",
+            "complete"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "expected_version": {
+          "minimum": 1,
+          "title": "Expected Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "task_id",
+        "action",
+        "expected_version"
+      ],
+      "title": "TaskAction",
+      "type": "object"
+    },
+    "TimelineAction": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "timeline_action",
+          "title": "Type",
+          "type": "string"
+        },
+        "item_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "action": {
+          "enum": [
+            "start",
+            "complete"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "expected_timeline_version": {
+          "minimum": 1,
+          "title": "Expected Timeline Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "item_id",
+        "action",
+        "expected_timeline_version"
+      ],
+      "title": "TimelineAction",
+      "type": "object"
+    },
+    "VendorStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "vendor_status",
+          "title": "Type",
+          "type": "string"
+        },
+        "vendor_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Vendor Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "expected",
+            "onsite",
+            "late",
+            "complete"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "vendor_id",
+        "status"
+      ],
+      "title": "VendorStatus",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "command": {
+      "discriminator": {
+        "mapping": {
+          "acknowledge_notification": "#/$defs/AcknowledgeNotification",
+          "add_knowledge": "#/$defs/AddKnowledge",
+          "apply_guest_import": "#/$defs/ApplyGuestImport",
+          "arrival": "#/$defs/Arrival",
+          "broadcast": "#/$defs/Broadcast",
+          "create_location": "#/$defs/CreateLocation",
+          "create_member": "#/$defs/CreateMember",
+          "create_table": "#/$defs/CreateTable",
+          "create_task": "#/$defs/CreateTask",
+          "create_team": "#/$defs/CreateTeam",
+          "create_timeline_item": "#/$defs/CreateTimelineItem",
+          "create_vendor": "#/$defs/CreateVendor",
+          "decide_approval": "#/$defs/DecideApproval",
+          "edit_guest": "#/$defs/EditGuest",
+          "propose_delay": "#/$defs/ProposeDelay",
+          "report_incident": "#/$defs/ReportIncident",
+          "resolve_incident": "#/$defs/ResolveIncident",
+          "review_knowledge": "#/$defs/ReviewKnowledge",
+          "revoke_member": "#/$defs/RevokeMember",
+          "set_wedding_status": "#/$defs/SetWeddingStatus",
+          "task_action": "#/$defs/TaskAction",
+          "timeline_action": "#/$defs/TimelineAction",
+          "vendor_status": "#/$defs/VendorStatus"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TaskAction"
+        },
+        {
+          "$ref": "#/$defs/Arrival"
+        },
+        {
+          "$ref": "#/$defs/ReportIncident"
+        },
+        {
+          "$ref": "#/$defs/ResolveIncident"
+        },
+        {
+          "$ref": "#/$defs/ProposeDelay"
+        },
+        {
+          "$ref": "#/$defs/DecideApproval"
+        },
+        {
+          "$ref": "#/$defs/AcknowledgeNotification"
+        },
+        {
+          "$ref": "#/$defs/AddKnowledge"
+        },
+        {
+          "$ref": "#/$defs/ReviewKnowledge"
+        },
+        {
+          "$ref": "#/$defs/RevokeMember"
+        },
+        {
+          "$ref": "#/$defs/Broadcast"
+        },
+        {
+          "$ref": "#/$defs/SetWeddingStatus"
+        },
+        {
+          "$ref": "#/$defs/ApplyGuestImport"
+        },
+        {
+          "$ref": "#/$defs/CreateTeam"
+        },
+        {
+          "$ref": "#/$defs/CreateMember"
+        },
+        {
+          "$ref": "#/$defs/CreateTask"
+        },
+        {
+          "$ref": "#/$defs/CreateLocation"
+        },
+        {
+          "$ref": "#/$defs/CreateTable"
+        },
+        {
+          "$ref": "#/$defs/CreateTimelineItem"
+        },
+        {
+          "$ref": "#/$defs/TimelineAction"
+        },
+        {
+          "$ref": "#/$defs/CreateVendor"
+        },
+        {
+          "$ref": "#/$defs/VendorStatus"
+        },
+        {
+          "$ref": "#/$defs/EditGuest"
+        }
+      ],
+      "title": "Command"
+    },
+    "request_id": {
+      "maxLength": 120,
+      "minLength": 8,
+      "pattern": "^[a-zA-Z0-9:_-]+$",
+      "title": "Request Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "command",
+    "request_id"
+  ],
+  "title": "CommandRequest",
+  "type": "object"
+}

@@ -14,7 +14,7 @@ from .models import (
     Approval, AuditEvent, Incident, KnowledgeDocument, Location, Member, MemberTeam,
     Notification, Person, SeatingTable, Task, TaskDependency, Team, TimelineItem, Vendor, Wedding,
 )
-from .policy import Access, Actor, load_access
+from .policy import Access, Actor, load_access, require_human
 
 
 def row(session: Session, cls, wedding_id: str, record_id: str):
@@ -151,11 +151,36 @@ class Queries:
                         "rsvp": p.rsvp, "version": p.version}
                 if sensitive:
                     item["dietary"] = p.dietary_private
-                # No guest endpoint returns private phone numbers.
+                # General guest search never returns private phone numbers.
                 result.append(item)
                 if len(result) == 50:
                     break
             return result
+
+    def guest_details(self, actor: Actor, person_id: str) -> dict:
+        require_human(actor)
+        with self.db.transaction(self.wid, write=True) as (s, w):
+            load_access(s, actor, self.wid).require("guests:manage")
+            person = row(s, Person, self.wid, person_id)
+            if not person.is_guest:
+                raise missing()
+            s.add(AuditEvent(wedding_id=self.wid, actor_id=actor.member_id, event_type="guest_details_access",
+                             entity_id=person.id, detail={"fields": "coordinator_guest_editor"},
+                             state_version=w.state_version, created_at=self.clock.now()))
+            return {"id": person.id, "name": person.name, "table_id": person.table_id,
+                    "rsvp": person.rsvp, "relationship": person.relationship,
+                    "dietary": person.dietary_private, "private_phone": person.private_phone,
+                    "version": person.version}
+
+    def family_contacts(self, actor: Actor) -> list[dict]:
+        require_human(actor)
+        with self.db.transaction(self.wid, write=True) as (s, w):
+            load_access(s, actor, self.wid).require("family:contacts")
+            s.add(AuditEvent(wedding_id=self.wid, actor_id=actor.member_id, event_type="family_contacts_access",
+                             entity_id=self.wid, detail={"fields": "designated_family_contacts"},
+                             state_version=w.state_version, created_at=self.clock.now()))
+            return [{"id": p.id, "name": p.name, "relationship": p.relationship,
+                     "private_phone": p.private_phone} for p in rows(s, Person, self.wid) if p.relationship]
 
     def family(self, actor: Actor, query: str = "") -> list[dict]:
         with self.db.transaction(self.wid) as (s, _):
