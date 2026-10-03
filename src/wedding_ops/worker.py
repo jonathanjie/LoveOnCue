@@ -74,6 +74,7 @@ class Worker:
             now = self.clock.now()
             before_count = s.scalar(select(func.count()).select_from(Notification).where(Notification.wedding_id == self.wid))
             expired = 0
+            expired_ids = []
             for task in rows(s, Task, self.wid):
                 if task.state in {"done", "cancelled"} or task.acknowledged_at:
                     continue
@@ -95,12 +96,14 @@ class Worker:
                 if proposal.status == "pending" and proposal.expires_at <= now:
                     proposal.status = "expired"
                     expired += 1
-                    audit(s, w, "system", "proposal_expired", proposal.id, {}, now)
+                    expired_ids.append(proposal.id)
             s.flush()
             after_count = s.scalar(select(func.count()).select_from(Notification).where(Notification.wedding_id == self.wid))
             queued = after_count - before_count
             if expired or queued:
                 w.state_version += 1
+            for ident in expired_ids:
+                audit(s, w, "system", "proposal_expired", ident, {}, now)
             return {"queued": queued, "expired": expired}
 
     def dispatch_one(self) -> bool:
@@ -112,6 +115,7 @@ class Worker:
                          .order_by(Notification.created_at, Notification.id).limit(1))
             if n is None:
                 return False
+            w.state_version += 1
             if w.status == "archived":
                 n.state = "cancelled"
                 return True
@@ -150,6 +154,7 @@ class Worker:
             notice = row(s, Notification, self.wid, ident)
             if notice.lease_token != lease:
                 return True  # A reclaimed lease owns this row now.
+            w.state_version += 1
             if error is None:
                 notice.state = "simulated" if self.transport.simulated else "sent"
                 notice.provider_message_id, notice.sent_at, notice.last_error = provider_id, self.clock.now(), None

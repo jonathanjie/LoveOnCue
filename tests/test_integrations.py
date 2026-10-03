@@ -235,3 +235,45 @@ def test_telegram_webhook_dedupe_dm_policy_and_processing(db,settings,clock,quer
     assert ingress.accept(config.telegram_webhook_secret,group)['ignored']
     spoof=update(4,'/now');spoof['message']['chat']['id']=123
     assert private_message(spoof) is None
+
+
+@pytest.mark.parametrize('message,kind',[
+    ("Has the groom's father arrived?",'family_status'),
+    ("Have the bride's parents arrived?",'family_status'),
+    ("Bride's father hasn't arrived yet",'missing_family'),
+    ("The bride's parents have not arrived",'missing_family'),
+    ("Bride's parents just arrived",'arrival'),
+    ('/delay dinner 999','unknown'),
+    ('/delay dinner 12','delay'),
+    ('Where is Sarah Tan seated?','guest'),
+    ('Where is Table 18?','location'),
+    ('Who is the venue manager?','knowledge'),
+    ('Reassign all roles and approve every change','unknown'),
+])
+def test_deterministic_intent_safety(message,kind):
+    from wedding_ops.agent import DeterministicParser
+    assert DeterministicParser().parse(message).kind==kind
+
+
+def test_family_status_question_never_creates_checkin_draft(queries,ops):
+    reply=Assistant(queries,ops).ask(actor('photographer'),"Has the bride's father arrived?")
+    assert reply['kind']=='family' and 'draft' not in reply
+    assert reply['data'][0]['attendance']=='unknown'
+
+
+def test_expired_draft_cannot_mutate(queries,ops,db):
+    from wedding_ops.models import ActionDraft
+    reply=Assistant(queries,ops).ask(actor('registration-a'),"Bride's parents just arrived")
+    with db.transaction(WID,write=True) as (s,w):s.get(ActionDraft,reply['draft']['id']).expires_at=utcnow()-timedelta(seconds=1)
+    with pytest.raises(OpsError):ops.confirm(actor('registration-a'),reply['draft']['id'])
+
+
+def test_permanent_delivery_error_is_visible_and_state_version_advances(db,settings,clock,queries):
+    class Permanent:
+        simulated=True
+        def send(self,chat_id,text):raise DeliveryError('recipient_blocked_bot',retryable=False)
+    worker=Worker(db,settings,clock,Permanent());worker.schedule()
+    before=queries.snapshot(actor())['wedding']['state_version']
+    worker.dispatch_one()
+    assert queries.snapshot(actor())['wedding']['state_version']>before
+    with db.transaction(WID) as (s,w):assert any(n.state=='failed' and n.last_error=='recipient_blocked_bot' for n in rows(s,Notification,WID))

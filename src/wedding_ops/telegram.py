@@ -138,6 +138,7 @@ class TelegramIngress:
                 item.payload = {}  # Minimize retention of raw messages and enrollment tokens.
                 if member_id and result:
                     notify(s, self.wid, member_id, "bot_reply", result, f"telegram-reply:{provider_id}", self.clock.now(), permission=permission)
+                w.state_version += 1
                 audit(s,w,"system","telegram_processed",item.id,{"status":item.state,"error_code":failure},self.clock.now())
             item.last_error, item.lease_token, item.lease_until = failure, None, None
         return True

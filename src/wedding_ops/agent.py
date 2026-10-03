@@ -55,10 +55,15 @@ class DeterministicParser:
                              ("/knowledge ", "knowledge"), ("/family ", "family_status"), ("/arrival ", "arrival")]:
             if value.startswith(prefix):
                 return Intent(kind=kind, query=text[len(prefix):].strip()[:160])
-        if "arrived" in value and any(x in value for x in ["bride", "groom", "parents", "father", "mother"]):
-            return Intent(kind="arrival", query=value[:160])
-        if any(x in value for x in ["isn't here", "not here", "missing", "needs him", "needs her"]) and any(x in value for x in ["bride", "groom", "father", "mother", "dad", "mum"]):
+        family_words = ["bride", "groom", "parents", "father", "mother", "dad", "mum"]
+        mentions_family = any(x in value for x in family_words)
+        # A question is never an arrival report. Negated reports must not become check-ins.
+        if mentions_family and re.match(r"^(?:has|have|is|are|did|where)\b", value):
+            return Intent(kind="family_status", query=value[:160])
+        if any(x in value for x in ["isn't here", "not here", "missing", "needs him", "needs her", "hasn't arrived", "haven't arrived", "not arrived"]) and mentions_family:
             return Intent(kind="missing_family", query=value[:160])
+        if "arrived" in value and mentions_family:
+            return Intent(kind="arrival", query=value[:160])
         match = re.search(r"where is (.+?) (?:seated|sitting)\??$", text, re.I)
         if match:
             return Intent(kind="guest", query=match[1])

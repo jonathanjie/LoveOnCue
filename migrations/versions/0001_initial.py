@@ -19,7 +19,7 @@ def upgrade():
     sa.Column('status', sa.String(length=16), nullable=False),
     sa.Column('state_version', sa.Integer(), nullable=False),
     sa.Column('timeline_version', sa.Integer(), nullable=False),
-    sa.Column('created_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.CheckConstraint("status IN ('draft','live','archived')", name=op.f('ck_weddings_status')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_weddings'))
     )
@@ -29,18 +29,18 @@ def upgrade():
     sa.Column('entity_id', sa.String(length=64), nullable=False),
     sa.Column('detail', sa.JSON(), nullable=False),
     sa.Column('state_version', sa.Integer(), nullable=False),
-    sa.Column('created_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('id', sa.String(length=64), nullable=False),
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_audit_events_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_audit_events')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_audit_events_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_audit_events_wedding_id_id'))
     )
     op.create_index(op.f('ix_audit_events_wedding_id'), 'audit_events', ['wedding_id'], unique=False)
     op.create_table('auth_replays',
     sa.Column('digest', sa.String(length=64), nullable=False),
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
-    sa.Column('expires_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_auth_replays_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('digest', name=op.f('pk_auth_replays'))
     )
@@ -50,7 +50,7 @@ def upgrade():
     sa.Column('request_id', sa.String(length=120), nullable=False),
     sa.Column('payload_hash', sa.String(length=64), nullable=False),
     sa.Column('result', sa.JSON(), nullable=False),
-    sa.Column('created_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_command_receipts_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('wedding_id', 'actor_id', 'request_id', name=op.f('pk_command_receipts'))
     )
@@ -59,17 +59,17 @@ def upgrade():
     sa.Column('payload', sa.JSON(), nullable=False),
     sa.Column('state', sa.String(length=16), nullable=False),
     sa.Column('attempts', sa.Integer(), nullable=False),
-    sa.Column('lease_until', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('lease_until', sa.DateTime(timezone=True), nullable=True),
     sa.Column('lease_token', sa.String(length=64), nullable=True),
-    sa.Column('next_attempt_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
+    sa.Column('next_attempt_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('last_error', sa.String(length=160), nullable=True),
-    sa.Column('created_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('id', sa.String(length=64), nullable=False),
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_inbound_updates_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_inbound_updates')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_inbound_updates_wedding_id')),
-    sa.UniqueConstraint('wedding_id', 'provider_update_id', name=op.f('uq_inbound_updates_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_inbound_updates_wedding_id_id')),
+    sa.UniqueConstraint('wedding_id', 'provider_update_id', name=op.f('uq_inbound_updates_wedding_id_provider_update_id'))
     )
     op.create_index(op.f('ix_inbound_updates_wedding_id'), 'inbound_updates', ['wedding_id'], unique=False)
     op.create_table('locations',
@@ -81,7 +81,7 @@ def upgrade():
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_locations_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_locations')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_locations_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_locations_wedding_id_id'))
     )
     op.create_index(op.f('ix_locations_wedding_id'), 'locations', ['wedding_id'], unique=False)
     op.create_table('teams',
@@ -90,8 +90,8 @@ def upgrade():
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_teams_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_teams')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_teams_wedding_id')),
-    sa.UniqueConstraint('wedding_id', 'name', name=op.f('uq_teams_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_teams_wedding_id_id')),
+    sa.UniqueConstraint('wedding_id', 'name', name=op.f('uq_teams_wedding_id_name'))
     )
     op.create_index(op.f('ix_teams_wedding_id'), 'teams', ['wedding_id'], unique=False)
     op.create_table('seating_tables',
@@ -103,22 +103,22 @@ def upgrade():
     sa.Column('id', sa.String(length=64), nullable=False),
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
     sa.CheckConstraint('capacity > 0', name=op.f('ck_seating_tables_capacity')),
-    sa.ForeignKeyConstraint(['wedding_id', 'location_id'], ['locations.wedding_id', 'locations.id'], name=op.f('fk_seating_tables_wedding_id_locations')),
+    sa.ForeignKeyConstraint(['wedding_id', 'location_id'], ['locations.wedding_id', 'locations.id'], name=op.f('fk_seating_tables_wedding_id_location_id_locations')),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_seating_tables_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_seating_tables')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_seating_tables_wedding_id')),
-    sa.UniqueConstraint('wedding_id', 'label', name=op.f('uq_seating_tables_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_seating_tables_wedding_id_id')),
+    sa.UniqueConstraint('wedding_id', 'label', name=op.f('uq_seating_tables_wedding_id_label'))
     )
     op.create_index(op.f('ix_seating_tables_wedding_id'), 'seating_tables', ['wedding_id'], unique=False)
     op.create_table('timeline_items',
     sa.Column('title', sa.String(length=160), nullable=False),
     sa.Column('instructions', sa.Text(), nullable=False),
-    sa.Column('planned_start', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
-    sa.Column('current_start', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
+    sa.Column('planned_start', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('current_start', sa.DateTime(timezone=True), nullable=False),
     sa.Column('duration_minutes', sa.Integer(), nullable=False),
-    sa.Column('actual_start', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
-    sa.Column('actual_end', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
-    sa.Column('latest_end', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('actual_start', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('actual_end', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('latest_end', sa.DateTime(timezone=True), nullable=True),
     sa.Column('location_id', sa.String(length=64), nullable=False),
     sa.Column('team_ids', sa.JSON(), nullable=False),
     sa.Column('status', sa.String(length=16), nullable=False),
@@ -126,10 +126,10 @@ def upgrade():
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
     sa.CheckConstraint("status IN ('scheduled','live','complete')", name=op.f('ck_timeline_items_status')),
     sa.CheckConstraint('duration_minutes > 0', name=op.f('ck_timeline_items_duration')),
-    sa.ForeignKeyConstraint(['wedding_id', 'location_id'], ['locations.wedding_id', 'locations.id'], name=op.f('fk_timeline_items_wedding_id_locations')),
+    sa.ForeignKeyConstraint(['wedding_id', 'location_id'], ['locations.wedding_id', 'locations.id'], name=op.f('fk_timeline_items_wedding_id_location_id_locations')),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_timeline_items_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_timeline_items')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_timeline_items_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_timeline_items_wedding_id_id'))
     )
     op.create_index(op.f('ix_timeline_items_wedding_id'), 'timeline_items', ['wedding_id'], unique=False)
     op.create_table('vendors',
@@ -138,14 +138,14 @@ def upgrade():
     sa.Column('contact_name', sa.String(length=120), nullable=False),
     sa.Column('contact_phone', sa.String(length=64), nullable=False),
     sa.Column('team_id', sa.String(length=64), nullable=False),
-    sa.Column('expected_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
+    sa.Column('expected_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('status', sa.String(length=20), nullable=False),
     sa.Column('id', sa.String(length=64), nullable=False),
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
-    sa.ForeignKeyConstraint(['wedding_id', 'team_id'], ['teams.wedding_id', 'teams.id'], name=op.f('fk_vendors_wedding_id_teams')),
+    sa.ForeignKeyConstraint(['wedding_id', 'team_id'], ['teams.wedding_id', 'teams.id'], name=op.f('fk_vendors_wedding_id_team_id_teams')),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_vendors_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_vendors')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_vendors_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_vendors_wedding_id_id'))
     )
     op.create_index(op.f('ix_vendors_wedding_id'), 'vendors', ['wedding_id'], unique=False)
     op.create_table('people',
@@ -155,7 +155,7 @@ def upgrade():
     sa.Column('table_id', sa.String(length=64), nullable=True),
     sa.Column('rsvp', sa.String(length=16), nullable=False),
     sa.Column('attendance', sa.String(length=16), nullable=False),
-    sa.Column('arrived_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('arrived_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('private_phone', sa.String(length=64), nullable=True),
     sa.Column('dietary_private', sa.String(length=300), nullable=True),
     sa.Column('version', sa.Integer(), nullable=False),
@@ -163,10 +163,10 @@ def upgrade():
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
     sa.CheckConstraint("attendance IN ('unknown','onsite','departed')", name=op.f('ck_people_attendance')),
     sa.CheckConstraint("rsvp IN ('yes','no','unknown')", name=op.f('ck_people_rsvp')),
-    sa.ForeignKeyConstraint(['wedding_id', 'table_id'], ['seating_tables.wedding_id', 'seating_tables.id'], name=op.f('fk_people_wedding_id_seating_tables')),
+    sa.ForeignKeyConstraint(['wedding_id', 'table_id'], ['seating_tables.wedding_id', 'seating_tables.id'], name=op.f('fk_people_wedding_id_table_id_seating_tables')),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_people_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_people')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_people_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_people_wedding_id_id'))
     )
     op.create_index(op.f('ix_people_name'), 'people', ['name'], unique=False)
     op.create_index(op.f('ix_people_wedding_id'), 'people', ['wedding_id'], unique=False)
@@ -177,8 +177,8 @@ def upgrade():
     sa.Column('lag_minutes', sa.Integer(), nullable=False),
     sa.CheckConstraint('item_id <> depends_on_id', name=op.f('ck_timeline_dependencies_not_self')),
     sa.CheckConstraint('lag_minutes >= 0', name=op.f('ck_timeline_dependencies_lag')),
-    sa.ForeignKeyConstraint(['wedding_id', 'depends_on_id'], ['timeline_items.wedding_id', 'timeline_items.id'], name=op.f('fk_timeline_dependencies_wedding_id_timeline_items')),
-    sa.ForeignKeyConstraint(['wedding_id', 'item_id'], ['timeline_items.wedding_id', 'timeline_items.id'], name=op.f('fk_timeline_dependencies_wedding_id_timeline_items')),
+    sa.ForeignKeyConstraint(['wedding_id', 'depends_on_id'], ['timeline_items.wedding_id', 'timeline_items.id'], name=op.f('fk_timeline_dependencies_wedding_id_depends_on_id_timeline_items')),
+    sa.ForeignKeyConstraint(['wedding_id', 'item_id'], ['timeline_items.wedding_id', 'timeline_items.id'], name=op.f('fk_timeline_dependencies_wedding_id_item_id_timeline_items')),
     sa.PrimaryKeyConstraint('wedding_id', 'item_id', 'depends_on_id', name=op.f('pk_timeline_dependencies'))
     )
     op.create_table('members',
@@ -188,27 +188,27 @@ def upgrade():
     sa.Column('telegram_user_id', sa.String(length=32), nullable=True),
     sa.Column('id', sa.String(length=64), nullable=False),
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
-    sa.ForeignKeyConstraint(['wedding_id', 'person_id'], ['people.wedding_id', 'people.id'], name=op.f('fk_members_wedding_id_people')),
+    sa.ForeignKeyConstraint(['wedding_id', 'person_id'], ['people.wedding_id', 'people.id'], name=op.f('fk_members_wedding_id_person_id_people')),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_members_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_members')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_members_wedding_id')),
-    sa.UniqueConstraint('wedding_id', 'person_id', name=op.f('uq_members_wedding_id')),
-    sa.UniqueConstraint('wedding_id', 'telegram_user_id', name=op.f('uq_members_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_members_wedding_id_id')),
+    sa.UniqueConstraint('wedding_id', 'person_id', name=op.f('uq_members_wedding_id_person_id')),
+    sa.UniqueConstraint('wedding_id', 'telegram_user_id', name=op.f('uq_members_wedding_id_telegram_user_id'))
     )
     op.create_index(op.f('ix_members_wedding_id'), 'members', ['wedding_id'], unique=False)
     op.create_table('action_drafts',
     sa.Column('member_id', sa.String(length=64), nullable=False),
     sa.Column('command', sa.JSON(), nullable=False),
     sa.Column('summary', sa.Text(), nullable=False),
-    sa.Column('created_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
-    sa.Column('expires_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
-    sa.Column('consumed_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('consumed_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('id', sa.String(length=64), nullable=False),
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
-    sa.ForeignKeyConstraint(['wedding_id', 'member_id'], ['members.wedding_id', 'members.id'], name=op.f('fk_action_drafts_wedding_id_members')),
+    sa.ForeignKeyConstraint(['wedding_id', 'member_id'], ['members.wedding_id', 'members.id'], name=op.f('fk_action_drafts_wedding_id_member_id_members')),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_action_drafts_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_action_drafts')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_action_drafts_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_action_drafts_wedding_id_id'))
     )
     op.create_index(op.f('ix_action_drafts_wedding_id'), 'action_drafts', ['wedding_id'], unique=False)
     op.create_table('approvals',
@@ -221,19 +221,19 @@ def upgrade():
     sa.Column('affected_team_ids', sa.JSON(), nullable=False),
     sa.Column('blockers', sa.JSON(), nullable=False),
     sa.Column('status', sa.String(length=16), nullable=False),
-    sa.Column('created_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
-    sa.Column('expires_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('decided_by', sa.String(length=64), nullable=True),
-    sa.Column('decided_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('decided_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('decision_note', sa.Text(), nullable=True),
     sa.Column('id', sa.String(length=64), nullable=False),
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
     sa.CheckConstraint("status IN ('pending','approved','rejected','expired')", name=op.f('ck_approvals_status')),
-    sa.ForeignKeyConstraint(['wedding_id', 'decided_by'], ['members.wedding_id', 'members.id'], name=op.f('fk_approvals_wedding_id_members')),
-    sa.ForeignKeyConstraint(['wedding_id', 'proposed_by'], ['members.wedding_id', 'members.id'], name=op.f('fk_approvals_wedding_id_members')),
+    sa.ForeignKeyConstraint(['wedding_id', 'decided_by'], ['members.wedding_id', 'members.id'], name=op.f('fk_approvals_wedding_id_decided_by_members')),
+    sa.ForeignKeyConstraint(['wedding_id', 'proposed_by'], ['members.wedding_id', 'members.id'], name=op.f('fk_approvals_wedding_id_proposed_by_members')),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_approvals_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_approvals')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_approvals_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_approvals_wedding_id_id'))
     )
     op.create_index(op.f('ix_approvals_wedding_id'), 'approvals', ['wedding_id'], unique=False)
     op.create_table('guest_imports',
@@ -241,29 +241,29 @@ def upgrade():
     sa.Column('rows', sa.JSON(), nullable=False),
     sa.Column('preview', sa.JSON(), nullable=False),
     sa.Column('base_state_version', sa.Integer(), nullable=False),
-    sa.Column('created_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
-    sa.Column('applied_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('applied_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('id', sa.String(length=64), nullable=False),
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
-    sa.ForeignKeyConstraint(['wedding_id', 'created_by'], ['members.wedding_id', 'members.id'], name=op.f('fk_guest_imports_wedding_id_members')),
+    sa.ForeignKeyConstraint(['wedding_id', 'created_by'], ['members.wedding_id', 'members.id'], name=op.f('fk_guest_imports_wedding_id_created_by_members')),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_guest_imports_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_guest_imports')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_guest_imports_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_guest_imports_wedding_id_id'))
     )
     op.create_index(op.f('ix_guest_imports_wedding_id'), 'guest_imports', ['wedding_id'], unique=False)
     op.create_table('invitations',
     sa.Column('member_id', sa.String(length=64), nullable=False),
     sa.Column('token_hash', sa.String(length=64), nullable=False),
-    sa.Column('created_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
-    sa.Column('expires_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
-    sa.Column('consumed_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('consumed_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('id', sa.String(length=64), nullable=False),
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
-    sa.ForeignKeyConstraint(['wedding_id', 'member_id'], ['members.wedding_id', 'members.id'], name=op.f('fk_invitations_wedding_id_members')),
+    sa.ForeignKeyConstraint(['wedding_id', 'member_id'], ['members.wedding_id', 'members.id'], name=op.f('fk_invitations_wedding_id_member_id_members')),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_invitations_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_invitations')),
     sa.UniqueConstraint('token_hash', name=op.f('uq_invitations_token_hash')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_invitations_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_invitations_wedding_id_id'))
     )
     op.create_index(op.f('ix_invitations_wedding_id'), 'invitations', ['wedding_id'], unique=False)
     op.create_table('knowledge_documents',
@@ -275,39 +275,39 @@ def upgrade():
     sa.Column('audience_team_ids', sa.JSON(), nullable=False),
     sa.Column('status', sa.String(length=16), nullable=False),
     sa.Column('created_by', sa.String(length=64), nullable=False),
-    sa.Column('verified_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
-    sa.Column('expires_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('verified_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('id', sa.String(length=64), nullable=False),
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
     sa.CheckConstraint("status IN ('draft','approved','retired')", name=op.f('ck_knowledge_documents_status')),
-    sa.ForeignKeyConstraint(['wedding_id', 'created_by'], ['members.wedding_id', 'members.id'], name=op.f('fk_knowledge_documents_wedding_id_members')),
+    sa.ForeignKeyConstraint(['wedding_id', 'created_by'], ['members.wedding_id', 'members.id'], name=op.f('fk_knowledge_documents_wedding_id_created_by_members')),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_knowledge_documents_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_knowledge_documents')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_knowledge_documents_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_knowledge_documents_wedding_id_id'))
     )
     op.create_index(op.f('ix_knowledge_documents_wedding_id'), 'knowledge_documents', ['wedding_id'], unique=False)
     op.create_table('login_sessions',
     sa.Column('member_id', sa.String(length=64), nullable=False),
     sa.Column('token_hash', sa.String(length=64), nullable=False),
     sa.Column('csrf_hash', sa.String(length=64), nullable=False),
-    sa.Column('created_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
-    sa.Column('expires_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
-    sa.Column('revoked_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('revoked_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('id', sa.String(length=64), nullable=False),
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
-    sa.ForeignKeyConstraint(['wedding_id', 'member_id'], ['members.wedding_id', 'members.id'], name=op.f('fk_login_sessions_wedding_id_members')),
+    sa.ForeignKeyConstraint(['wedding_id', 'member_id'], ['members.wedding_id', 'members.id'], name=op.f('fk_login_sessions_wedding_id_member_id_members')),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_login_sessions_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_login_sessions')),
     sa.UniqueConstraint('token_hash', name=op.f('uq_login_sessions_token_hash')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_login_sessions_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_login_sessions_wedding_id_id'))
     )
     op.create_index(op.f('ix_login_sessions_wedding_id'), 'login_sessions', ['wedding_id'], unique=False)
     op.create_table('member_teams',
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
     sa.Column('member_id', sa.String(length=64), nullable=False),
     sa.Column('team_id', sa.String(length=64), nullable=False),
-    sa.ForeignKeyConstraint(['wedding_id', 'member_id'], ['members.wedding_id', 'members.id'], name=op.f('fk_member_teams_wedding_id_members')),
-    sa.ForeignKeyConstraint(['wedding_id', 'team_id'], ['teams.wedding_id', 'teams.id'], name=op.f('fk_member_teams_wedding_id_teams')),
+    sa.ForeignKeyConstraint(['wedding_id', 'member_id'], ['members.wedding_id', 'members.id'], name=op.f('fk_member_teams_wedding_id_member_id_members')),
+    sa.ForeignKeyConstraint(['wedding_id', 'team_id'], ['teams.wedding_id', 'teams.id'], name=op.f('fk_member_teams_wedding_id_team_id_teams')),
     sa.PrimaryKeyConstraint('wedding_id', 'member_id', 'team_id', name=op.f('pk_member_teams'))
     )
     op.create_table('tasks',
@@ -318,22 +318,22 @@ def upgrade():
     sa.Column('location_id', sa.String(length=64), nullable=False),
     sa.Column('timeline_item_id', sa.String(length=64), nullable=True),
     sa.Column('offset_minutes', sa.Integer(), nullable=False),
-    sa.Column('planned_due', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
-    sa.Column('due_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
+    sa.Column('planned_due', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('due_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('state', sa.String(length=16), nullable=False),
-    sa.Column('acknowledged_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
-    sa.Column('completed_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('acknowledged_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('version', sa.Integer(), nullable=False),
     sa.Column('id', sa.String(length=64), nullable=False),
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
     sa.CheckConstraint("state IN ('pending','in_progress','done','cancelled')", name=op.f('ck_tasks_state')),
-    sa.ForeignKeyConstraint(['wedding_id', 'location_id'], ['locations.wedding_id', 'locations.id'], name=op.f('fk_tasks_wedding_id_locations')),
-    sa.ForeignKeyConstraint(['wedding_id', 'owner_id'], ['members.wedding_id', 'members.id'], name=op.f('fk_tasks_wedding_id_members')),
-    sa.ForeignKeyConstraint(['wedding_id', 'team_id'], ['teams.wedding_id', 'teams.id'], name=op.f('fk_tasks_wedding_id_teams')),
-    sa.ForeignKeyConstraint(['wedding_id', 'timeline_item_id'], ['timeline_items.wedding_id', 'timeline_items.id'], name=op.f('fk_tasks_wedding_id_timeline_items')),
+    sa.ForeignKeyConstraint(['wedding_id', 'location_id'], ['locations.wedding_id', 'locations.id'], name=op.f('fk_tasks_wedding_id_location_id_locations')),
+    sa.ForeignKeyConstraint(['wedding_id', 'owner_id'], ['members.wedding_id', 'members.id'], name=op.f('fk_tasks_wedding_id_owner_id_members')),
+    sa.ForeignKeyConstraint(['wedding_id', 'team_id'], ['teams.wedding_id', 'teams.id'], name=op.f('fk_tasks_wedding_id_team_id_teams')),
+    sa.ForeignKeyConstraint(['wedding_id', 'timeline_item_id'], ['timeline_items.wedding_id', 'timeline_items.id'], name=op.f('fk_tasks_wedding_id_timeline_item_id_timeline_items')),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_tasks_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_tasks')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_tasks_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_tasks_wedding_id_id'))
     )
     op.create_index(op.f('ix_tasks_due_at'), 'tasks', ['due_at'], unique=False)
     op.create_index(op.f('ix_tasks_wedding_id'), 'tasks', ['wedding_id'], unique=False)
@@ -347,17 +347,17 @@ def upgrade():
     sa.Column('reported_by', sa.String(length=64), nullable=False),
     sa.Column('audience_team_ids', sa.JSON(), nullable=False),
     sa.Column('status', sa.String(length=16), nullable=False),
-    sa.Column('created_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
-    sa.Column('resolved_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('resolved_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('id', sa.String(length=64), nullable=False),
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
     sa.CheckConstraint("status IN ('open','resolved')", name=op.f('ck_incidents_status')),
-    sa.ForeignKeyConstraint(['wedding_id', 'reported_by'], ['members.wedding_id', 'members.id'], name=op.f('fk_incidents_wedding_id_members')),
-    sa.ForeignKeyConstraint(['wedding_id', 'subject_person_id'], ['people.wedding_id', 'people.id'], name=op.f('fk_incidents_wedding_id_people')),
-    sa.ForeignKeyConstraint(['wedding_id', 'task_id'], ['tasks.wedding_id', 'tasks.id'], name=op.f('fk_incidents_wedding_id_tasks')),
+    sa.ForeignKeyConstraint(['wedding_id', 'reported_by'], ['members.wedding_id', 'members.id'], name=op.f('fk_incidents_wedding_id_reported_by_members')),
+    sa.ForeignKeyConstraint(['wedding_id', 'subject_person_id'], ['people.wedding_id', 'people.id'], name=op.f('fk_incidents_wedding_id_subject_person_id_people')),
+    sa.ForeignKeyConstraint(['wedding_id', 'task_id'], ['tasks.wedding_id', 'tasks.id'], name=op.f('fk_incidents_wedding_id_task_id_tasks')),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_incidents_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_incidents')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_incidents_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_incidents_wedding_id_id'))
     )
     op.create_index(op.f('ix_incidents_wedding_id'), 'incidents', ['wedding_id'], unique=False)
     op.create_table('notifications',
@@ -372,23 +372,23 @@ def upgrade():
     sa.Column('task_version', sa.Integer(), nullable=True),
     sa.Column('state', sa.String(length=20), nullable=False),
     sa.Column('attempts', sa.Integer(), nullable=False),
-    sa.Column('next_attempt_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
-    sa.Column('lease_until', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('next_attempt_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('lease_until', sa.DateTime(timezone=True), nullable=True),
     sa.Column('lease_token', sa.String(length=64), nullable=True),
     sa.Column('provider_message_id', sa.String(length=80), nullable=True),
     sa.Column('last_error', sa.String(length=200), nullable=True),
-    sa.Column('created_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=False),
-    sa.Column('sent_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
-    sa.Column('acknowledged_at', wedding_ops.models.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('sent_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('acknowledged_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('id', sa.String(length=64), nullable=False),
     sa.Column('wedding_id', sa.String(length=64), nullable=False),
     sa.CheckConstraint("state IN ('queued','sending','sent','simulated','failed','undeliverable','superseded','cancelled')", name=op.f('ck_notifications_state')),
-    sa.ForeignKeyConstraint(['wedding_id', 'recipient_id'], ['members.wedding_id', 'members.id'], name=op.f('fk_notifications_wedding_id_members')),
-    sa.ForeignKeyConstraint(['wedding_id', 'task_id'], ['tasks.wedding_id', 'tasks.id'], name=op.f('fk_notifications_wedding_id_tasks')),
+    sa.ForeignKeyConstraint(['wedding_id', 'recipient_id'], ['members.wedding_id', 'members.id'], name=op.f('fk_notifications_wedding_id_recipient_id_members')),
+    sa.ForeignKeyConstraint(['wedding_id', 'task_id'], ['tasks.wedding_id', 'tasks.id'], name=op.f('fk_notifications_wedding_id_task_id_tasks')),
     sa.ForeignKeyConstraint(['wedding_id'], ['weddings.id'], name=op.f('fk_notifications_wedding_id_weddings')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_notifications')),
-    sa.UniqueConstraint('wedding_id', 'dedupe_key', name=op.f('uq_notifications_wedding_id')),
-    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_notifications_wedding_id'))
+    sa.UniqueConstraint('wedding_id', 'dedupe_key', name=op.f('uq_notifications_wedding_id_dedupe_key')),
+    sa.UniqueConstraint('wedding_id', 'id', name=op.f('uq_notifications_wedding_id_id'))
     )
     op.create_index('ix_notifications_dispatch', 'notifications', ['wedding_id', 'state', 'next_attempt_at'], unique=False)
     op.create_index(op.f('ix_notifications_wedding_id'), 'notifications', ['wedding_id'], unique=False)
@@ -397,8 +397,8 @@ def upgrade():
     sa.Column('task_id', sa.String(length=64), nullable=False),
     sa.Column('depends_on_id', sa.String(length=64), nullable=False),
     sa.CheckConstraint('task_id <> depends_on_id', name=op.f('ck_task_dependencies_not_self')),
-    sa.ForeignKeyConstraint(['wedding_id', 'depends_on_id'], ['tasks.wedding_id', 'tasks.id'], name=op.f('fk_task_dependencies_wedding_id_tasks')),
-    sa.ForeignKeyConstraint(['wedding_id', 'task_id'], ['tasks.wedding_id', 'tasks.id'], name=op.f('fk_task_dependencies_wedding_id_tasks')),
+    sa.ForeignKeyConstraint(['wedding_id', 'depends_on_id'], ['tasks.wedding_id', 'tasks.id'], name=op.f('fk_task_dependencies_wedding_id_depends_on_id_tasks')),
+    sa.ForeignKeyConstraint(['wedding_id', 'task_id'], ['tasks.wedding_id', 'tasks.id'], name=op.f('fk_task_dependencies_wedding_id_task_id_tasks')),
     sa.PrimaryKeyConstraint('wedding_id', 'task_id', 'depends_on_id', name=op.f('pk_task_dependencies'))
     )
     # ### end Alembic commands ###
