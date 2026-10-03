@@ -84,6 +84,25 @@ with sync_playwright() as p:
  expect(page.get_by_role('heading',name='Your operations brief')).to_be_visible()
  page.get_by_role('button',name='Service lift',exact=True).click()
  expect(page.get_by_text('The service lift is in the east staff corridor, behind the banquet service door.',exact=True)).to_be_visible()
+ page.get_by_label('Rehearsal role').select_option('coordinator')
+ expect(page.get_by_role('heading',name='Command centre',exact=True)).to_be_visible()
+ page.get_by_role('navigation').get_by_role('button',name='Guest desk',exact=True).click()
+ page.get_by_label('Guest name',exact=True).fill('Sarah Tan')
+ expect(page.get_by_role('heading',name='Sarah Tan')).to_be_visible()
+ page.get_by_role('button',name='Edit guest / family role',exact=True).click()
+ page.get_by_label('Family role (blank removes family access)',exact=True).fill('sister_of_bride')
+ page.get_by_label('Private contact phone',exact=True).fill('DEMO-NOT-ROUTABLE-SARAH')
+ page.get_by_role('button',name='Save reviewed guest details',exact=True).click()
+ expect(page.get_by_role('button',name='Save reviewed guest details',exact=True)).to_have_count(0)
+ page.get_by_label('Rehearsal role').select_option('family-liaison')
+ expect(page.get_by_role('heading',name='Your operations brief')).to_be_visible()
+ page.get_by_role('navigation').get_by_role('button',name='People & teams',exact=True).click()
+ page.get_by_role('button',name='Show authorized family contacts',exact=True).click()
+ expect(page.get_by_text('DEMO-NOT-ROUTABLE-SARAH',exact=True)).to_be_visible()
+ page.get_by_label('Rehearsal role').select_option('usher')
+ expect(page.get_by_role('heading',name='Your operations brief')).to_be_visible()
+ page.get_by_role('navigation').get_by_role('button',name='People & teams',exact=True).click()
+ assert page.get_by_role('button',name='Show authorized family contacts',exact=True).count()==0
  page.set_viewport_size({'width':390,'height':844})
  page.get_by_role('navigation').get_by_role('button',name='My tasks',exact=True).click()
  expect(page.get_by_role('heading',name='Take position at Ballroom Entrance B')).to_be_visible()
@@ -92,7 +111,7 @@ with sync_playwright() as p:
  overflow=page.evaluate('document.documentElement.scrollWidth > window.innerWidth')
  assert not overflow,'Mobile overflow'
  assert not errors,errors
- report={'mode':'offline Chromium + real ASGI backend via test bridge (not network E2E)' if args.bridge else 'Chromium HTTP browser E2E','screens_visited':11,'tested_workflows':['delay-propose-confirm-approve','role-aware approval visibility','missing-family then parents arrival','guest seating lookup','approved knowledge lookup','mobile layout no horizontal overflow'],'javascript_errors':errors,'screenshots':[str(x.relative_to(root)) for x in out.glob('*.png')]}
+ report={'mode':'offline Chromium + real ASGI backend via test bridge (not network E2E)' if args.bridge else 'Chromium HTTP browser E2E','screens_visited':11,'tested_workflows':['delay-propose-confirm-approve','role-aware approval visibility','missing-family then parents arrival','guest seating lookup','approved knowledge lookup','reviewed guest/family role edit','family-contact role visibility','mobile layout no horizontal overflow'],'javascript_errors':errors,'screenshots':[str(x.relative_to(root)) for x in out.glob('*.png')]}
  (out/'browser-report.json').write_text(json.dumps(report,indent=2)+'\n')
  print(json.dumps(report,indent=2))
  browser.close()

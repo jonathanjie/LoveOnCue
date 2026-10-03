@@ -16,6 +16,7 @@ jobs:
       - run: git diff --exit-code -- web/dist
       - run: python scripts/export-contracts.py && git diff --exit-code -- docs/contracts
       - run: pytest --cov=wedding_ops --cov-branch --cov-fail-under=83 --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest.xml
+      - run: python scripts/http-smoke.py
       - uses: actions/upload-artifact@v4
         if: always()
         with: {name: core-evidence, path: artifacts/}
