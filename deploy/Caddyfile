@@ -1,0 +1,7 @@
+{$DOMAIN} {
+    request_body {
+        max_size 256KB
+    }
+    reverse_proxy api:8000
+    # Do not enable access logs containing invitation URLs or authentication bodies.
+}

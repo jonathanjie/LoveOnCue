@@ -277,3 +277,22 @@ def test_permanent_delivery_error_is_visible_and_state_version_advances(db,setti
     worker.dispatch_one()
     assert queries.snapshot(actor())['wedding']['state_version']>before
     with db.transaction(WID) as (s,w):assert any(n.state=='failed' and n.last_error=='recipient_blocked_bot' for n in rows(s,Notification,WID))
+
+
+def test_rate_limits_are_per_session_with_shared_ip_ceiling(db,clock):
+    config=Settings(mode='demo')
+    with TestClient(create_app(config,db,clock),base_url=config.public_url) as c:
+        c.headers['Origin']=config.public_url
+        c.post('/api/auth/demo',json={'member_id':'usher'})
+        for _ in range(180): assert c.get('/api/config').status_code==200
+        assert c.get('/api/config').status_code==429
+        c.post('/api/auth/demo',json={'member_id':'photographer'})
+        assert c.get('/api/config').status_code==200
+
+
+def test_draft_to_live_enables_reminder_generation(ops,db,settings,clock):
+    worker=Worker(db,settings,clock)
+    ops.execute(actor(),{'type':'set_wedding_status','status':'draft'},'pause-reminders-test')
+    assert worker.schedule()['queued']==0
+    ops.execute(actor(),{'type':'set_wedding_status','status':'live'},'activate-reminders-test')
+    assert worker.schedule()['queued']>0

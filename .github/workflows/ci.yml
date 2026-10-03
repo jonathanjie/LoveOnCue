@@ -1,0 +1,58 @@
+name: WeddingOps checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: 'npm'}
+      - run: pip install -r requirements-runtime.lock -r requirements-dev.txt -e .
+      - run: npm ci --ignore-scripts && npm run typecheck && npm run build
+      - run: git diff --exit-code -- web/dist
+      - run: python scripts/export-contracts.py && git diff --exit-code -- docs/contracts
+      - run: pytest --cov=wedding_ops --cov-branch --cov-fail-under=83 --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: core-evidence, path: artifacts/}
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.10
+        env: {POSTGRES_DB: weddingops_test, POSTGRES_USER: weddingops, POSTGRES_PASSWORD: ci-test-only}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U weddingops -d weddingops_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      WEDDINGOPS_TEST_DATABASE_URL: postgresql+psycopg://weddingops:ci-test-only@localhost:5432/weddingops_test
+      WEDDINGOPS_ALLOW_TEST_DATABASE_RESET: 'yes'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - run: pip install -r requirements-runtime.lock -r requirements-dev.txt -e '.[postgres]'
+      - run: pytest -q --junitxml=artifacts/postgres-tests.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: postgres-evidence, path: artifacts/}
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - run: pip install -r requirements-runtime.lock -r requirements-browser.txt -e .
+      - run: playwright install --with-deps chromium
+      - run: |
+          weddingops demo > /tmp/weddingops-demo.log 2>&1 &
+          for i in $(seq 1 30); do curl --fail http://127.0.0.1:8000/health && break; sleep 1; done
+          python scripts/ui-smoke.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: browser-evidence, path: artifacts/}

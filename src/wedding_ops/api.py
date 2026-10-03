@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+from http.cookies import SimpleCookie, CookieError
 import time
 from collections import defaultdict, deque
 from datetime import datetime
@@ -45,15 +47,41 @@ class EnvelopeMiddleware:
             return await self.app(scope, receive, send)
         now = time.monotonic()
         client = (scope.get("client") or ("unknown",))[0]
+        # Shared venue Wi-Fi must not give every helper one 180-request bucket.
+        # Cookie hashes divide traffic; they are NOT proof of authentication.
+        headers = dict(scope.get("headers", []))
+        token = ""
+        try:
+            cookies = SimpleCookie()
+            cookies.load(headers.get(b"cookie", b"").decode("latin-1"))
+            if COOKIE in cookies:
+                token = cookies[COOKIE].value[:256]
+        except CookieError:
+            pass
+        buckets = [(f"ip:{client}", 3000)]
+        if scope["path"].startswith("/api/auth/"):
+            buckets.append((f"login:{client}", 120))
+        elif scope["path"].startswith("/api/telegram/"):
+            buckets.append((f"telegram:{client}", 1000))
+        elif token:
+            buckets.append(("session:" + hashlib.sha256(token.encode()).hexdigest(), 180))
+        else:
+            buckets.append((f"anonymous:{client}", 300))
         with self.lock:
-            window = self.windows[client]
-            while window and window[0] <= now - 60:
-                window.popleft()
-            limited = len(window) >= 180
-            window.append(now)
-            # Bound memory from varied client addresses. Production still needs a proxy limiter.
+            limited = False
+            for key, limit in buckets:
+                window = self.windows[key]
+                while window and window[0] <= now - 60:
+                    window.popleft()
+                if len(window) >= limit:
+                    limited = True
+                else:
+                    window.append(now)
+            # A reverse proxy/distributed limiter is still required before scaling workers.
             if len(self.windows) > 10000:
-                self.windows.clear()
+                self.windows = defaultdict(deque, {k:v for k,v in self.windows.items() if v and v[-1] > now - 60})
+                if len(self.windows) > 10000:
+                    self.windows.clear()
         if limited:
             return await JSONResponse({"error":{"code":"rate_limited","message":"Too many requests. Try again shortly."}},429,headers={"Retry-After":"30"})(scope,receive,send)
         if scope["method"] in {"POST","PUT","PATCH"}:

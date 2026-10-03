@@ -252,6 +252,8 @@ function auditScreen():void{
 }
 function setup():void{
  const s=section('Setup & imports','Create the operating roster before inviting helpers. Every write is permissioned and audited.');
+ if(snapshot.wedding.status!=='archived')s.append(button(snapshot.wedding.status==='live'?'Pause automatic task reminders':'Activate event-day task reminders',async()=>{const target=snapshot.wedding.status==='live'?'draft':'live';if(confirm(target==='live'?'Activate task reminders using the current clock, verified roster and schedule?':'Pause automatic task reminder generation? Already queued messages and direct reports are not paused.'))await command({type:'set_wedding_status',status:target});},'primary'));
+
  const createForm=(title:string,fields:HTMLElement[],action:()=>Promise<void>)=>{const d=el('details','form-card');d.append(el('summary','',title),...fields,button('Create',action,'primary'));s.append(d);};
  const team=field('Team name');createForm('Create a team',[team.wrap],()=>command({type:'create_team',name:team.input.value}));
  const name=field('Helper name');const role=selectField('Role',['helper','registration','usher','photographer','family_liaison','banquet','mc','av','transport','team_lead','coordinator','couple'].map(r=>({id:r,name:r.replaceAll('_',' ')})));const teamSelect=selectField('Team',snapshot.teams);

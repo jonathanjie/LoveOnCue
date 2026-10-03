@@ -1,0 +1,62 @@
+# ONE wedding cell. Review deploy/README.md before public exposure.
+name: weddingops
+x-app: &app
+  build: .
+  restart: unless-stopped
+  env_file: .env.production
+  environment:
+    WEDDINGOPS_MODE: production
+    WEDDINGOPS_DATABASE_URL: postgresql+psycopg://weddingops:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/weddingops
+    WEDDINGOPS_WEDDING_ID: ${WEDDINGOPS_WEDDING_ID:?Set a unique wedding ID}
+    WEDDINGOPS_PUBLIC_URL: https://${DOMAIN:?Set a real HTTPS domain}
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+  read_only: true
+  tmpfs: ["/tmp"]
+  depends_on:
+    db:
+      condition: service_healthy
+services:
+  db:
+    image: postgres:17.10
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: weddingops
+      POSTGRES_USER: weddingops
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U weddingops -d weddingops"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    # No host-published database port.
+  api:
+    <<: *app
+    command: ["weddingops", "serve", "--host", "0.0.0.0"]
+    # HTTPS proxy is the only ingress. No host-published application port.
+  worker:
+    <<: *app
+    command: ["weddingops", "worker"]
+    healthcheck:
+      disable: true
+  migrate:
+    <<: *app
+    restart: "no"
+    profiles: ["tools"]
+    command: ["weddingops", "migrate"]
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: ["api"]
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

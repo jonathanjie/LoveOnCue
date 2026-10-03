@@ -1,0 +1,32 @@
+{
+  "gateway": {
+    "mode": "local",
+    "bind": "loopback",
+    "auth": {"mode": "token"},
+    "http": {"endpoints": {"chatCompletions": {"enabled": true}}}
+  },
+  "agents": {
+    "defaults": {
+      "workspace": "/REPLACE_WITH_PRIVATE_CELL_WORKSPACE",
+      "heartbeat": {"every": "0m"},
+      "contextInjection": "never",
+      "skipBootstrap": true
+    },
+    "entries": {
+      "weddingops-intent": {
+        "default": true,
+        "model": {"primary": "REPLACE_PROVIDER/REPLACE_MODEL", "fallbacks": []},
+        "skills": []
+      }
+    }
+  },
+  "tools": {
+    "profile": "minimal",
+    "deny": ["*"],
+    "codeMode": {"enabled": false},
+    "elevated": {"enabled": false},
+    "agentToAgent": {"enabled": false},
+    "sessions": {"visibility": "self"}
+  },
+  "cron": {"enabled": false}
+}

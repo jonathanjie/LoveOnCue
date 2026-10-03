@@ -1,0 +1,24 @@
+# Observed installed runtime dependency closure, 2026-10-03, CPython 3.13 Linux.
+# Version-pinned; package hashes and independent vulnerability review are still required.
+alembic==1.18.4
+annotated-doc==0.0.4
+annotated-types==0.7.0
+anyio==4.13.0
+certifi==2026.5.20
+click==8.1.8
+fastapi==0.128.2
+greenlet==3.5.1
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.17
+mako==1.3.12
+markupsafe==3.0.3
+pydantic==2.13.4
+pydantic-core==2.46.4
+python-multipart==0.0.29
+sqlalchemy==2.0.50
+starlette==0.50.0
+typing-extensions==4.16.0
+typing-inspection==0.4.2
+uvicorn==0.48.0

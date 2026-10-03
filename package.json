@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node scripts/build-ui.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build:ui": "node scripts/build-ui.mjs"
   },

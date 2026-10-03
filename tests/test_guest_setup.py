@@ -84,3 +84,14 @@ def test_guest_detail_and_contact_routes_enforce_current_membership(db,clock):
         assert client.get('/api/guests/sarah-tan/details').status_code==403
         client.post('/api/auth/demo',json={'member_id':'coordinator'})
         assert client.get('/api/guests/sarah-tan/details').json()['name']=='Sarah Tan'
+
+
+def test_parent_resolution_does_not_include_other_family_roles(ops,queries):
+    from wedding_ops.agent import Assistant
+    assistant=Assistant(queries,ops)
+    ops.execute(actor(),correction(queries,relationship='grandfather_of_bride'),'other-family-role')
+    assert len(assistant._family(actor('registration-a'),"bride's parents"))==2
+    fathers=assistant._family(actor('photographer'),"bride's father")
+    assert len(fathers)==1 and fathers[0]['name']=='Robert Tan'
+    response=assistant.ask(actor('photographer'),"Bride's parents are missing")
+    assert response['kind']=='clarification' and 'draft' not in response

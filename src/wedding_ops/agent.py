@@ -135,7 +135,7 @@ class Assistant:
         if intent.kind in {"arrival", "missing_family"}:
             found = self._family(actor, intent.query)
             plural = "parents" in intent.query.lower() and ("bride" in intent.query.lower() or "groom" in intent.query.lower())
-            if not found or (len(found) != 1 and not (plural and len(found) == 2)):
+            if not found or (len(found) != 1 and not (intent.kind == "arrival" and plural and len(found) == 2)):
                 return {"kind": "clarification", "message": "I could not uniquely identify the family member. Use /arrival followed by their exact name or use the registration screen.", "data": []}
             if intent.kind == "arrival":
                 command = {"type": "arrival", "person_ids": [p["id"] for p in found], "status": "onsite"}
@@ -179,5 +179,6 @@ class Assistant:
         side = "bride" if "bride" in value else "groom" if "groom" in value else None
         relation = "father" if any(word in value for word in ["father", "dad"]) else "mother" if any(word in value for word in ["mother", "mum", "mom"]) else None
         if side and (relation or "parents" in value):
-            return [p for p in family if side in p["relationship"] and (not relation or relation in p["relationship"])]
+            relations = {f"{relation}_of_{side}"} if relation else {f"father_of_{side}", f"mother_of_{side}"}
+            return [p for p in family if re.sub(r"[\s_-]+", "_", p["relationship"].strip().lower()) in relations]
         return [p for p in family if not value or value in p["name"].lower() or value in p["relationship"].lower()]
