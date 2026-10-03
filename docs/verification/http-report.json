@@ -1,0 +1,17 @@
+{
+  "transport": "real loopback HTTP, Python client, isolated Uvicorn process",
+  "checks": [
+    "readiness",
+    "unauthenticated denial",
+    "cookie session",
+    "role seating lookup",
+    "delay draft confirmation",
+    "non-coordinator approval denial",
+    "coordinator approval",
+    "idempotent replay",
+    "trusted-host rejection"
+  ],
+  "external_messages_sent": 0,
+  "browser_tls_telegram_verified": false,
+  "passed": true
+}

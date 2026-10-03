@@ -1,0 +1,20 @@
+{
+  "mode": "offline Chromium + real ASGI backend via test bridge (not network E2E)",
+  "screens_visited": 11,
+  "tested_workflows": [
+    "delay-propose-confirm-approve",
+    "role-aware approval visibility",
+    "missing-family then parents arrival",
+    "guest seating lookup",
+    "approved knowledge lookup",
+    "reviewed guest/family role edit",
+    "family-contact role visibility",
+    "mobile layout no horizontal overflow"
+  ],
+  "javascript_errors": [],
+  "screenshots": [
+    "artifacts/overview-desktop.png",
+    "artifacts/helper-mobile.png",
+    "artifacts/approval-desktop.png"
+  ]
+}

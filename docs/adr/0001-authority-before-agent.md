@@ -9,11 +9,11 @@ its delegated tool authority. Per-wedding isolation alone does not separate an
 usher from a coordinator inside that wedding. No model-supplied role or actor ID
 can authorize an operation. Client-function arguments are untrusted proposals.
 
-The dedicated OpenClaw agent has no shell, file, session, browser, messaging,
+The dedicated OpenClaw agent must have no shell, file, session, browser, messaging,
 approval or DB tools. It returns a narrow structured intent to the application.
 The application resolves identities, enforces capability and team scope, asks
 for human confirmation where needed, and commits through deterministic handlers.
-No retrieved document text is fed back into an agent capable of writing state.
+The example runtime policy remains a live commissioning gate. No retrieved document text is fed back into an agent capable of writing state.
 
 Use fresh HTTP sessions: omit the OpenAI-compatible `user` field and explicit
 session headers. Keep the Gateway on private ingress. This is a reduced-trust

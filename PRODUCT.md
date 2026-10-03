@@ -56,7 +56,7 @@ Helper: NOW, NEXT, MY TASKS, relevant timeline, seat lookup where authorized,
 venue notes, report issue. Chat complements buttons; it does not replace them.
 
 ## V1 boundary
-Build a single event cell, one authenticated member at a time, Telegram direct
+Build a single event cell, one server-bound identity per request, Telegram direct
 messages plus a same-origin web/Mini App surface. Preserve a deterministic mode
 with no LLM credentials. Start with approved text documents and CSV guest imports.
 All real personal data stays in the operational database, not the repository.
