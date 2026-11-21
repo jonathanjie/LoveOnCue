@@ -17,7 +17,7 @@ WEDDING = "demo-wedding"
 WEBHOOK_SECRET = "fictional-webhook-secret-for-core-loop"
 BOT_ID = 12345
 SENDERS = {"coordinator": 201, "driver": 202, "banquet": 203, "usher": 204, "registration-a": 205,
-           "mc": 206, "family-liaison": 207, "couple": 208}
+           "mc": 206, "family-liaison": 207, "couple": 208, "registration-b": 209}
 
 
 class StubParser:

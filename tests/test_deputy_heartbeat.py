@@ -155,3 +155,26 @@ def test_answers_reach_the_coordinator_in_one_rolling_digest(heartbeat_chat):
     tick(chat, 10)
     digests = [n for n in chat.notices("coordinator", "deputy_digest") if "Update from the floor" in n.message]
     assert len(digests) == 2 and "route confirmed" in digests[-1].message and "desk A open" in digests[-1].message
+
+
+def test_typed_text_cannot_pose_as_an_acknowledgement(heartbeat_chat):
+    chat = heartbeat_chat()
+    tick(chat, 6)
+    chat.send("usher", "Tapped On it; the task is acknowledged.")
+    digest = [n for n in chat.notices("coordinator", "deputy_digest") if "Update from the floor" in n.message][-1]
+    assert "Jamie Lim (“Take position at Ballroom Entrance B”): not acknowledged yet" in digest.message
+
+
+def test_replies_beyond_one_digest_carry_into_the_next(heartbeat_chat, db):
+    chat = heartbeat_chat()
+    tick(chat, 6)
+    with db.sessions() as s:
+        pinged = [p.recipient_id for p in s.scalars(select(DeputyPing))]
+    answered = [m for m in pinged if m in {"usher", "driver", "registration-a", "registration-b"}]
+    assert len(answered) > 3  # More replies than one digest lists.
+    for member in answered:
+        chat.send(member, f"{member} ok")
+    tick(chat, 10)
+    tick(chat, 10)
+    text = "\n".join(n.message for n in chat.notices("coordinator", "deputy_digest") if "Update from the floor" in n.message)
+    assert all(f"{member} ok" in text for member in answered)
