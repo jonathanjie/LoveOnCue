@@ -20,6 +20,13 @@ def notice_markup(topic: str, notification_id: str) -> dict | None:
     return {"inline_keyboard": [[{"text": "Acknowledge", "callback_data": f"ack:{notification_id}"}]]}
 
 
+def approval_markup(approval_id: str, *, blocked: bool) -> dict:
+    """Buttons for the coordinator on an approval request. A blocked change can only be rejected."""
+    buttons = [] if blocked else [{"text": "Approve", "callback_data": f"approve:{approval_id}"}]
+    buttons.append({"text": "Reject", "callback_data": f"reject:{approval_id}"})
+    return {"inline_keyboard": [buttons]}
+
+
 def reply_markup(*, coordinator: bool, guest_lookup: bool, draft_id: str | None,
                  app_url: str) -> dict:
     def button(label: str, action: str) -> dict:

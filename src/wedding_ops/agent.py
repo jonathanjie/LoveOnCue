@@ -246,8 +246,10 @@ class Assistant:
             item = match_timeline_item(snapshot["timeline"], intent.query)
             if item is None or intent.minutes is None:
                 return {"kind": "clarification", "message": "Specify one activity and the additional delay, e.g. /delay dinner 12.", "data": []}
-            command = {"type": "propose_delay", "item_id": item["id"], "minutes": intent.minutes,
-                       "reason": text[:2000]}
+            # A bare command says nothing the coordinator can weigh, so say that plainly.
+            reason = ("Sent as a /delay command, with no further detail." if text.strip().startswith("/")
+                      else text[:2000])
+            command = {"type": "propose_delay", "item_id": item["id"], "minutes": intent.minutes, "reason": reason}
             draft = self.operations.draft(actor, command, f"Request a +{intent.minutes}-minute delay to {item['title']}. The master timeline will not change until the coordinator approves a reviewed proposal.")
             return {"kind": "confirmation", "message": "Confirm the report to create a proposal, not to change the schedule.", "draft": draft}
         if intent.kind == "location":

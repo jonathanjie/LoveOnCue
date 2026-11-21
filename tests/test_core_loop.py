@@ -255,3 +255,78 @@ def test_withdrawing_an_arrival_reopens_the_missing_person_report_it_closed(chat
     ops.execute(Actor(WEDDING, "registration-a"), {"type": "withdraw_report", "request_id": request_id}, "undo-mei")
     with db.sessions() as s:
         assert s.scalars(select(Incident).where(Incident.title == "Locate Mei Lee")).one().status == "open"
+
+
+# 4. Approval context, deciding in Telegram, and telling the reporter
+
+
+def test_coordinator_sees_context_and_approves_in_telegram(chat_factory, db):
+    chat = chat_factory({"kitchen slow dinner 15 late": Intent(kind="delay", query="dinner", minutes=15)})
+    confirmed_report(chat, "banquet", "kitchen slow dinner 15 late")
+    request = chat.last("coordinator", "approval_requested")
+    assert "Chris Wong" in request.message and "kitchen slow dinner 15 late" in request.message
+    assert "Dinner service 19:00 → 19:15" in request.message
+
+    approval_id = pending_approvals(db)[0].id
+    reply = chat.tap("coordinator", f"approve:{approval_id}")
+    assert reply.message.startswith("Approved")
+    with db.sessions() as s:
+        assert s.get(Approval, approval_id).status == "approved"
+    assert "approved" in chat.last("banquet", "report_decision").message
+
+
+def test_coordinator_rejects_with_a_reason_and_the_reporter_is_told(chat_factory, db):
+    chat = chat_factory()
+    confirmed_report(chat, "banquet", "/delay dinner 15")
+    approval_id = pending_approvals(db)[0].id
+    reply = chat.send("coordinator", f"/reject {approval_id} kitchen says on time")
+    assert reply.message.startswith("Rejected")
+    decision = chat.last("banquet", "report_decision")
+    assert "rejected" in decision.message and "kitchen says on time" in decision.message
+
+
+def test_helpers_cannot_approve_from_telegram(chat_factory, db):
+    chat = chat_factory()
+    confirmed_report(chat, "banquet", "/delay dinner 15")
+    approval_id = pending_approvals(db)[0].id
+    assert "not permit" in chat.send("usher", f"/approve {approval_id}").message
+    assert pending_approvals(db)[0].id == approval_id
+
+
+def test_approval_notice_offers_approve_only_when_nothing_blocks_it():
+    from wedding_ops.telegram_ui import approval_markup
+    clear = approval_markup("abc", blocked=False)["inline_keyboard"][0]
+    assert [b["text"] for b in clear] == ["Approve", "Reject"]
+    blocked = approval_markup("abc", blocked=True)["inline_keyboard"][0]
+    assert [b["text"] for b in blocked] == ["Reject"]
+
+
+def test_worker_sends_approval_and_acknowledge_buttons_to_telegram(db, settings, clock, ops):
+    import json
+
+    import httpx
+
+    from wedding_ops.worker import TelegramTransport
+
+    config = replace(settings, telegram_bot_token=f"{BOT_ID}:fixture-token")
+    auth = Auth(db, config)
+    coordinator = Actor(WEDDING, "coordinator")
+    for member, sender in SENDERS.items():
+        auth.redeem(auth.issue_invite(coordinator, member)["token"], str(sender))
+    ops.execute(Actor(WEDDING, "banquet", "telegram"), {"type": "propose_delay", "item_id": "dinner", "minutes": 5,
+                                                        "reason": "Kitchen is behind"}, "buttons-delay")
+    ops.execute(coordinator, {"type": "broadcast", "team_ids": ["ushers"], "message": "Doors open late"}, "buttons-broadcast")
+    sent = []
+
+    def capture(request):
+        sent.append(json.loads(request.content))
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": len(sent)}})
+
+    worker = Worker(db, config, clock, TelegramTransport(config.telegram_bot_token, httpx.MockTransport(capture)))
+    while worker.dispatch_one():
+        pass
+    to = {str(sender): member for member, sender in SENDERS.items()}
+    labels = {(to.get(str(p["chat_id"])), p["text"].split("\n")[0]):
+              [b["text"] for row in p.get("reply_markup", {}).get("inline_keyboard", []) for b in row] for p in sent}
+    assert labels[("coordinator", "Approval needed: Dinner service: +5 minutes")] == ["Approve", "Reject"]
+    assert labels[("usher", "Announcement from Alex Morgan:")] == ["Acknowledge"]

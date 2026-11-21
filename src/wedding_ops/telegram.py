@@ -78,7 +78,7 @@ def private_callback(update: dict, token: str) -> tuple[str, str | None, str] | 
         return None
     command = None
     if isinstance(data, str) and len(data) <= 64:
-        confirmation = re.fullmatch(r"(confirm|ack):([A-Za-z0-9_-]{1,56})", data)
+        confirmation = re.fullmatch(r"(confirm|ack|approve|reject):([A-Za-z0-9_-]{1,56})", data)
         command = f"/{confirmation[1]} {confirmation[2]}" if confirmation else NAVIGATION.get(data)
     return sender, command, callback_id
 
@@ -160,6 +160,17 @@ class TelegramIngress:
         except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError, IndexError):
             # Exceptions from Telegram may include the bot token in a request URL.
             return "I couldn't review this photo. Send a text report for any issue or arrival."
+
+    def _decide(self, actor, decision: str, approval_id: str, note: str) -> str:
+        """A coordinator's explicit Approve or Reject from Telegram. The model is not involved."""
+        outcome = self.operations.execute(
+            actor, {"type": "decide_approval", "approval_id": approval_id, "decision": decision,
+                    "note": note[:1000] or f"{decision.capitalize()}d in Telegram."},
+            f"telegram-decision:{approval_id}")
+        if decision == "approve":
+            return (f"Approved\nTimeline version {outcome['timeline_version']}. "
+                    "Affected teams are being told, and the reporter knows.")
+        return "Rejected\nThe run sheet is unchanged. The reporter has been told."
 
     def _announce(self, actor, message: str) -> tuple[str, str | None]:
         """Draft a coordinator announcement to every team. Nothing is sent until confirmed."""
@@ -246,6 +257,8 @@ class TelegramIngress:
                 confirmation = re.fullmatch(r"/confirm\s+([a-zA-Z0-9_-]{1,64})", text)
                 if confirmation:
                     result = confirmation_reply(self.operations.confirm(actor, confirmation[1]))
+                elif decision := re.fullmatch(r"/(approve|reject)\s+([A-Za-z0-9_-]{1,64})(?:\s+(.+))?", text, re.S):
+                    result = self._decide(actor, decision[1], decision[2], (decision[3] or "").strip())
                 elif text.startswith("/announce"):
                     result, draft_id = self._announce(actor, text[len("/announce"):].strip())
                 elif re.fullmatch(r"/ack(\s+[A-Za-z0-9_-]{1,64})?", text):

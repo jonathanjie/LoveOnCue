@@ -34,6 +34,21 @@ WITHDRAW_WINDOW = timedelta(minutes=30)
 WITHDRAW_CAPABILITY = {"arrival": "guests:arrival", "incident": "incidents:report", "approval": "timeline:propose"}
 
 
+def approval_request_message(approval: Approval, reporter: str, roles: list[str], zone: ZoneInfo) -> str:
+    """What the coordinator needs to decide: who reported it, their words, the changes and blockers."""
+    def local(value: str) -> str:
+        return parse_time(value).astimezone(zone).strftime("%H:%M")
+
+    changes = "\n".join(f"• {c['title']} {local(c['old_start'])} → {local(c['new_start'])}" for c in approval.changes)
+    lines = [f"Approval needed: {approval.title}", f"From {reporter} ({', '.join(roles)}): \"{approval.reason[:300]}\"",
+             "Changes if approved:", changes or "• No times change"]
+    if approval.blockers:
+        lines += ["Blocked:"] + [f"• {b}" for b in approval.blockers] + ["Reject it, or adjust the run sheet in LoveOnCue."]
+    else:
+        lines.append("Tap Approve or Reject, or review it in LoveOnCue. Nothing changes until you decide.")
+    return "\n".join(lines)
+
+
 def audit(s: Session, w: Wedding, actor_id: str, event_type: str, entity_id: str, detail: dict, now) -> None:
     s.add(AuditEvent(wedding_id=w.id, actor_id=actor_id, event_type=event_type, entity_id=entity_id,
                      detail=detail, state_version=w.state_version, created_at=now))
@@ -239,8 +254,10 @@ class Operations:
                                 affected_team_ids=proposal["affected_team_ids"], blockers=proposal["blockers"],
                                 status="pending", created_at=now, expires_at=now + timedelta(minutes=10))
             s.add(approval)
+            message = approval_request_message(approval, row(s, Person, wid, a.member.person_id).name,
+                                               a.member.roles, ZoneInfo(w.timezone))
             for member in recipients(s, wid):
-                notify(s, wid, member.id, "approval_requested", f"Approval requested: {approval.title}. Review the proposed schedule and constraints in LoveOnCue. No times have changed.",
+                notify(s, wid, member.id, "approval_requested", message,
                        f"approval:{approval.id}", now, permission="timeline:approve")
             return {"id": approval.id, "status": "pending", "changed_items": len(approval.changes), "blocked": bool(approval.blockers)}
 
@@ -275,6 +292,14 @@ class Operations:
             else:
                 approval.status = "rejected"
             approval.decided_by, approval.decided_at, approval.decision_note = a.member.id, now, cmd.note
+            if approval.proposed_by != a.member.id:
+                decider = row(s, Person, wid, a.member.person_id).name
+                outcome = ("approved. The run sheet is updated; check My tasks" if approval.status == "approved"
+                           else "rejected. The run sheet is unchanged")
+                note = f"\nNote: {cmd.note}" if cmd.note else ""
+                notify(s, wid, approval.proposed_by, "report_decision",
+                       f"Your report ({approval.title}) was {outcome}. Decided by {decider}.{note}",
+                       f"decision:{approval.id}", now)
             return {"id": approval.id, "status": approval.status}
 
         if cmd.type == "acknowledge_notification":

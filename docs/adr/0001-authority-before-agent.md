@@ -13,3 +13,13 @@ changes state. Explicit commands use the local parser.
 The original v0.1.0 used OpenClaw for intent interpretation. The direct adapter
 replaces that gateway and its operator credentials while keeping the same authority
 boundary.
+
+## Addendum, 21 November 2026: deciding in Telegram
+
+A coordinator may approve or reject a proposal from Telegram with an explicit
+Approve or Reject button, or the `/approve` and `/reject` commands. This keeps
+the decision separate from the report and made by an authenticated human with
+`timeline:approve`. The model never produces approval commands: the intent
+schema has no approval kind, and these buttons and commands bypass the model.
+Approve is not offered while hard constraints block a proposal.
+
