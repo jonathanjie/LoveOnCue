@@ -124,7 +124,7 @@ def confirmation_reply(result: dict) -> str:
         return "Already recorded\nThis report was confirmed earlier. No new change was made."
     kind = result.get("command_type")
     if kind == "propose_delay":
-        return ("Report confirmed\nProposal awaiting the coordinator's approval. The run sheet does not change until "
+        return ("Report confirmed\nProposal awaiting approval from the coordinator. The run sheet does not change until "
                 "they approve it. I will tell you their decision.")
     if kind == "report_incident":
         return "Report sent\nThe coordinator and your team have been told."
