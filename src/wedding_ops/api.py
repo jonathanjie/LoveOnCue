@@ -258,6 +258,14 @@ def create_app(settings: Settings | None = None, db: Database | None = None, clo
     @app.get("/api/knowledge")
     def knowledge(q:str,actor:Actor=Depends(reader)): return {"items":queries.knowledge(actor,q[:300])}
 
+    @app.get("/api/brief")
+    def brief(actor:Actor=Depends(reader)):
+        """The coordinator brief for the Mini App. Read-only; coordinator_brief checks timeline:approve."""
+        sections=queries.coordinator_brief(actor)
+        result={name:[{"title":title,"detail":detail} for title,detail in items] for name,items in sections.items()}
+        result["latest_update"]=queries.latest_update(actor)
+        return result
+
     @app.get("/api/audit")
     def audit_log(actor:Actor=Depends(reader)): return {"items":queries.audit(actor)}
 

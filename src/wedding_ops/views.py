@@ -15,7 +15,7 @@ from .models import (
     Notification, Person, SeatingTable, Task, TaskDependency, Team, TimelineItem, Vendor, Wedding,
 )
 from .policy import Access, Actor, load_access, require_human
-from .telegram_ui import ACK_TOPICS
+from .telegram_ui import ACK_PROMPT, ACK_TOPICS
 
 
 def row(session: Session, cls, wedding_id: str, record_id: str):
@@ -144,11 +144,7 @@ class Queries:
             access.require("timeline:approve")
             now = self.clock.now()
             urgent, followups, notes = [], [], []
-            owners = dict(session.execute(
-                select(Member.id, Person.name).join(
-                    Person, (Person.id == Member.person_id) & (Person.wedding_id == Member.wedding_id)
-                ).where(Member.wedding_id == self.wid, Member.active)
-            ).all())
+            owners = self._active_member_names(session)
             tasks = sorted(rows(session, Task, self.wid), key=lambda task: (task.due_at, task.id))
             task_by_id = {task.id: task for task in tasks}
             blockers_by_task: dict[str, list[str]] = {}
@@ -197,19 +193,43 @@ class Queries:
 
     def _latest_unacknowledged(self, session, owners: dict[str, str]) -> tuple[str, str] | None:
         """Who has not acknowledged the newest announcement or timeline update."""
+        update = self._latest_update(session, owners)
+        if not update or not update["not_read"]:
+            return None
+        missing = update["not_read"]
+        read_count = update["total"] - len(missing)
+        return (f"Not acknowledged: latest {update['kind']} ({read_count} of {update['total']} acknowledged)",
+                ", ".join(missing[:12]) + (" and others" if len(missing) > 12 else ""))
+
+    def _latest_update(self, session, owners: dict[str, str]) -> dict | None:
+        """The newest announcement or timeline update, and who has read it."""
         notices = [n for n in rows(session, Notification, self.wid)
                    if n.topic in ACK_TOPICS and n.state in {"queued", "sending", "sent", "simulated"}]
         if not notices:
             return None
         # notify() stores keys as "<update key>:<recipient>", so one update shares a prefix.
-        newest = max(notices, key=lambda n: (n.created_at, n.id)).dedupe_key.rsplit(":", 1)[0]
-        group = [n for n in notices if n.dedupe_key.rsplit(":", 1)[0] == newest]
-        missing = sorted(owners.get(n.recipient_id, "Unknown member") for n in group if n.acknowledged_at is None)
-        if not missing:
-            return None
-        label = "announcement" if group[0].topic == "coordinator_message" else "timeline update"
-        return (f"Not acknowledged: latest {label} ({len(group) - len(missing)} of {len(group)} acknowledged)",
-                ", ".join(missing[:12]) + (" and others" if len(missing) > 12 else ""))
+        newest = max(notices, key=lambda n: (n.created_at, n.id))
+        prefix = newest.dedupe_key.rsplit(":", 1)[0]
+        group = [n for n in notices if n.dedupe_key.rsplit(":", 1)[0] == prefix]
+        read = sorted(({"name": owners.get(n.recipient_id, "Unknown member"), "at": iso(n.acknowledged_at)}
+                       for n in group if n.acknowledged_at is not None), key=lambda entry: entry["at"])
+        return {"kind": "announcement" if newest.topic == "coordinator_message" else "timeline update",
+                "message": newest.message.replace(ACK_PROMPT, "").strip(),
+                "sent_at": iso(newest.created_at), "total": len(group), "read": read,
+                "not_read": sorted(owners.get(n.recipient_id, "Unknown member") for n in group if n.acknowledged_at is None)}
+
+    def latest_update(self, actor: Actor) -> dict | None:
+        """Read status of the newest update, for the coordinator's web view."""
+        with self.db.transaction(self.wid) as (session, _):
+            load_access(session, actor, self.wid).require("timeline:approve")
+            return self._latest_update(session, self._active_member_names(session))
+
+    def _active_member_names(self, session) -> dict[str, str]:
+        return dict(session.execute(
+            select(Member.id, Person.name).join(
+                Person, (Person.id == Member.person_id) & (Person.wedding_id == Member.wedding_id)
+            ).where(Member.wedding_id == self.wid, Member.active)
+        ).all())
 
     def help_contact(self, member_id: str) -> tuple[list[str], list[str]]:
         """A member's roles and the active coordinators' names, for explaining a refusal."""

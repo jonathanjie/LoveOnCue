@@ -381,3 +381,32 @@ def test_model_delay_query_matches_one_activity_by_its_words(queries, ops):
     assert ask("service")["kind"] == "clarification"
     # More shared words win: "dinner service" fits Dinner service better than Dessert service.
     assert "Dinner service" in ask("dinner service")["draft"]["summary"]
+
+
+def test_brief_endpoint_shows_who_read_the_latest_update(client):
+    login(client)
+    announce={'command':{'type':'broadcast','team_ids':['ushers','stage'],'message':'Ceremony moves indoors.'},'request_id':'test-api-broadcast'}
+    assert client.post('/api/commands',json=announce).status_code==200
+    brief=client.get('/api/brief').json()
+    update=brief['latest_update']
+    assert update['kind']=='announcement'
+    assert 'Ceremony moves indoors.' in update['message']
+    assert update['total']==len(update['not_read']) and update['read']==[]
+    assert 'Jamie Lim' in update['not_read']
+    assert all(set(item)=={'title','detail'} for section in ('urgent','followups','notes') for item in brief[section])
+
+    login(client,'usher')
+    notice=client.get('/api/snapshot').json()['notifications'][0]
+    acknowledge={'command':{'type':'acknowledge_notification','notification_id':notice['id']},'request_id':'test-api-ack'}
+    assert client.post('/api/commands',json=acknowledge).status_code==200
+    assert client.get('/api/brief').status_code==403
+
+    login(client)
+    update=client.get('/api/brief').json()['latest_update']
+    assert [entry['name'] for entry in update['read']]==['Jamie Lim']
+    assert 'Jamie Lim' not in update['not_read']
+
+
+def test_brief_endpoint_without_updates(client):
+    login(client)
+    assert client.get('/api/brief').json()['latest_update'] is None
