@@ -16,6 +16,7 @@ To revoke access, end the session in Telegram: **Settings → Devices**.
 ```bash
 sudo install -d -m 0700 /opt/loveoncue-tester /etc/loveoncue-tester
 sudo cp tools/telegram_tester/* /opt/loveoncue-tester/
+sudo chmod 0755 /opt/loveoncue-tester/role.sh
 sudo python3.12 -m venv /opt/loveoncue-tester/.venv
 sudo /opt/loveoncue-tester/.venv/bin/pip install -r /opt/loveoncue-tester/requirements.txt
 ```
@@ -37,3 +38,22 @@ sudo /opt/loveoncue-tester/.venv/bin/python /opt/loveoncue-tester/loveoncue_test
 ```
 
 `tap` presses only callback buttons. It refuses link and Mini App buttons.
+
+```bash
+sudo /opt/loveoncue-tester/.venv/bin/python /opt/loveoncue-tester/loveoncue_tester.py photo --caption "Table 12 setup"
+```
+
+`photo` sends a generated striped test card unless you give an image path.
+
+## Switch roles
+
+One Telegram account can play every staging role. `role.sh` moves the
+account's link to another fixture member through the app's operator CLI. The
+CLI refuses unless the app runs with `WEDDINGOPS_REHEARSAL=true`, and there is
+no chat command for it.
+
+```bash
+sudo /opt/loveoncue-tester/role.sh members
+sudo /opt/loveoncue-tester/role.sh coordinator
+sudo /opt/loveoncue-tester/role.sh banquet
+```
