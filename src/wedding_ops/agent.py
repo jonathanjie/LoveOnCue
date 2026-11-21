@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import re
 from datetime import timedelta
@@ -229,13 +230,15 @@ class MistralParser:
         return Intent.model_validate_json(content, strict=True)
 
     def plan(self, messages: list[dict], actions: list[str]):
-        """One deputy turn. The schema lists only this person's actions, so others cannot be chosen."""
-        from .deputy import DeputyPlan  # Imported here: deputy.py imports this module.
-        schema = DeputyPlan.model_json_schema()
-        schema["properties"]["action"]["enum"] = list(actions)
+        """One deputy turn. The schema offers only this person's actions, each with only its own fields."""
+        from .deputy import (  # Imported here: deputy.py imports this module.
+            DeputyPlan,
+            plan_from_model,
+            plan_schema,
+        )
         content = self._structured_completion(self.model, messages, DeputyPlan, "deputy_plan", MAX_DEPUTY_TOKENS,
-                                              schema=schema)
-        return DeputyPlan.model_validate_json(content, strict=True)
+                                              schema=plan_schema(actions))
+        return plan_from_model(json.loads(content))
 
     def review_photo(self, jpeg: bytes, caption: str) -> PhotoReview:
         if not self.vision_model:

@@ -18,6 +18,7 @@ CLOCK = re.compile(r"\b([01]?\d|2[0-3])[:.]([0-5]\d)(?:\s*([ap])\.?m\b\.?)?", re
 HOUR_ONLY = re.compile(r"(?<![:.\d])\b(1[0-2]|0?[1-9])\s*([ap])\.?m\b\.?", re.IGNORECASE)
 TABLE = re.compile(r"\btable\s+([A-Za-z]?\d+[A-Za-z]?)\b", re.IGNORECASE)
 COUNT = re.compile(r"\b(\d+)\s+of\s+(\d+)\b")
+DURATION = re.compile(r"\b(\d{1,3})\s*(?:min|mins|minute|minutes|minit)\b", re.IGNORECASE)
 REFERENCE = re.compile(r"\b([RQ]\d{1,2})\b")
 QUOTED = re.compile(r"“[^”]*”")
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
@@ -28,12 +29,20 @@ REPORT_NOUN = re.compile(r"\b([RQ]\d{1,2}|requests?|reports?|questions?|alerts?|
 REPORT_STATUS = re.compile(r"\b(sent|unsent|pending|approved|rejected|declined|open|answered|resolved|withdrawn|"
                            r"waiting|logged|recorded|flagged|received)\b", re.IGNORECASE)
 
-# First-person statements of doing something only a tapped draft can do. Counted for the
-# gate, not enforced: code writes every outcome sentence, so these show prompt drift.
+# The deputy answers once per message and has no outbound effect of its own: only a tapped
+# draft acts. So a first-person promise about the future ("I'll ...", "let me ...") is never
+# true, whatever the verb, and neither is a claim to be doing or to have done something only a
+# draft can do ("I'm flagging", "I've sent"). Code writes every outcome sentence instead.
+# Gate v6 measured these in 15% of answers when only the prompt forbade them.
 SELF_ACT = re.compile(
-    r"\b(I'll|I will|I'm|I am|I've|I have|I just|let me)\s+(?:\w+\s+){0,2}?"
-    r"(flag|ask|tell|send|sent|message|notify|nudg|pass|forward|escalat|report|log|record|updat|remind|chas|"
-    r"contact|call|cancel|withdr|arrang|let)\w*", re.IGNORECASE)
+    r"\b(?:I'll|I will|I'm going to|I am going to|I'm gonna|let me)\b"
+    r"|\b(?:I'm|I am|I've|I have|I just|I already)\s+(?:\w+\s+){0,2}?"
+    r"(?:flag|ask|tell|told|send|sent|message|notif|nudg|pass|forward|escalat|report|log|record|updat|remind|"
+    r"chas|contact|call|cancel|withdr|arrang|put|let)\w*", re.IGNORECASE)
+
+# Words that make a message a question, in English and common Singlish spellings.
+QUESTION_WORDS = {"what", "wat", "where", "when", "who", "whom", "which", "why", "how", "izzit", "issit", "can i",
+                  "should", "do i", "is it"}
 
 STOPWORDS = {"the", "and", "for", "mr", "mrs", "ms", "mdm", "auntie", "aunty", "uncle", "table", "guest", "seat",
              "where", "what", "who", "his", "her", "she", "him", "ah", "lah", "leh"}
@@ -79,10 +88,18 @@ class Support:
     """The normalised facts that a text may state."""
 
     def __init__(self, text: str, names: set[str], references: set[str] = frozenset(), *,
-                 extra_names: str = ""):
+                 extra_names: str = "", shifts_from: str = ""):
         self.forms: set[str] = set()
         for fact in facts(text, names):
             self.forms |= fact.forms
+        # A record's time moved by a duration the person gave ("15 min later" on 19:00) is
+        # arithmetic on supported facts, so the result is supported too.
+        shifts = {int(m[1]) for m in DURATION.finditer(shifts_from)}
+        for form in [f for f in self.forms if f.startswith("time:")]:
+            hour, minute = map(int, form[5:].split(":"))
+            for shift in shifts:
+                total = (hour * 60 + minute + shift) % (24 * 60)
+                self.forms.add(f"time:{total // 60:02d}:{total % 60:02d}")
         self.forms |= {f"ref:{reference}" for reference in references}
         # Naming a person or place the person just mentioned is not a claim about them.
         for fact in facts(extra_names, names):
@@ -106,20 +123,23 @@ class Checked:
     removed: list[str]           # sentences with a fact that no record supports
     status: list[str]            # sentences stating a report's status, which code states instead
     status_references: set[str]  # references named in those status sentences
+    acts: list[str]              # first-person acts the deputy cannot do
 
 
 def check_answer(text: str, support: Support, names: set[str]) -> Checked:
     """Keep the sentences whose facts are supported and that do not state report status."""
-    kept, removed, status, references = [], [], [], set()
+    kept, removed, status, references, acts = [], [], [], set(), []
     for sentence in sentences(text):
-        if states_report_status(sentence):
+        if SELF_ACT.search(sentence):
+            acts.append(sentence)
+        elif states_report_status(sentence):
             status.append(sentence)
             references |= set(REFERENCE.findall(sentence))
         elif support.missing(sentence, names):
             removed.append(sentence)
         else:
             kept.append(sentence)
-    return Checked(" ".join(kept), removed, status, references)
+    return Checked(" ".join(kept), removed, status, references, acts)
 
 
 def without_quotes(text: str) -> str:
@@ -136,3 +156,15 @@ def from_their_words(argument: str, words: str) -> bool:
     theirs = {w for w in re.findall(r"[a-z]+", words.casefold()) if len(w) > 2 and w not in STOPWORDS}
     mine = {w for w in re.findall(r"[a-z]+", argument.casefold()) if len(w) > 2 and w not in STOPWORDS}
     return bool(mine & theirs) or not mine
+
+
+def is_confirmation(text: str) -> bool:
+    """A short message that confirms ("ok noted", "on it", a thumbs up) and asks nothing.
+
+    Acknowledging changes a record without a tap, so code, not the model alone, decides that a
+    message is a confirmation.
+    """
+    lowered = f" {text.casefold().strip()} "
+    if "?" in lowered or len(lowered.split()) > 6:
+        return False
+    return not any(f" {word} " in lowered for word in QUESTION_WORDS)

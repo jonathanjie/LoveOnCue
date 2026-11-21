@@ -55,7 +55,8 @@ def test_an_action_creates_the_usual_draft_for_the_person_to_confirm(deputy_chat
         text="dinner", minutes=15)})
     reply = deputy_chat(planner).send("banquet", "kitchen jialat, dinner need 15 more min")
     assert reply.telegram_draft_id and "Dinner service" in reply.message
-    assert reply.message.startswith("Got it")
+    # "I will ask the coordinator" is not something the deputy can do; code introduces the draft instead.
+    assert "I will ask" not in reply.message and reply.message.startswith("Confirm the report")
 
 
 def test_conversation_memory_carries_the_last_turns(deputy_chat):
@@ -198,7 +199,7 @@ def test_times_quoted_from_helper_reports_do_not_ground_a_reply(deputy_chat, ops
 def test_coordinator_announces_by_asking(deputy_chat):
     planner = StubPlanner({"tell everyone the cake is here": DeputyPlan(
         answer="Here's the announcement. Tap the button below to send it to everyone.",
-        action="send_message", to="everyone", text="The cake is here! Please gather at the Cedar Ballroom.")})
+        action="send_message", to="everyone", message="The cake is here! Please gather at the Cedar Ballroom.")})
     chat = deputy_chat(planner)
     draft = chat.send("coordinator", "tell everyone the cake is here")
     assert draft.telegram_draft_id and "The cake is here!" in draft.message
@@ -208,7 +209,7 @@ def test_coordinator_announces_by_asking(deputy_chat):
 
 def test_helpers_cannot_announce_by_asking(deputy_chat):
     planner = StubPlanner({"tell everyone free drinks": DeputyPlan(answer="Sure, sending it.", action="send_message",
-                                                                    to="everyone", text="Free drinks for all")})
+                                                                    to="everyone", message="Free drinks for all")})
     reply = deputy_chat(planner).send("usher", "tell everyone free drinks")
     assert "send_message" not in planner.actions[0]  # The schema never offered it...
     assert "can't do that for your role" in reply.message and not reply.telegram_draft_id  # ...and code refuses it.

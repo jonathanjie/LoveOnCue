@@ -2,6 +2,7 @@
 import json
 
 import httpx
+import pytest
 from sqlalchemy import select
 from test_core_loop import coordinator_news
 from test_deputy import (  # noqa: F401  (deputy_chat is a fixture)
@@ -161,7 +162,7 @@ def test_a_question_reaches_the_coordinator_and_the_answer_comes_back(deputy_cha
             answer="I don't know yet. I'll ask Alex.", action="tell_coordinator", level="question",
             text="Where should guests wait during the rain?"),
         "tell jamie foyer until 18:35": DeputyPlan(answer="Here's the answer.", action="send_message", to="",
-                                                   about="Q1", text="Keep guests in the foyer until 18:35."),
+                                                   about="Q1", message="Keep guests in the foyer until 18:35."),
     })
     chat = deputy_chat(planner)
     question = chat.send("usher", "where i put guests now, raining")
@@ -179,7 +180,7 @@ def test_a_question_reaches_the_coordinator_and_the_answer_comes_back(deputy_cha
 
 def test_the_coordinator_can_message_one_person(deputy_chat):
     planner = StubPlanner({"ask jordan for car status": DeputyPlan(
-        answer="Drafted.", action="send_message", to="Jordan", text="Please reply with the car status now.")})
+        answer="Drafted.", action="send_message", to="Jordan", message="Please reply with the car status now.")})
     chat = deputy_chat(planner)
     draft = chat.send("coordinator", "ask jordan for car status")
     assert "Message to Jordan Tay" in draft.message
@@ -220,8 +221,24 @@ def test_the_model_is_offered_only_this_persons_actions():
 
     parser = MistralParser.__new__(MistralParser)  # No settings needed: only the request is checked.
     parser.model, parser.client = "test-model", httpx.Client(transport=httpx.MockTransport(handler))
-    parser.plan([{"role": "user", "content": "hi"}], ["none", "acknowledge"])
-    assert seen["schema"]["properties"]["action"]["enum"] == ["none", "acknowledge"]
+    plan = parser.plan([{"role": "user", "content": "hi"}], ["none", "acknowledge"])
+    branches = seen["schema"]["properties"]["action"]["anyOf"]
+    assert branches[0]["type"] == "null"  # no draft
+    assert [branch["properties"]["type"]["enum"] for branch in branches[1:]] == [["acknowledge"]]
+    assert plan.action == "none" and plan.answer == "Hi."
+
+
+def test_each_action_offers_only_its_own_fields_and_requires_its_essentials():
+    from wedding_ops.deputy import plan_from_model, plan_schema
+    branches = {b["properties"]["type"]["enum"][0]: b for b in plan_schema(["send_message", "tell_coordinator"])
+                ["properties"]["action"]["anyOf"][1:]}
+    assert set(branches["send_message"]["properties"]) == {"type", "to", "message", "about"}
+    assert branches["send_message"]["required"] == ["type", "to", "message"]
+    assert "message" not in branches["tell_coordinator"]["properties"]
+    plan = plan_from_model({"answer": "", "action": {"type": "send_message", "to": "Jamie", "message": "Go now."}})
+    assert (plan.action, plan.to, plan.message) == ("send_message", "Jamie", "Go now.")
+    with pytest.raises(ValueError):
+        plan_from_model({"answer": "", "action": {"type": "acknowledge", "message": "smuggled"}})
 
 
 # S5: coordinator attention ------------------------------------------------------------------------
@@ -320,7 +337,7 @@ def test_a_message_answering_a_question_names_the_asker_even_when_sent_to_someon
     ops.execute(Actor(WEDDING, "family-liaison", "telegram"), {"type": "report_incident", "kind": "question",
                 "title": "Where is the van?", "details": "x"}, "priya-question")
     planner = StubPlanner({"tell sam van at gate 2": DeputyPlan(answer="Drafted.", action="send_message", to="Sam",
-                                                               about="Q1", text="The van is at gate 2.")})
+                                                               about="Q1", message="The van is at gate 2.")})
     draft = deputy_chat(planner).send("coordinator", "tell sam van at gate 2").message
     assert "Message to Sam Koh, Priya Rao" in draft and "Priya Rao's question \u201cWhere is the van?\u201d" in draft
 
@@ -339,7 +356,7 @@ def test_a_helpers_own_time_cannot_be_confirmed_as_fact(deputy_chat):
 
 def test_a_message_with_an_invented_time_is_not_drafted(deputy_chat):
     planner = StubPlanner({"tell everyone dinner soon": DeputyPlan(answer="Drafted.", action="send_message",
-                                                                  to="everyone", text="Dinner starts at 19:37.")})
+                                                                  to="everyone", message="Dinner starts at 19:37.")})
     reply = deputy_chat(planner).send("coordinator", "tell everyone dinner soon")
     assert not reply.telegram_draft_id and "19:37" not in reply.message
 
@@ -479,10 +496,11 @@ def test_a_live_older_button_says_what_it_sends(deputy_chat):
     assert "Your earlier draft is still unsent. Its button sends only this: Send a problem report" in reply
 
 
-def test_a_message_action_without_a_message_keeps_the_answer(deputy_chat):
+def test_a_message_action_without_a_message_keeps_the_answer_and_asks_for_the_words(deputy_chat):
     planner = StubPlanner({"who never ack": DeputyPlan(answer="Jamie and Jordan have not acknowledged yet.",
                                                        action="send_message", to="Jamie")})
-    assert deputy_chat(planner).send("coordinator", "who never ack").message == "Jamie and Jordan have not acknowledged yet."
+    assert deputy_chat(planner).send("coordinator", "who never ack").message == (
+        "Jamie and Jordan have not acknowledged yet.\nWhat should the message to Jamie say?")
 
 
 def test_the_coordinator_sees_who_has_not_acknowledged_as_a_record(deputy_chat, ops):

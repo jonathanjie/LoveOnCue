@@ -8,6 +8,7 @@ from wedding_ops.claims import (
     check_answer,
     facts,
     from_their_words,
+    is_confirmation,
     self_acts,
     without_quotes,
 )
@@ -66,7 +67,8 @@ def test_sentences_stating_a_reports_status_are_left_to_code():
 
 def test_first_person_acts_are_counted():
     assert self_acts("I'll flag it to the coordinator now. I'm sending it. Tap Send.") == 2
-    assert self_acts("Here's the report. Tap Send if it looks right.") == 0
+    assert self_acts("I'll put that to everyone. Let me check her table. I've told Alex.") == 3
+    assert self_acts("Here's the report. Tap Send if it looks right. I'm not sure of the time.") == 0
 
 
 def test_a_name_passed_on_must_come_from_the_persons_words():
@@ -131,13 +133,13 @@ def test_a_drafts_introduction_and_next_step_are_written_by_code(deputy_chat):  
     planner = StubPlanner({"mic spoil": DeputyPlan(answer="I'm flagging it to the coordinator now.",
                                                    action="tell_coordinator", text="Mic broken", also="the projector")})
     message = deputy_chat(planner).send("mc", "mic spoil").message
-    assert "Check this report before I send it." in message
+    assert "flagging" not in message and "Check this report before I send it." in message
     assert "After that, tell me about: the projector." in message
 
 
 def test_a_message_with_an_unsupported_table_is_not_drafted(deputy_chat):  # noqa: F811
     planner = StubPlanner({"tell ushers vip at front": DeputyPlan(
-        action="send_message", to="Ushers", text="VIPs sit at Table 99.")})
+        action="send_message", to="Ushers", message="VIPs sit at Table 99.")})
     reply = deputy_chat(planner).send("coordinator", "tell ushers vip at front")
     assert not reply.telegram_draft_id and "exact wording" in reply.message
 
@@ -163,3 +165,35 @@ def test_a_drafts_status_is_stated_by_code_from_the_pending_draft(deputy_chat): 
     message = chat.send("mc", "sent or not").message
     assert "was sent" not in message
     assert message.count("Its button sends only this: Send a problem report") == 1
+
+
+def test_a_promise_to_act_without_a_draft_is_removed_and_nothing_is_implied(deputy_chat):  # noqa: F811
+    planner = StubPlanner({"tell alex the mic spoil": DeputyPlan(answer="I'll let Alex know right away.")})
+    message = deputy_chat(planner).send("mc", "tell alex the mic spoil").message
+    assert "let Alex know" not in message and message.startswith("I haven't done anything with that.")
+
+
+def test_an_empty_answer_with_no_action_never_says_okay(deputy_chat):  # noqa: F811
+    planner = StubPlanner({"how many guests arrived": DeputyPlan()})
+    assert deputy_chat(planner).send("registration-a", "how many guests arrived").message.startswith("I haven't done")
+
+
+def test_a_record_time_moved_by_the_persons_duration_is_supported():
+    support = Support("[run sheet] - 19:00 Dinner service", set(), shifts_from="dinner pushed 15 min")
+    assert support.missing("Dinner is now at 19:15.", set()) == []
+    assert support.missing("Dinner is now at 19:20.", set()) == ["19:20"]
+
+
+def test_only_a_confirmation_can_acknowledge_without_a_tap():
+    for text in ["ok noted", "on it", "ok can \U0001f44d", "got it boss", "roger"]:
+        assert is_confirmation(text), text
+    for text in ["eh where i stand ah", "eh what i need do ah", "ok but when?", "how many guests arrived so far"]:
+        assert not is_confirmation(text), text
+
+
+def test_a_question_after_a_ping_is_answered_not_acknowledged(deputy_chat, db):  # noqa: F811
+    from wedding_ops.models import Task
+    planner = StubPlanner({"eh where i stand ah": DeputyPlan(answer="Ballroom Entrance B.", action="acknowledge")})
+    deputy_chat(planner).send("usher", "eh where i stand ah")
+    with db.sessions() as s:
+        assert all(t.acknowledged_at is None for t in s.scalars(select(Task).where(Task.owner_id == "usher")))
