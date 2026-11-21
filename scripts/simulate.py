@@ -219,6 +219,8 @@ def command_desk(world: World, action: str, target: str | None, note: str) -> No
         print(f"Pending approvals: {len(pending)}")
         for approval in pending:
             print(f"  {approval['id']}  {approval.get('title')}  expires {approval.get('expires_at')}")
+            # The web desk shows the reason on each approval card.
+            print(f"      reason: {approval.get('reason')}")
         open_incidents = [i for i in snapshot["incidents"] if i.get("status") == "open"]
         print(f"Open incidents: {len(open_incidents)}")
         for incident in open_incidents:
