@@ -20,6 +20,7 @@ import {setup} from './screens/setup.js';
 
 type TelegramWebApp = {
   initData: string; colorScheme?: 'light' | 'dark'; ready: () => void; expand: () => void;
+  isVersionAtLeast?: (version: string) => boolean;
   onEvent?: (event: string, handler: () => void) => void;
   BackButton?: {show: () => void; hide: () => void; onClick: (handler: () => void) => void};
 };
@@ -27,6 +28,8 @@ declare global { interface Window { Telegram?: {WebApp?: TelegramWebApp} } }
 
 const root = document.querySelector<HTMLDivElement>('#app')!;
 const telegram = (): TelegramWebApp | undefined => window.Telegram?.WebApp;
+/** Telegram's back button exists from Mini App version 6.1. Older clients only log a warning. */
+const backButton = () => (telegram()?.isVersionAtLeast?.('6.1') ? telegram()?.BackButton : undefined);
 
 // ---------- Routes ----------
 
@@ -111,7 +114,7 @@ function render(): void {
   root.replaceChildren(el('div', 'shell', skip, topbar(),
     state.healthy ? null : el('div', 'stale-banner', 'No connection. What you see may be out of date, and changes are paused.'),
     main, tabbar()));
-  const back = telegram()?.BackButton;
+  const back = backButton();
   if (back) { if (isTab) back.hide(); else back.show(); }
 }
 
@@ -237,7 +240,7 @@ function applyTheme(): void {
 async function boot(): Promise<void> {
   applyTheme();
   telegram()?.onEvent?.('themeChanged', applyTheme);
-  telegram()?.BackButton?.onClick(() => go('home'));
+  backButton()?.onClick(() => go('home'));
   try {
     state.config = await api<Config>('/api/config');
     const invitation = new URLSearchParams(location.hash.slice(1)).get('invite');
