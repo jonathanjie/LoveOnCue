@@ -41,7 +41,7 @@ function changes(main: HTMLElement): void {
     return b.created_at.localeCompare(a.created_at);
   });
   if (!ordered.length) {
-    main.append(empty('No schedule changes', 'When a team asks for more time, it shows here for you to decide.'));
+    main.append(empty('No schedule changes', 'When a team asks for more time, it shows here for you to decide.', 'clear'));
     return;
   }
   main.append(list(...ordered.map(approval => {
@@ -102,7 +102,7 @@ function problemList(main: HTMLElement): void {
     if (a.severity !== b.severity) return a.severity === 'urgent' ? -1 : 1;
     return b.created_at.localeCompare(a.created_at);
   });
-  if (!all.length) main.append(empty('No problems reported', 'Problems reported in chat or here show up in this list.'));
+  if (!all.length) main.append(empty('No problems reported', 'Problems reported in chat or here show up in this list.', 'clear'));
   else main.append(list(...all.map(incident => row({
     title: incident.title,
     meta: `${memberName(incident.reported_by)} · ${relative(incident.created_at)}`,

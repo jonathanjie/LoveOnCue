@@ -62,7 +62,7 @@ function helperHome(main) {
     }
     const next = myJobs()[0];
     const jobs = el('section', 'group', groupTitle('Your next job'));
-    jobs.append(next ? heroJob(next) : empty('No job for you right now', 'New jobs show up here and in Telegram.'));
+    jobs.append(next ? heroJob(next) : empty('No job for you right now', 'New jobs show up here and in Telegram.', 'clear'));
     main.append(jobs);
     const tiles = el('div', 'tiles');
     if (canLookUpGuests())

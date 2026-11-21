@@ -1,5 +1,5 @@
 // Small DOM builders shared by every screen. All text goes in through textContent.
-import {icon, type IconName} from './icons.js';
+import {art, icon, tileIcon, type ArtName, type IconName} from './icons.js';
 import type {Tone} from './format.js';
 
 type Child = Node | string | null | undefined | false;
@@ -52,8 +52,8 @@ export function pill(label: string, tone: Tone = ''): HTMLSpanElement {
   return el('span', `pill ${tone}`.trim(), label);
 }
 
-export function empty(title: string, detail = ''): HTMLDivElement {
-  return el('div', 'empty', el('strong', '', title), detail);
+export function empty(title: string, detail = '', picture?: ArtName): HTMLDivElement {
+  return el('div', 'empty', picture ? art(picture) : null, el('strong', '', title), detail);
 }
 
 export function groupTitle(title: string, count?: string | number): HTMLHeadingElement {
@@ -94,7 +94,7 @@ export function segmented<T extends string>(options: {value: T; label: string; c
 export function tile(options: {icon: IconName; name: string; status?: string; count?: string | number; tone?: '' | 'alert' | 'waiting'; small?: boolean; onOpen: () => void}): HTMLButtonElement {
   const classes = ['tile', options.small ? 'small' : '', options.tone ? `is-${options.tone}` : ''].filter(Boolean).join(' ');
   const node = el('button', classes,
-    icon(options.icon),
+    tileIcon(options.icon),
     options.count === undefined ? null : el('span', 'tile-count', String(options.count)),
     el('span', 'tile-name', options.name),
     options.status ? el('span', 'tile-status', options.status) : null);

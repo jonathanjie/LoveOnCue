@@ -58,13 +58,13 @@ function drawResults() {
     if (!results || !results.isConnected)
         return;
     if (!state.guestQuery.trim()) {
-        results.replaceChildren(empty('Type part of a name', 'For example “Tan” or “Sarah”.'));
+        results.replaceChildren(empty('Type part of a name', 'For example “Tan” or “Sarah”.', 'card'));
         return;
     }
     const rows = state.guestRows;
     results.replaceChildren(groupTitle(rows.length === 50 ? 'First 50 matches' : `${rows.length} ${rows.length === 1 ? 'match' : 'matches'}`));
     if (!rows.length) {
-        results.append(empty('No guest with that name', 'Try part of the name, or ask the coordinator.'));
+        results.append(empty('No guest with that name', 'Try part of the name, or ask the coordinator.', 'card'));
         return;
     }
     results.append(list(...rows.map(guest => row({

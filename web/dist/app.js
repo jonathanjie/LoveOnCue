@@ -3,7 +3,7 @@
 import { api, setAfterCommand } from './api.js';
 import { can, canLookUpGuests, isCoordinator } from './access.js';
 import { clock, roleWord } from './format.js';
-import { icon } from './icons.js';
+import { art, icon, wordmark } from './icons.js';
 import { go, rerender, setRenderer, snap, state } from './state.js';
 import { button, closeAllSheets, el, errorText, isBusy, list, note, row, sheet, sheetOpen, toast } from './ui.js';
 import { activity } from './screens/activity.js';
@@ -171,7 +171,7 @@ async function signInAsDemo(memberId) {
 }
 function welcome() {
     const config = state.config;
-    const page = el('main', 'welcome', el('div', 'welcome-mark', 'LoveOnCue'), el('h1', '', 'The wedding day, in one place.'));
+    const page = el('main', 'welcome', wordmark(), art('rings'), el('h1', '', 'The wedding day, in one place.'));
     if (config.demo) {
         page.append(el('p', '', 'This is a rehearsal with fictional guests. No real messages are sent. Choose who to be.'), list(...config.demo_members.map(member => row({ title: member.name, meta: member.roles.map(roleWord).join(', '),
             onOpen: () => void signInAsDemo(member.id).catch(error => toast(errorText(error), true)) }))));
@@ -249,7 +249,7 @@ async function boot() {
         welcome();
     }
     catch (error) {
-        root.replaceChildren(el('main', 'loading', el('h1', '', 'LoveOnCue'), el('p', 'error-text', errorText(error)), button('Try again', boot, 'primary')));
+        root.replaceChildren(el('main', 'loading', wordmark(), el('p', 'error-text', errorText(error)), button('Try again', boot, 'primary')));
     }
 }
 setRenderer(render);

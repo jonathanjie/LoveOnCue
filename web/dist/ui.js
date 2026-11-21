@@ -1,5 +1,5 @@
 // Small DOM builders shared by every screen. All text goes in through textContent.
-import { icon } from './icons.js';
+import { art, icon, tileIcon } from './icons.js';
 export function el(tag, className = '', ...children) {
     const node = document.createElement(tag);
     if (className)
@@ -46,8 +46,8 @@ export function button(label, action, kind = '') {
 export function pill(label, tone = '') {
     return el('span', `pill ${tone}`.trim(), label);
 }
-export function empty(title, detail = '') {
-    return el('div', 'empty', el('strong', '', title), detail);
+export function empty(title, detail = '', picture) {
+    return el('div', 'empty', picture ? art(picture) : null, el('strong', '', title), detail);
 }
 export function groupTitle(title, count) {
     return el('h2', 'group-title', title, count === undefined ? null : el('span', 'count', String(count)));
@@ -82,7 +82,7 @@ export function segmented(options, current, choose, name) {
 }
 export function tile(options) {
     const classes = ['tile', options.small ? 'small' : '', options.tone ? `is-${options.tone}` : ''].filter(Boolean).join(' ');
-    const node = el('button', classes, icon(options.icon), options.count === undefined ? null : el('span', 'tile-count', String(options.count)), el('span', 'tile-name', options.name), options.status ? el('span', 'tile-status', options.status) : null);
+    const node = el('button', classes, tileIcon(options.icon), options.count === undefined ? null : el('span', 'tile-count', String(options.count)), el('span', 'tile-name', options.name), options.status ? el('span', 'tile-status', options.status) : null);
     node.type = 'button';
     node.addEventListener('click', options.onOpen);
     return node;

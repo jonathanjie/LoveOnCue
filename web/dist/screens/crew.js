@@ -63,7 +63,7 @@ export function crew(main) {
         })));
     }
     else if (!shown.length) {
-        main.append(empty(state.crewTab === 'not_seen' ? 'Everyone has seen their next job' : 'Nobody has confirmed yet'));
+        main.append(empty(state.crewTab === 'not_seen' ? 'Everyone has seen their next job' : 'Nobody has confirmed yet', '', state.crewTab === 'not_seen' ? 'clear' : undefined));
     }
     else {
         main.append(list(...shown.map(entryRow)));

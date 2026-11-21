@@ -16,7 +16,7 @@ export function jobs(main) {
     const [next, ...later] = open;
     const jobsSection = el('section', 'group', groupTitle('Your jobs', open.length));
     if (!next)
-        jobsSection.append(empty('No open jobs', 'New jobs show up here and in Telegram.'));
+        jobsSection.append(empty('No open jobs', 'New jobs show up here and in Telegram.', 'clear'));
     else {
         jobsSection.append(heroJob(next));
         if (later.length)

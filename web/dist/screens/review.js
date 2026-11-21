@@ -41,7 +41,7 @@ function changes(main) {
         return b.created_at.localeCompare(a.created_at);
     });
     if (!ordered.length) {
-        main.append(empty('No schedule changes', 'When a team asks for more time, it shows here for you to decide.'));
+        main.append(empty('No schedule changes', 'When a team asks for more time, it shows here for you to decide.', 'clear'));
         return;
     }
     main.append(list(...ordered.map(approval => {
@@ -103,7 +103,7 @@ function problemList(main) {
         return b.created_at.localeCompare(a.created_at);
     });
     if (!all.length)
-        main.append(empty('No problems reported', 'Problems reported in chat or here show up in this list.'));
+        main.append(empty('No problems reported', 'Problems reported in chat or here show up in this list.', 'clear'));
     else
         main.append(list(...all.map(incident => row({
             title: incident.title,

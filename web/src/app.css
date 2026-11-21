@@ -15,8 +15,10 @@
   --evergreen: #173d35;      /* the one main action */
   --evergreen-press: #0f2c26;
   --on-evergreen: #ffffff;
-  --brass: #8a5e12;          /* "now" and changes */
+  --brass: #8a5e12;          /* brass ink: "now" and change text, AA on white */
   --brass-wash: #f5ecd9;
+  --brass-deco: #b8893b;     /* the logo's brass ring: shapes only, never text */
+  --blush-wash: #f6e7e2;     /* warmth in illustrations; never a status colour */
   --clay: #a33a2b;           /* urgent */
   --clay-wash: #f8e5e1;
   --amber: #7d5200;          /* waiting */
@@ -69,6 +71,8 @@
   --on-evergreen: #0e1f19;
   --brass: #e0b25e;
   --brass-wash: #3a2f1b;
+  --brass-deco: #d6a54f;
+  --blush-wash: #3a2a27;
   --clay: #f0a093;
   --clay-wash: #3d2420;
   --amber: #e8c070;
@@ -372,11 +376,11 @@ dialog.sheet[open] { animation: sheet-in 240ms cubic-bezier(0.23, 1, 0.32, 1); }
 /* ---------- Sign in ---------- */
 
 .welcome { max-width: 480px; margin: 0 auto; padding: 48px 16px 32px; }
-.welcome-mark { font-family: var(--serif); font-size: 20px; font-weight: 600; color: var(--evergreen); }
-.welcome h1 { margin-top: 24px; font-family: var(--serif); font-size: var(--text-display); font-weight: 600; line-height: 1.15; }
+.welcome .art { width: 200px; height: 134px; margin: 28px auto 8px; }
+.welcome h1 { margin-top: 8px; font-family: var(--serif); font-size: var(--text-display); font-weight: 600; line-height: 1.15; }
 .welcome p { margin-top: 10px; color: var(--ink-soft); }
 .welcome .list { margin-top: 20px; }
-.loading { padding: 20vh 16px; text-align: center; color: var(--ink-soft); }
+.loading { display: grid; justify-items: center; gap: 12px; padding: 20vh 16px; text-align: center; color: var(--ink-soft); }
 
 @media (min-width: 720px) {
   main.screen { padding-top: 28px; }
@@ -460,3 +464,42 @@ button.topbar-names { min-height: 44px; padding: 0; border: 0; background: trans
 
 .back { display: inline-flex; align-items: center; gap: 2px; min-height: var(--tap); margin-left: -8px; padding: 0 8px; border: 0; background: transparent; color: var(--evergreen); font-weight: 650; }
 .back svg { width: 20px; height: 20px; }
+
+/* ---------- Brand: logo, two-tone icons, illustrations ---------- */
+
+/* Icons are two-tone: the outline in the current colour, a soft fill, and a brass detail.
+   Plain contexts leave the fill empty; tiles and the active tab switch it on. */
+svg .i-fill { fill: var(--icon-fill, none); }
+svg .i-accent { stroke: var(--icon-accent, currentColor); }
+svg .i-dot { fill: var(--icon-accent, currentColor); stroke: none; }
+.tab[aria-current="page"] svg { --icon-fill: var(--brass-wash); --icon-accent: var(--brass-deco); }
+.tile-icon {
+  display: grid; place-items: center; width: 38px; height: 38px; flex: none;
+  border-radius: 12px; background: var(--brass-wash); color: var(--evergreen);
+  --icon-fill: var(--card); --icon-accent: var(--brass-deco);
+}
+.tile-icon svg { width: 22px; height: 22px; color: var(--evergreen); }
+.tile.small .tile-icon { width: 32px; height: 32px; border-radius: 10px; }
+.tile.small .tile-icon svg { width: 19px; height: 19px; }
+.tile.is-alert .tile-icon { background: var(--clay-wash); --icon-accent: var(--clay); }
+.tile.is-alert .tile-icon svg { color: var(--clay); }
+.hero-where svg, .alert-bar svg { --icon-fill: var(--brass-wash); --icon-accent: var(--brass-deco); }
+.alert-bar svg { --icon-fill: #fff; --icon-accent: var(--clay); }
+
+.brand-mark .ring-green { stroke: var(--evergreen); }
+.brand-mark .ring-brass { stroke: var(--brass-deco); }
+.brand-mark .ring-gap { stroke: var(--brand-surface, var(--linen)); }
+.brand-mark .spark { fill: var(--brass-deco); }
+.wordmark { display: inline-flex; align-items: center; gap: 10px; font-family: var(--serif); font-size: 22px; font-weight: 600; color: var(--evergreen); letter-spacing: -0.01em; }
+.wordmark em { font-style: italic; font-weight: 500; color: var(--brass); margin: 0 1px; }
+
+.art { display: block; width: 120px; height: 80px; margin: 0 auto 8px; }
+.art .art-line { stroke: var(--evergreen); opacity: 0.55; }
+.art .art-fill { fill: var(--card); }
+.art .art-wash { fill: var(--blush-wash); stroke: none; }
+.art .art-brass-wash { fill: var(--brass-wash); stroke: none; }
+.art .art-accent-line { stroke: var(--brass-deco); }
+.art .art-dot { fill: var(--brass-deco); stroke: none; }
+.art .ring-green { stroke: var(--evergreen); }
+.art .ring-brass { stroke: var(--brass-deco); }
+.art .ring-gap { stroke: var(--blush-wash); }

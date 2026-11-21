@@ -5,3 +5,4 @@ if(!existsSync(compiler)){console.error('TypeScript is missing. Run npm install,
 const result=spawnSync(process.execPath,[compiler,'-p','tsconfig.json'],{stdio:'inherit'});
 if(result.status!==0)process.exit(result.status||1);
 copyFileSync('web/src/app.css','web/dist/app.css');
+copyFileSync('web/src/logo.svg','web/dist/logo.svg');

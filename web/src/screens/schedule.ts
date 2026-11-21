@@ -32,7 +32,7 @@ export function schedule(main: HTMLElement): void {
   main.append(el('div', 'screen-head', el('p', 'screen-sub',
     changes ? `${changes} ${changes === 1 ? 'cue has' : 'cues have'} moved today.` : 'No changes today.')));
   if (!s.timeline.length) {
-    main.append(empty('No schedule yet', isCoordinator() ? 'Add cues in Set up.' : 'The coordinator has not added the schedule yet.'));
+    main.append(empty('No schedule yet', isCoordinator() ? 'Add cues in Set up.' : 'The coordinator has not added the schedule yet.', 'cues'));
     return;
   }
   const finished = s.timeline.filter(cue => cue.status === 'complete');
