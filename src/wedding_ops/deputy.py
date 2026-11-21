@@ -45,15 +45,16 @@ DECISION_WINDOW = timedelta(hours=1)  # how far back the coordinator's context l
 MAX_LOOKUPS = 5
 TIME_PATTERN = re.compile(r"\b([01]?\d|2[0-3]):[0-5]\d\b")
 
-DeputyAction = Literal["none", "tell_coordinator", "report_late", "change_item", "draft_arrival", "withdraw_last",
+DeputyAction = Literal["none", "tell_coordinator", "report_late", "run_sheet_change", "complete_task",
+                       "draft_arrival", "withdraw_last",
                        "acknowledge", "send_message", "stop_checkins", "resume_checkins",
                        "pause_checkins_all", "resume_checkins_all"]
 
 # Each action needs the capability of the command it drafts (operations.CAPABILITY), so the
 # actions offered follow the role policy instead of a hand-kept list.
 ACTION_CAPABILITY = {
-    "tell_coordinator": "incidents:report", "report_late": "incidents:report",
-    "change_item": "timeline:propose", "draft_arrival": "guests:arrival",
+    "tell_coordinator": "coordinator:ask", "report_late": "incidents:report",
+    "run_sheet_change": "timeline:propose", "complete_task": "tasks:own", "draft_arrival": "guests:arrival",
     "withdraw_last": "notifications:own", "acknowledge": "notifications:own",
     "stop_checkins": "notifications:own", "resume_checkins": "notifications:own",
     "send_message": "messages:broadcast",
@@ -75,9 +76,9 @@ class DeputyPlan(Strict):
     # tell_coordinator only: how much it matters to the coordinator.
     level: Literal["fyi", "question", "problem", "urgent"] = "problem"
     minutes: int | None = Field(default=None, ge=1, le=180)
-    new_time: Annotated[str, Field(max_length=5)] = ""     # change_item: "HH:MM", or empty
-    place: Annotated[str, Field(max_length=80)] = ""       # change_item: the new place, or empty
-    note: Annotated[str, Field(max_length=300)] = ""       # change_item: what helpers must know
+    new_time: Annotated[str, Field(max_length=5)] = ""     # run_sheet_change: "HH:MM", or empty
+    place: Annotated[str, Field(max_length=80)] = ""       # run_sheet_change: the new place, or empty
+    note: Annotated[str, Field(max_length=300)] = ""       # run_sheet_change: what helpers must know
     to: Annotated[str, Field(max_length=200)] = ""         # send_message: "everyone", or names of people or teams
     about: Annotated[str, Field(max_length=8)] = ""        # a reference from the context, such as R2 or Q1
     # Facts for a draft, written from the whole conversation (not just the latest message).
@@ -111,17 +112,23 @@ Outcomes. Never say something was sent, logged, recorded, approved or already re
 the conversation history tell you whether earlier drafts were sent.
 
 Drafts. Drafting costs nothing and changes nothing: when a draft would help, make it now rather
-than asking whether to. The system shows the person exactly what the draft will do and adds any
-safety advice; do not repeat it. Only choose actions from "Actions you may offer". One action per
-message; if they need two, draft the most important and say what to send next.
-- tell_coordinator: text = a short title, details = the facts from the whole conversation.
+than asking whether to. The draft appears under your reply, so your reply introduces it ("Here's
+the report. Tap Send if it looks right.") and never asks whether to draft it. The system shows
+exactly what the draft will do and adds any safety advice; do not repeat it. Only choose actions
+from "Actions you may offer". One action per message; if they need two, draft the most important
+and say what to send next.
+- tell_coordinator: text = a title of at most eight words that names the thing, not the person
+  (for example "Rain: where should guests wait?"); details = the facts from the whole conversation.
   level: question (they need an answer), fyi (no reply needed), problem (something is wrong),
   urgent (it blocks the ceremony or someone may be hurt). If it follows up one of their open
   reports, set about to that report's reference (for example R1).
 - report_late: minutes, when they themselves are running late.
-- change_item: text = the activity; minutes = how much later, or new_time = "HH:MM"; place =
-  the new place; note = what helpers must know; details = why. For a helper this asks the
-  coordinator to approve; for the coordinator it changes the run sheet when they tap.
+- run_sheet_change: whenever someone reports that a run-sheet activity will start late, should
+  start later, should move to another place, or needs a note for helpers. text = the activity;
+  minutes = how much later, or new_time = "HH:MM"; place = the new place; note = what helpers must
+  know; details = why. For a helper it is a request the coordinator approves (this is how delays
+  are reported); for the coordinator it changes the run sheet when they tap.
+- complete_task: text = which of their own tasks is done, when they say it is done or ready.
 - draft_arrival: text = the guest or family member who arrived.
 - withdraw_last: they take back their last report.
 - acknowledge: only when the whole message is a short confirmation ("ok noted", "got it", a
@@ -172,7 +179,8 @@ class Deputy:
         if plan.action == "acknowledge" and ("?" in text or len(text.split()) > 6):
             logger.warning("Deputy chose acknowledge for a question; answering without it")
             plan = plan.model_copy(update={"action": "none"})
-        if not grounded(plan.reply, trusted):
+        # Times may come from the records or from what the person just said (for example a new start time).
+        if not grounded(plan.reply, trusted + "\n" + text):
             logger.warning("Deputy reply stated a time not in the context; using the intent path")
             return self.assistant.ask(actor, text)
         result = self._act(actor, text, plan, snapshot, trusted, refs)
@@ -197,14 +205,21 @@ class Deputy:
             return self._control(actor, plan)
         if plan.action == "send_message":
             return self._send_message(actor, plan, snapshot, refs)
-        if plan.action == "change_item":
+        if plan.action == "run_sheet_change":
             return self._change_item(actor, text, plan, snapshot)
+        if plan.action == "complete_task":
+            return self._with_reply(plan, self.assistant.complete_task_draft(actor, plan.text, snapshot))
         # Model-written details are kept only if they add no times the context lacks.
-        details = plan.details if plan.details and grounded(plan.details, trusted) else ""
+        details = plan.details if plan.details and grounded(plan.details, trusted + "\n" + text) else ""
         if plan.action == "tell_coordinator":
             earlier = refs.get(plan.about.upper().strip())
+            level = plan.level
+            if "incidents:report" not in snapshot["me"]["grants"] and "*" not in snapshot["me"]["grants"]:
+                # Roles without problem reports (the couple) can still ask or tell the coordinator.
+                level = "fyi" if level == "fyi" else "question"
             result = self.assistant.tell_coordinator(
-                actor, details or text, plan.text, LEVEL_KIND[plan.level], urgent=plan.level == "urgent",
+                actor, details or text, short_title(plan.text or plan.details), LEVEL_KIND[level],
+                urgent=level == "urgent",
                 updates_incident_id=earlier[1] if earlier and earlier[0] == "incident" else None, snapshot=snapshot)
             return self._with_reply(plan, result)
         intent = {
@@ -345,18 +360,22 @@ class Deputy:
         if not tasks:
             lines.append("- none")
         lines += ["", "[record] Places:"] + [f"- {p['name']}: {p['directions']}" for p in snapshot["locations"]]
+        # Lines that quote people's own words (report titles, questions, draft titles) go after the
+        # trusted part, so a time typed by a helper can never make a reply pass the time check.
+        quoted: list[str] = []
         pending = self._pending_draft(actor.member_id)
         if pending:
-            lines += ["", f"[record] Draft waiting for their tap, NOT SENT: {pending}"]
+            quoted += ["", f"[record] Draft waiting for their tap, NOT SENT: {pending}"]
         refs: dict[str, tuple[str, str]] = {}
         reports = self._reports(snapshot, me["id"], local, names)
         if reports:
-            lines += ["", "[record] Their reports (reference, sent at, what, status):"]
+            quoted += ["", "[record] Their reports (reference, sent at, their title, status):"]
             for number, (kind, ident, line) in enumerate(reports, 1):
                 refs[f"R{number}"] = (kind, ident)
-                lines.append(f"- R{number} {line}")
+                quoted.append(f"- R{number} {line}")
         if coordinator:
-            lines += self._coordinator_lines(snapshot, local, names, refs)
+            lines += self._decisions(snapshot, local, names)
+            quoted += self._open_questions(snapshot, local, names, refs)
         recent = self.operations.recent_actions(actor, zone)
         if recent:
             lines += ["", "[record] Their recorded actions in the last hour:"] + [f"- {line}" for line in recent]
@@ -371,6 +390,7 @@ class Deputy:
         offer = [action for action in actions if action != "none"]
         lines += ["", "Actions you may offer this person: " + (", ".join(offer) or "none")]
         trusted = "\n".join(lines)
+        lines += quoted
         if coordinator:
             brief = self.queries.coordinator_brief(actor)
             # Brief items can quote helpers' report titles, so they are untrusted and do not
@@ -405,8 +425,8 @@ class Deputy:
         return [(kind, ident, line) for _, kind, ident, line in reports[-8:]]
 
     @staticmethod
-    def _coordinator_lines(snapshot: dict, local, names: dict, refs: dict) -> list[str]:
-        """Recent decisions and open questions, so the coordinator's deputy never contradicts them."""
+    def _decisions(snapshot: dict, local, names: dict) -> list[str]:
+        """Recent run-sheet decisions, so the coordinator's deputy never contradicts them."""
         now, me = parse_time(snapshot["now"]), snapshot["me"]["id"]
         lines = []
         decided = sorted((a for a in snapshot["approvals"] if a.get("decided_at") and a["status"] in {"approved", "rejected"}
@@ -418,6 +438,12 @@ class Deputy:
                 asked = "you" if approval["proposed_by"] == me else names.get(approval["proposed_by"], "someone")
                 lines.append(f"- {local(approval['decided_at'])} {who} {approval['status']} "
                              f"“{approval['title']}” (requested by {asked})")
+        return lines
+
+    @staticmethod
+    def _open_questions(snapshot: dict, local, names: dict, refs: dict) -> list[str]:
+        """Helpers' unanswered questions, with references the coordinator's answer can point at."""
+        lines = []
         questions = [i for i in snapshot["incidents"] if i["kind"] == "question" and i["status"] == "open"]
         if questions:
             lines += ["", "Open questions from helpers (answer with send_message and about = the reference):"]
@@ -536,6 +562,17 @@ def resolve_recipients(to: str, snapshot: dict) -> tuple[list[str], list[str], l
         else:
             unknown.append(part)
     return list(dict.fromkeys(team_ids)), list(dict.fromkeys(member_ids)), unknown
+
+
+TITLE_LIMIT = 90  # characters; a title is read at a glance in a notice or the brief
+
+
+def short_title(text: str) -> str:
+    """The first sentence of a model-written title, cut at a word boundary, so titles stay glanceable."""
+    first = re.split(r"(?<=[.!?])\s", text.strip(), maxsplit=1)[0].rstrip(".")
+    if len(first) <= TITLE_LIMIT:
+        return first
+    return first[:TITLE_LIMIT].rsplit(" ", 1)[0] + "\u2026"
 
 
 def minutes_until(current_start: str, new_time: str, zone_name: str) -> int:

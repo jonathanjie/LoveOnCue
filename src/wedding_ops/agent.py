@@ -470,6 +470,19 @@ class Assistant:
                    "Confirm the report to create a proposal, not to change the schedule.")
         return {"kind": "confirmation", "message": message, "draft": draft}
 
+    def complete_task_draft(self, actor: Actor, which: str, snapshot: dict) -> dict:
+        """Draft marking one of the person's own open tasks done. The task is matched by its title."""
+        mine = [t for t in snapshot["tasks"] if t["mine"] and t["state"] not in {"done", "cancelled"}]
+        task = match_timeline_item(mine, which) if which else (mine[0] if len(mine) == 1 else None)
+        if task is None:
+            titles = "; ".join(t["title"] for t in mine) or "none"
+            return {"kind": "clarification", "data": [], "message": f"Which task is done? Your open tasks: {titles}."}
+        if task["blocked_by"]:
+            return {"kind": "help", "data": [], "message": "That task still waits for: " + ", ".join(task["blocked_by"]) + "."}
+        command = {"type": "task_action", "task_id": task["id"], "action": "complete", "expected_version": task["version"]}
+        draft = self.operations.draft(actor, command, f"Mark your task done: {task['title']}. The coordinator will see it.")
+        return {"kind": "confirmation", "message": "Check this before I mark it done.", "draft": draft}
+
     def _guests_for_arrival(self, actor: Actor, query: str, snapshot: dict) -> list[dict]:
         """Regular guests, for roles that may record any guest's arrival (registration and coordinators)."""
         me = snapshot["me"]

@@ -1,6 +1,7 @@
 {
   "av": [
     "context:read",
+    "coordinator:ask",
     "incidents:report",
     "knowledge:read",
     "notifications:own",
@@ -11,6 +12,7 @@
   ],
   "banquet": [
     "context:read",
+    "coordinator:ask",
     "guests:dietary",
     "incidents:report",
     "knowledge:read",
@@ -26,12 +28,14 @@
   ],
   "couple": [
     "context:read",
+    "coordinator:ask",
     "knowledge:read",
     "notifications:own",
     "timeline:read"
   ],
   "family_liaison": [
     "context:read",
+    "coordinator:ask",
     "family:contacts",
     "family:report",
     "family:status",
@@ -45,6 +49,7 @@
   ],
   "helper": [
     "context:read",
+    "coordinator:ask",
     "incidents:report",
     "knowledge:read",
     "notifications:own",
@@ -54,6 +59,7 @@
   ],
   "mc": [
     "context:read",
+    "coordinator:ask",
     "incidents:report",
     "knowledge:read",
     "notifications:own",
@@ -65,6 +71,7 @@
   ],
   "photographer": [
     "context:read",
+    "coordinator:ask",
     "family:report",
     "family:status",
     "incidents:report",
@@ -77,6 +84,7 @@
   ],
   "registration": [
     "context:read",
+    "coordinator:ask",
     "family:status",
     "guests:arrival",
     "guests:seating",
@@ -89,6 +97,7 @@
   ],
   "team_lead": [
     "context:read",
+    "coordinator:ask",
     "incidents:report",
     "knowledge:read",
     "notifications:own",
@@ -100,6 +109,7 @@
   ],
   "transport": [
     "context:read",
+    "coordinator:ask",
     "family:status",
     "incidents:report",
     "knowledge:read",
@@ -111,6 +121,7 @@
   ],
   "usher": [
     "context:read",
+    "coordinator:ask",
     "guests:seating",
     "incidents:report",
     "knowledge:read",

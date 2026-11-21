@@ -162,6 +162,8 @@ def confirmation_reply(result: dict) -> str:
     if kind == "broadcast":
         return (f"Message sent\n{result.get('recipients', 'Everyone')} people get it with an Acknowledge button. "
                 "Ask me who has not acknowledged yet.")
+    if kind == "task_action":
+        return "Marked done\nThe coordinator can see it."
     if kind == "withdraw_report":
         return f"Withdrawn\nYour report ({result['title']}) is cancelled. Everyone who was told has been told to ignore it."
     return "Report confirmed."

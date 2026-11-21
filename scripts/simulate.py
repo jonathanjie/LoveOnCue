@@ -288,14 +288,16 @@ def command_metrics(world: World) -> None:
         return
     started = min(u.created_at for u in inbound)
     hours = max((world.clock.now() - started).total_seconds() / 3600, 0.25)
-    fallback = sum(r.message.startswith("I didn't understand") for r in replies)
+    # The help menu is what a person gets when nothing understood them.
+    fallback = sum(r.message.startswith(("Sorry, I didn't catch that", "I didn't understand")) for r in replies)
     print(f"Messages from users: {len(inbound)} · bot replies: {len(replies)} · "
           f"fallback replies: {fallback} ({100 * fallback / max(len(replies), 1):.0f}%)")
     per_person = Counter(p.recipient_id for p in pings)
     print(f"Deputy pings: {len(pings)} · answered: {sum(p.answered_at is not None for p in pings)} · "
           f"most to one person: {max(per_person.values(), default=0)} over {hours:.2f} simulated hours")
     to_coordinator = [n for n in notices if n.recipient_id == COORDINATOR_ID]
-    print(f"Unprompted notices to the coordinator: {len(to_coordinator)} ({len(to_coordinator) / hours:.1f} per hour)")
+    print(f"Unprompted notices to the coordinator: {len(to_coordinator)} ({len(to_coordinator) / hours:.1f} per hour)"
+          f" · by topic: {dict(Counter(n.topic for n in to_coordinator))}")
     live = Counter(a.changes[0]["item_id"] for a in approvals if a.status == "pending" and a.changes)
     print(f"Pending proposals per item (max): {max(live.values(), default=0)}")
 

@@ -836,24 +836,106 @@
             },
             "type": "array",
             "maxItems": 30,
-            "minItems": 1,
             "title": "Team Ids"
+          },
+          "member_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z0-9_-]+$"
+            },
+            "type": "array",
+            "maxItems": 30,
+            "title": "Member Ids"
           },
           "message": {
             "type": "string",
             "maxLength": 2000,
             "minLength": 1,
             "title": "Message"
+          },
+          "answers_incident_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1,
+                "pattern": "^[a-zA-Z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answers Incident Id"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "type",
-          "team_ids",
           "message"
         ],
-        "title": "Broadcast"
+        "title": "Broadcast",
+        "description": "A coordinator message to teams, to named members, or both."
+      },
+      "ChangeItem": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "change_item",
+            "title": "Type"
+          },
+          "item_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "title": "Item Id"
+          },
+          "shift_minutes": {
+            "type": "integer",
+            "maximum": 180.0,
+            "minimum": -60.0,
+            "title": "Shift Minutes",
+            "default": 0
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1,
+                "pattern": "^[a-zA-Z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 300,
+            "title": "Note",
+            "default": ""
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "item_id",
+          "reason"
+        ],
+        "title": "ChangeItem",
+        "description": "Change one run-sheet item's time, place or note. A shift moves dependent items too."
       },
       "ChatRequest": {
         "properties": {
@@ -897,6 +979,9 @@
                 "$ref": "#/components/schemas/ProposeDelay"
               },
               {
+                "$ref": "#/components/schemas/ChangeItem"
+              },
+              {
                 "$ref": "#/components/schemas/DecideApproval"
               },
               {
@@ -916,6 +1001,9 @@
               },
               {
                 "$ref": "#/components/schemas/SetWeddingStatus"
+              },
+              {
+                "$ref": "#/components/schemas/SetEmergencyContact"
               },
               {
                 "$ref": "#/components/schemas/ApplyGuestImport"
@@ -960,6 +1048,7 @@
                 "apply_guest_import": "#/components/schemas/ApplyGuestImport",
                 "arrival": "#/components/schemas/Arrival",
                 "broadcast": "#/components/schemas/Broadcast",
+                "change_item": "#/components/schemas/ChangeItem",
                 "create_location": "#/components/schemas/CreateLocation",
                 "create_member": "#/components/schemas/CreateMember",
                 "create_table": "#/components/schemas/CreateTable",
@@ -975,6 +1064,7 @@
                 "review_knowledge": "#/components/schemas/ReviewKnowledge",
                 "revoke_member": "#/components/schemas/RevokeMember",
                 "set_deputy_enabled": "#/components/schemas/SetDeputyEnabled",
+                "set_emergency_contact": "#/components/schemas/SetEmergencyContact",
                 "set_wedding_status": "#/components/schemas/SetWeddingStatus",
                 "task_action": "#/components/schemas/TaskAction",
                 "timeline_action": "#/components/schemas/TimelineAction",
@@ -1659,7 +1749,9 @@
               "location_unconfirmed",
               "vendor",
               "logistics",
-              "other"
+              "other",
+              "question",
+              "note"
             ],
             "title": "Kind"
           },
@@ -1702,6 +1794,20 @@
               }
             ],
             "title": "Task Id"
+          },
+          "updates_incident_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1,
+                "pattern": "^[a-zA-Z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updates Incident Id"
           },
           "severity": {
             "type": "string",
@@ -1828,6 +1934,29 @@
         ],
         "title": "SetDeputyEnabled",
         "description": "The coordinator's switch for the deputy's check-ins, confirmed with a tap."
+      },
+      "SetEmergencyContact": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "set_emergency_contact",
+            "title": "Type"
+          },
+          "contact": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Contact"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "contact"
+        ],
+        "title": "SetEmergencyContact",
+        "description": "Who people should call when someone is hurt or in danger. Shown on every urgent draft."
       },
       "SetWeddingStatus": {
         "properties": {

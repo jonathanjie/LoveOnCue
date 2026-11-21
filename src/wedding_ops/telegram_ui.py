@@ -30,7 +30,7 @@ def approval_markup(approval_id: str, *, blocked: bool) -> dict:
 # What the button under a draft does, in plain words.
 DRAFT_BUTTONS = {"propose_delay": "Send to coordinator", "change_item": "Send change", "report_incident": "Send",
                  "arrival": "Record arrival", "withdraw_report": "Withdraw it", "broadcast": "Send message",
-                 "set_deputy_enabled": "Confirm switch"}
+                 "set_deputy_enabled": "Confirm switch", "task_action": "Mark done"}
 
 
 def reply_markup(*, coordinator: bool, guest_lookup: bool, draft_id: str | None,

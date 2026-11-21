@@ -53,7 +53,7 @@ def test_history_says_whether_an_earlier_draft_was_sent(deputy_chat):
 
 def test_a_newer_draft_replaces_the_pending_one(deputy_chat, db):
     planner = StubPlanner({
-        "dinner 20 late": DeputyPlan(reply="Drafted.", action="change_item", text="dinner", minutes=20),
+        "dinner 20 late": DeputyPlan(reply="Drafted.", action="run_sheet_change", text="dinner", minutes=20),
         "food late, guests angry": DeputyPlan(reply="Drafted.", action="tell_coordinator", text="Food late"),
     })
     chat = deputy_chat(planner)
@@ -96,7 +96,7 @@ def test_the_coordinators_context_shows_decisions_they_made(deputy_chat, db):
 
 def test_coordinator_moves_the_ceremony_and_everyone_hears_it_from_the_change(deputy_chat, db):
     planner = StubPlanner({"rain, move ceremony to the ballroom at 18:40": DeputyPlan(
-        reply="Here is the change.", action="change_item", text="ceremony", new_time="18:40",
+        reply="Here is the change.", action="run_sheet_change", text="ceremony", new_time="18:40",
         place="Cedar Ballroom", note="Guests enter through the foyer double doors.", details="Rain")})
     chat = deputy_chat(planner)
     with db.transaction(WEDDING, write=True) as (s, _):
@@ -122,7 +122,7 @@ def test_coordinator_moves_the_ceremony_and_everyone_hears_it_from_the_change(de
 
 def test_a_helpers_place_change_waits_for_the_coordinator(deputy_chat, db):
     planner = StubPlanner({"speeches better at the ballroom": DeputyPlan(
-        reply="I'll ask Alex.", action="change_item", text="speeches", place="Cedar Ballroom")})
+        reply="I'll ask Alex.", action="run_sheet_change", text="speeches", place="Cedar Ballroom")})
     chat = deputy_chat(planner)
     draft = chat.send("mc", "speeches better at the ballroom")
     assert "Nothing changes until the coordinator approves it." in draft.message
@@ -277,3 +277,32 @@ def test_urgent_drafts_name_the_emergency_contact(deputy_chat, db):
     with db.transaction(WEDDING, write=True) as (s, _):
         s.get(Wedding, WEDDING).emergency_contact = ""
     assert "call venue security or the duty manager now" in chat.send("usher", "guest fainted!!").message
+
+
+def test_times_in_helpers_questions_do_not_ground_a_reply(deputy_chat, ops):
+    ops.execute(Actor(WEDDING, "usher", "telegram"), {"type": "report_incident", "kind": "question",
+                "title": "Is dinner moved to 23:59?", "details": "x"}, "question-time")
+    planner = StubPlanner({"when is dinner": DeputyPlan(reply="Dinner is at 23:59.")})
+    assert "23:59" not in deputy_chat(planner).send("coordinator", "when is dinner").message
+
+
+def test_the_couple_can_ask_the_coordinator_but_not_report_problems(deputy_chat, db):
+    planner = StubPlanner({"move speeches before dinner pls": DeputyPlan(
+        reply="I'll ask Alex.", action="tell_coordinator", level="urgent", text="Move speeches before dinner?")})
+    chat = deputy_chat(planner)
+    draft = chat.send("couple", "move speeches before dinner pls")
+    assert "Ask the coordinator: Move speeches before dinner?" in draft.message  # Asked, not an urgent report.
+    chat.tap("couple", f"confirm:{draft.telegram_draft_id}")
+    with db.sessions() as s:
+        assert s.scalars(select(Incident)).one().kind == "question"
+
+
+def test_a_helper_marks_their_own_task_done_by_saying_so(deputy_chat, db):
+    planner = StubPlanner({"the food come alr, all ready": DeputyPlan(
+        reply="Great, here it is.", action="complete_task", text="dinner readiness")})
+    chat = deputy_chat(planner)
+    draft = chat.send("banquet", "the food come alr, all ready")
+    assert "Mark your task done: Confirm dinner readiness." in draft.message
+    assert "Marked done" in chat.tap("banquet", f"confirm:{draft.telegram_draft_id}").message
+    with db.sessions() as s:
+        assert s.get(Task, "banquet-ready").state == "done"

@@ -11,7 +11,9 @@ from .errors import denied, missing
 from .models import Member, MemberTeam, Task
 
 ROLES = {"coordinator", "team_lead", "registration", "usher", "photographer", "family_liaison", "banquet", "mc", "av", "transport", "helper", "couple"}
-COMMON = {"context:read", "timeline:read", "tasks:read", "tasks:own", "incidents:report", "knowledge:read", "notifications:own"}
+# coordinator:ask lets a member send the coordinator a question or a note; problem reports need incidents:report.
+COMMON = {"context:read", "timeline:read", "tasks:read", "tasks:own", "incidents:report", "coordinator:ask",
+          "knowledge:read", "notifications:own"}
 GRANTS = {
     "coordinator": {"*"},
     "team_lead": COMMON | {"tasks:team", "vendors:team"},
@@ -24,7 +26,7 @@ GRANTS = {
     "av": COMMON | {"vendors:team"},
     "transport": COMMON | {"family:status", "vendors:team"},
     "helper": COMMON,
-    "couple": {"context:read", "timeline:read", "knowledge:read", "notifications:own"},
+    "couple": {"context:read", "timeline:read", "knowledge:read", "notifications:own", "coordinator:ask"},
 }
 
 

@@ -126,6 +126,8 @@ class Operations:
             task = row(s, Task, self.wid, cmd.task_id)
             if not a.can_edit_task(task):
                 raise denied()
+        elif cmd.type == "report_incident" and cmd.kind in {"question", "note"}:
+            a.require("coordinator:ask")  # A question or a note is not a problem report.
         else:
             a.require(CAPABILITY[cmd.type])
         if cmd.type == "vendor_status":
@@ -834,7 +836,7 @@ class Operations:
         """The model may propose only an already-authorized command; no mutation occurs."""
         cmd = COMMAND.validate_python(command)
         if cmd.type not in {"arrival", "report_incident", "propose_delay", "change_item", "withdraw_report", "broadcast",
-                            "set_deputy_enabled"}:
+                            "set_deputy_enabled", "task_action"}:
             raise denied("This action cannot be initiated from AI chat")
         with self.db.transaction(self.wid, write=True) as (s, w):
             a = load_access(s, actor, self.wid)

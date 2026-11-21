@@ -49,7 +49,7 @@ def test_a_reply_with_a_time_not_in_the_context_falls_back(deputy_chat):
 
 def test_an_action_creates_the_usual_draft_for_the_person_to_confirm(deputy_chat, db):
     planner = StubPlanner({"kitchen jialat, dinner need 15 more min": DeputyPlan(
-        reply="Got it, I will ask the coordinator to approve a 15-minute delay.", action="change_item",
+        reply="Got it, I will ask the coordinator to approve a 15-minute delay.", action="run_sheet_change",
         text="dinner", minutes=15)})
     reply = deputy_chat(planner).send("banquet", "kitchen jialat, dinner need 15 more min")
     assert reply.telegram_draft_id and "Dinner service" in reply.message
@@ -242,8 +242,9 @@ def test_context_lists_only_the_actions_this_role_may_use(deputy_chat):
     chat = deputy_chat(planner)
     chat.send("couple", "hi")
     couple = planner.calls[-1][1]["content"]
-    assert "Actions you may offer" in couple and "send_message" not in couple and "change_item" not in couple
-    assert "send_message" not in planner.actions[-1] and "tell_coordinator" not in planner.actions[-1]
+    assert "Actions you may offer" in couple and "send_message" not in couple and "run_sheet_change" not in couple
+    # The couple may ask the coordinator something, but not message others or change the run sheet.
+    assert "send_message" not in planner.actions[-1] and "tell_coordinator" in planner.actions[-1]
     chat.send("coordinator", "hi")
     assert "send_message" in planner.calls[-1][1]["content"] and "tell_coordinator" not in planner.actions[-1]
 
