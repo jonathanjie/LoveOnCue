@@ -384,3 +384,25 @@ def test_reporter_text_cannot_fake_sections_of_the_approval_request(chat_factory
     reporter_line = next(line for line in lines if line.startswith("Reporter's words"))
     assert "Changes if approved:" in reporter_line  # Kept as quoted text on one line.
     assert lines.index("Changes if approved:") < lines.index(reporter_line)
+
+
+def test_withdrawn_family_arrival_notice_requires_family_permission(chat_factory, db):
+    chat = chat_factory()
+    request_id = confirmed_report(chat, "registration-a", "/arrival Grace Tan")
+    withdraw = chat.send("registration-a", "/withdraw")
+    chat.tap("registration-a", f"confirm:{withdraw.telegram_draft_id}")
+    with db.sessions() as s:
+        notices = s.scalars(select(Notification).where(Notification.topic == "report_withdrawn")).all()
+    assert request_id and notices
+    assert all(n.required_permission == "family:status" for n in notices)
+    assert {n.recipient_id for n in notices} <= {"coordinator", "photographer", "family-liaison"}
+
+
+def test_withdrawn_missing_person_notice_requires_family_permission(chat_factory, db):
+    chat = chat_factory({"cant find mei lee": Intent(kind="missing_family", query="Mei Lee")})
+    confirmed_report(chat, "family-liaison", "cant find mei lee")
+    withdraw = chat.send("family-liaison", "/withdraw")
+    chat.tap("family-liaison", f"confirm:{withdraw.telegram_draft_id}")
+    with db.sessions() as s:
+        notices = s.scalars(select(Notification).where(Notification.topic == "report_withdrawn")).all()
+    assert notices and all(n.required_permission == "family:status" for n in notices)

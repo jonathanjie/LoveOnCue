@@ -144,9 +144,9 @@ class World:
         self.state.setdefault("buttons", {}).setdefault(member_id, {}).update(callbacks)
         return list(callbacks)
 
-    def print_unread(self, member_id: str) -> None:
+    def print_unread(self, member_id: str, *, quiet: bool = False) -> None:
         messages = self.unread(member_id)
-        if not messages:
+        if not messages and not quiet:
             print("(no new messages)")
         for notification in messages:
             label = "bot" if notification.topic == "bot_reply" else f"notice:{notification.topic}"
@@ -190,7 +190,8 @@ def message_update(world: World, member_id: str, text: str) -> dict:
 
 
 def command_send(world: World, member_id: str, text: str) -> None:
-    world.unread(member_id)  # Older messages count as read once the user writes again.
+    # Messages pushed since the user last looked appear first, as they would in the chat.
+    world.print_unread(member_id, quiet=True)
     world.ingress().accept(WEBHOOK_SECRET, message_update(world, member_id, text))
     world.run_background_work()
     world.print_unread(member_id)
@@ -205,7 +206,7 @@ def command_tap(world: World, member_id: str, label: str) -> None:
     update = {"update_id": world.next_update_id(), "callback_query": {
         "id": f"sim-{world.state['update_id']}", "data": match, "from": {"id": sender},
         "message": {"chat": {"id": sender, "type": "private"}, "from": {"id": SIMULATED_BOT_ID, "is_bot": True}}}}
-    world.unread(member_id)
+    world.print_unread(member_id, quiet=True)
     world.ingress().accept(WEBHOOK_SECRET, update)
     world.run_background_work()
     world.print_unread(member_id)

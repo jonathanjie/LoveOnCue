@@ -229,7 +229,7 @@ class Operations:
             for member in target_members:
                 notify(s, wid, member.id, "incident",
                        f"{cmd.severity.upper()} report from {reporter} ({', '.join(a.member.roles)}): "
-                       f"{one_line(cmd.title, 160)}\nTheir words: \u201c{one_line(cmd.details, 600)}\u201d",
+                       f"{one_line(cmd.title, 160)}\nDetails: {one_line(cmd.details, 600)}",
                        f"incident:{incident.id}", now, teams=audience,
                        permission="family:status" if cmd.kind == "location_unconfirmed" else None)
             return {"id": incident.id, "status": "open"}
@@ -564,20 +564,29 @@ class Operations:
             for incident_id in receipt.result.get("resolved_incidents", []):
                 incident = row(s, Incident, self.wid, incident_id)
                 incident.status, incident.resolved_at = "open", None
-            audience = recipients(s, self.wid, roles={"photographer", "family_liaison"})
+            # Match the original arrival notice: family members only, to family-cleared roles.
+            family = [p.name for p in people.values() if p.relationship]
+            notice = (f"Arrival of {', '.join(family)}" if family else None, "family:status", None)
+            audience = recipients(s, self.wid, roles={"photographer", "family_liaison"}) if family else []
         elif target["kind"] == "approval":
             target["record"].status, target["record"].decided_at = "withdrawn", now
             target["record"].decision_note = f"Withdrawn by {reporter}."
+            notice = (target["title"], "timeline:approve", None)
             audience = recipients(s, self.wid, coordinators=True)
         else:
-            target["record"].status, target["record"].resolved_at = "resolved", now
-            audience = recipients(s, self.wid, teams=target["record"].audience_team_ids)
+            incident = target["record"]
+            incident.status, incident.resolved_at = "resolved", now
+            permission = "family:status" if incident.kind == "location_unconfirmed" else None
+            notice = (target["title"], permission, incident.audience_team_ids)
+            audience = recipients(s, self.wid, teams=incident.audience_team_ids)
         audit(s, w, a.member.id, "report_withdrawn", request_id, {"kind": target["kind"]}, now)
+        title, permission, teams = notice
         for member in audience:
-            if member.id != a.member.id:
+            if member.id != a.member.id and title:
+                # Same restrictions as the original notice, so nobody learns more than before.
                 notify(s, self.wid, member.id, "report_withdrawn",
-                       f"Withdrawn by {reporter}: {target['title']}. Ignore the earlier report.",
-                       f"withdrawn:{request_id}", now)
+                       f"Withdrawn by {reporter}: {title}. Ignore the earlier report.",
+                       f"withdrawn:{request_id}", now, teams=teams, permission=permission)
         return {"id": request_id, "status": "withdrawn", "title": target["title"]}
 
     def draft(self, actor: Actor, command: dict, summary: str) -> dict:
