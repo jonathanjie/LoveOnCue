@@ -16,6 +16,7 @@ from .errors import OpsError
 from .models import Approval, Member, Notification, Task, new_id
 from .operations import audit, notify, recipients
 from .policy import Actor, load_access
+from .telegram_ui import reply_markup
 from .views import row, rows
 
 
@@ -42,11 +43,14 @@ class TelegramTransport:
     def __init__(self, token: str, transport: httpx.BaseTransport | None = None):
         self.token, self.transport = token, transport
 
-    def send(self, chat_id: str, text: str) -> str:
+    def send(self, chat_id: str, text: str, *, markup: dict | None = None) -> str:
+        payload = {"chat_id": chat_id, "text": text[:4000], "protect_content": True}
+        if markup:
+            payload["reply_markup"] = markup
         try:
             with httpx.Client(timeout=httpx.Timeout(10, connect=3), follow_redirects=False, transport=self.transport) as client:
                 response = client.post(f"https://api.telegram.org/bot{self.token}/sendMessage",
-                                       json={"chat_id": chat_id, "text": text[:4000], "protect_content": True})
+                                       json=payload)
                 try:
                     data = response.json()
                 except ValueError:
@@ -142,9 +146,16 @@ class Worker:
             n.lease_token, n.lease_until, n.state = new_id(), now + timedelta(seconds=45), "sending"
             n.attempts += 1
             ident, lease, chat_id, message = n.id, n.lease_token, member.telegram_user_id or "demo", n.message
+            markup = None
+            if n.topic == "bot_reply" and isinstance(self.transport, TelegramTransport):
+                markup = reply_markup(coordinator=a.coordinator, guest_lookup=a.permits("guests:seating"),
+                                      draft_id=n.telegram_draft_id, app_url=self.settings.public_url)
         # Never hold the wedding lock across a network call.
         try:
-            provider_id = self.transport.send(chat_id, message)
+            if markup is not None and isinstance(self.transport, TelegramTransport):
+                provider_id = self.transport.send(chat_id, message, markup=markup)
+            else:
+                provider_id = self.transport.send(chat_id, message)
             error = None
         except DeliveryError as exc:
             provider_id, error = None, exc

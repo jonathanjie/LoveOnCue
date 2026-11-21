@@ -30,9 +30,9 @@ def configure(settings: Settings, username: str, transport=None) -> dict:
         if not identity.get('is_bot') or identity.get('username','').lower()!=expected.lower():
             raise ValueError('Token belongs to a different bot; nothing configured')
         call('setWebhook',{'url':settings.public_url+'/api/telegram/webhook',
-                          'secret_token':settings.telegram_webhook_secret,'allowed_updates':['message'],
+                          'secret_token':settings.telegram_webhook_secret,'allowed_updates':['message', 'callback_query'],
                           'drop_pending_updates':False})
-        call('setChatMenuButton',{'menu_button':{'type':'web_app','text':'WeddingOps','web_app':{'url':settings.public_url}}})
+        call('setChatMenuButton',{'menu_button':{'type':'web_app','text':'LoveOnCue','web_app':{'url':settings.public_url}}})
     return {'status':'configured','bot_username':expected,'messages_sent':0}
 
 

@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import hmac
 import re
+from collections.abc import Callable
 from datetime import timedelta
 
+import httpx
 from sqlalchemy import or_, select
 
 from .agent import Assistant
@@ -15,23 +17,76 @@ from .db import Database
 from .errors import OpsError, denied
 from .models import InboundUpdate, new_id
 from .operations import Operations, audit, notify
+from .schemas import PhotoReview
+from .telegram_photo import MAX_PHOTO_BYTES, download_photo, render_photo
+from .telegram_ui import NAVIGATION, render_brief
 from .views import row
 
 
+def private_sender(sender: object, chat: object) -> str | None:
+    if not isinstance(sender, dict) or not isinstance(chat, dict):
+        return None
+    ident = sender.get("id")
+    if (type(ident) is not int or not 0 < ident <= 2**52 or sender.get("is_bot")
+            or chat.get("type") != "private" or type(chat.get("id")) is not int or chat["id"] != ident):
+        return None
+    return str(ident)
+
+
 def private_message(update: dict) -> tuple[str, str] | None:
-    """Reject groups, channels, edited posts, bots and spoofed sender/chat combinations."""
     message = update.get("message")
     if not isinstance(message, dict):
         return None
-    sender, chat = message.get("from", {}), message.get("chat", {})
-    ident = sender.get("id")
-    if (type(ident) is not int or ident <= 0 or ident > 2**52 or sender.get("is_bot")
-        or chat.get("type") != "private" or chat.get("id") != ident):
-        return None
+    sender = private_sender(message.get("from"), message.get("chat"))
     text = message.get("text")
-    if not isinstance(text, str) or not 1 <= len(text) <= 2000:
+    if not sender or not isinstance(text, str) or not 1 <= len(text) <= 2000:
         return None
-    return str(ident), text
+    return sender, text
+
+
+def private_photo(update: dict) -> dict[str, str] | None:
+    message = update.get("message")
+    if not isinstance(message, dict) or not isinstance(message.get("photo"), list):
+        return None
+    sender = private_sender(message.get("from"), message.get("chat"))
+    if sender is None:
+        return None
+    caption = message.get("caption", "")
+    caption = caption[:1000] if isinstance(caption, str) else ""
+    for size in reversed(message["photo"]):
+        if not isinstance(size, dict):
+            continue
+        file_id, size_bytes = size.get("file_id"), size.get("file_size")
+        if (isinstance(file_id, str) and 1 <= len(file_id) <= 512
+                and (size_bytes is None or type(size_bytes) is int and 0 < size_bytes <= MAX_PHOTO_BYTES)):
+            return {"sender": sender, "photo_id": file_id, "caption": caption}
+    return {"sender": sender, "photo_id": "", "caption": ""}
+
+
+def private_callback(update: dict, token: str) -> tuple[str, str | None, str] | None:
+    callback = update.get("callback_query")
+    if not isinstance(callback, dict) or not isinstance(callback.get("message"), dict):
+        return None
+    original = callback["message"]
+    sender = private_sender(callback.get("from"), original.get("chat"))
+    author = original.get("from")
+    callback_id, data = callback.get("id"), callback.get("data")
+    bot_id = token.partition(":")[0]
+    if (not sender or not isinstance(author, dict) or not author.get("is_bot")
+            or (bot_id.isdecimal() and str(author.get("id")) != bot_id)
+            or not isinstance(callback_id, str) or not 1 <= len(callback_id) <= 128):
+        return None
+    command = None
+    if isinstance(data, str) and len(data) <= 64:
+        confirmation = re.fullmatch(r"confirm:([A-Za-z0-9_-]{1,56})", data)
+        command = f"/confirm {confirmation[1]}" if confirmation else NAVIGATION.get(data)
+    return sender, command, callback_id
+
+
+HELP = ("Tap a button or type a question. Use /now for your tasks, /location for directions, "
+        "or /knowledge followed by a question. Photo reviews are read-only when enabled. "
+        "Reports need confirmation. "
+        "Schedule changes need human approval in LoveOnCue.")
 
 
 def render_reply(result: dict) -> str:
@@ -40,7 +95,7 @@ def render_reply(result: dict) -> str:
         message = "Model unavailable; using deterministic commands.\n" + message
     if result.get("draft"):
         draft = result["draft"]
-        return f"{message}\n\n{draft['summary']}\n\nTo confirm this interpretation, send:\n/confirm {draft['id']}\n\nExpires in five minutes. Timeline proposals still need coordinator approval in the application."
+        return f"{message}\n\n{draft['summary']}\n\nTap Confirm report or send:\n/confirm {draft['id']}\n\nExpires in five minutes. Timeline proposals still need coordinator approval in the application."
     for item in result.get("data", [])[:8]:
         if result["kind"] == "tasks":
             message += f"\n• {item['title']} · due {item['due_at']} · {item['state']}"
@@ -60,9 +115,27 @@ def render_reply(result: dict) -> str:
 
 
 class TelegramIngress:
-    def __init__(self, db: Database, settings: Settings, clock: Clock, auth: Auth, assistant: Assistant, operations: Operations):
+    def __init__(self, db: Database, settings: Settings, clock: Clock, auth: Auth,
+                 assistant: Assistant, operations: Operations, *,
+                 photo_reviewer: Callable[[bytes, str], PhotoReview] | None = None,
+                 photo_transport: httpx.BaseTransport | None = None):
         self.db, self.settings, self.clock, self.auth = db, settings, clock, auth
         self.assistant, self.operations, self.wid = assistant, operations, settings.wedding_id
+        self.photo_reviewer = photo_reviewer
+        self.photo_transport = photo_transport
+
+    def _photo_reply(self, payload: dict) -> str:
+        if self.photo_reviewer is None:
+            return "Photo review is off for this event. Send a text report to record an issue or arrival."
+        if not payload["photo_id"]:
+            return "Photo is too large or unavailable. Send it as a smaller Telegram photo, or send a text report."
+        try:
+            image = download_photo(self.settings.telegram_bot_token, payload["photo_id"], self.photo_transport)
+            review = self.photo_reviewer(image, payload["caption"])
+            return render_photo(review)
+        except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError, IndexError):
+            # Exceptions from Telegram may include the bot token in a request URL.
+            return "I couldn't review this photo. Send a text report for any issue or arrival."
 
     def accept(self, supplied_secret: str | None, update: dict) -> dict:
         expected = self.settings.telegram_webhook_secret
@@ -71,18 +144,37 @@ class TelegramIngress:
         ident = update.get("update_id")
         if type(ident) is not int or ident < 0:
             raise OpsError("invalid_update", "A numeric update_id is required")
-        message = private_message(update)
-        if not message:
-            return {"ok": True, "ignored": True}
-        # Persist only the required fields; do not retain unrelated Telegram profile metadata.
-        sender, text = message
-        with self.db.transaction(self.wid, write=True) as (s,w):
-            duplicate = s.scalar(select(InboundUpdate.id).where(InboundUpdate.wedding_id == self.wid, InboundUpdate.provider_update_id == str(ident)))
+        callback = private_callback(update, self.settings.telegram_bot_token)
+        acknowledgment = None
+        if callback:
+            sender, text, callback_id = callback
+            # Telegram can acknowledge the tap from the webhook response. Process the command durably.
+            acknowledgment = {"method": "answerCallbackQuery", "callback_query_id": callback_id}
+            if text is None:
+                return acknowledgment
+            payload = {"sender": sender, "text": text}
+        else:
+            message = private_message(update)
+            if message:
+                sender, text = message
+                payload = {"sender": sender, "text": text}
+            else:
+                photo = private_photo(update)
+                if photo is None:
+                    return {"ok": True, "ignored": True}
+                payload = photo
+        # Persist only the fields needed by the worker.
+        with self.db.transaction(self.wid, write=True) as (s, w):
+            duplicate = s.scalar(select(InboundUpdate.id).where(
+                InboundUpdate.wedding_id == self.wid, InboundUpdate.provider_update_id == str(ident)
+            ))
             if duplicate:
-                return {"ok": True, "duplicate": True}
-            s.add(InboundUpdate(wedding_id=self.wid, provider_update_id=str(ident), payload={"sender": sender, "text": text},
-                                state="queued", attempts=0, created_at=self.clock.now(), next_attempt_at=self.clock.now()))
-        return {"ok": True, "queued": True}
+                return acknowledgment or {"ok": True, "duplicate": True}
+            s.add(InboundUpdate(
+                wedding_id=self.wid, provider_update_id=str(ident), payload=payload,
+                state="queued", attempts=0, created_at=self.clock.now(), next_attempt_at=self.clock.now(),
+            ))
+        return acknowledgment or {"ok": True, "queued": True}
 
     def process_one(self) -> bool:
         now = self.clock.now()
@@ -96,11 +188,15 @@ class TelegramIngress:
             item.state, item.lease_token, item.lease_until = "processing", new_id(), now + timedelta(seconds=45)
             item.attempts += 1
             ident, lease, payload, provider_id = item.id, item.lease_token, item.payload, item.provider_update_id
-        member_id, result, permission = None, None, None
+        member_id, result, permission, draft_id = None, None, None, None
         try:
-            text = payload["text"]
+            text = payload.get("text", "").strip()
             match = re.fullmatch(r"/start\s+([A-Za-z0-9_-]{20,64})", text)
-            if match:
+            if "photo_id" in payload:
+                actor = self.auth.telegram_actor(payload["sender"], require_open_event=True)
+                member_id = actor.member_id
+                result = self._photo_reply(payload)
+            elif match:
                 # A crash after redemption but before acknowledgment may cause a retry.
                 # Recover only the same already-linked sender; never consume a different invitation.
                 try:
@@ -115,11 +211,30 @@ class TelegramIngress:
                 confirmation = re.fullmatch(r"/confirm\s+([a-zA-Z0-9_-]{1,64})", text)
                 if confirmation:
                     command_result = self.operations.confirm(actor, confirmation[1])
-                    result = f"Recorded: {command_result['status']}. Timeline version {command_result['timeline_version']}."
+                    if command_result.get("replayed"):
+                        result = "Already recorded\nThis report was confirmed earlier. No new change was made."
+                    elif command_result["status"] == "pending":
+                        result = ("Report confirmed\nProposal awaiting approval. A coordinator must review it. "
+                                  "The run sheet is unchanged.")
+                    else:
+                        result = f"Report confirmed\nTimeline version {command_result['timeline_version']}."
+                elif text in {"/brief", "/brief_more"}:
+                    brief = self.assistant.queries.coordinator_brief(actor)
+                    result = render_brief(brief, expanded=text == "/brief_more")
+                    permission = "timeline:approve"
+                elif text == "/guest":
+                    self.assistant.queries.guests(actor, "")
+                    result = "Find a guest\nSend /guest followed by a name. Check similar names before selecting a guest."
+                    permission = "guests:seating"
+                elif text in {"/start", "/help"}:
+                    result = HELP
                 else:
                     response = self.assistant.ask(actor, text)
                     result = render_reply(response)
-                    permission = {"guests":"guests:seating","family":"family:status","knowledge":"knowledge:read"}.get(response["kind"])
+                    if response.get("draft"):
+                        draft_id = response["draft"]["id"]
+                    permission = {"guests": "guests:seating", "family": "family:status",
+                                  "knowledge": "knowledge:read"}.get(response["kind"])
             failure, retry = None, False
         except OpsError as exc:
             failure, retry = exc.code, False
@@ -137,7 +252,8 @@ class TelegramIngress:
                 item.state = "done" if result is not None else "failed"
                 item.payload = {}  # Minimize retention of raw messages and enrollment tokens.
                 if member_id and result:
-                    notify(s, self.wid, member_id, "bot_reply", result, f"telegram-reply:{provider_id}", self.clock.now(), permission=permission)
+                    notify(s, self.wid, member_id, "bot_reply", result, f"telegram-reply:{provider_id}", self.clock.now(),
+                           permission=permission, telegram_draft_id=draft_id)
                 w.state_version += 1
                 audit(s,w,"system","telegram_processed",item.id,{"status":item.state,"error_code":failure},self.clock.now())
             item.last_error, item.lease_token, item.lease_until = failure, None, None

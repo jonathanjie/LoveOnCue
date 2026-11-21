@@ -22,6 +22,7 @@ class Settings:
     telegram_bot_token: str = ""
     telegram_webhook_secret: str = ""
     telegram_bot_username: str = ""
+    telegram_vision_model: str = ""
     send_notifications: bool = False
     session_ttl_seconds: int = 12 * 60 * 60
     body_limit: int = 262_144
@@ -46,6 +47,7 @@ class Settings:
             telegram_bot_token=env("TELEGRAM_BOT_TOKEN"),
             telegram_webhook_secret=env("TELEGRAM_WEBHOOK_SECRET"),
             telegram_bot_username=env("TELEGRAM_BOT_USERNAME"),
+            telegram_vision_model=env("TELEGRAM_VISION_MODEL").strip(),
             send_notifications=env("SEND_NOTIFICATIONS", "false").lower() == "true",
         )
 
@@ -70,10 +72,11 @@ class Settings:
             raise ValueError("Demo mode cannot send external notifications")
         if self.demo and public.hostname not in {"localhost", "127.0.0.1", "::1"}:
             raise ValueError("Demo authentication is local-only. Use production mode for public deployment")
-        if self.agent_mode == "mistral":
-            if not self.mistral_api_key:
-                raise ValueError("Set WEDDINGOPS_MISTRAL_API_KEY before enabling Mistral")
-            if not self.mistral_model:
-                raise ValueError("Set WEDDINGOPS_MISTRAL_MODEL to an available model ID")
+        if (self.agent_mode == "mistral" or self.telegram_vision_model) and not self.mistral_api_key:
+            raise ValueError("Set WEDDINGOPS_MISTRAL_API_KEY before enabling Mistral")
+        if self.agent_mode == "mistral" and not self.mistral_model:
+            raise ValueError("Set WEDDINGOPS_MISTRAL_MODEL to an available model ID")
+        if self.telegram_vision_model and (self.demo or not self.telegram_bot_token):
+            raise ValueError("Telegram photo review requires a configured bot outside demo mode")
         if self.send_notifications and not self.telegram_bot_token:
             raise ValueError("Sending notifications requires a Telegram bot token")

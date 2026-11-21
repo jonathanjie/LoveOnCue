@@ -81,13 +81,26 @@ From a configured source checkout (or its container), explicitly configure the t
 python scripts/configure-telegram.py --confirm-bot-username YourExactDevelopmentBot
 ```
 
-This opt-in script verifies `getMe` first, registers the HTTPS `/api/telegram/webhook` with private text-message updates, and sets the Mini App menu URL. It does not send messages or discard pending updates. If the menu call fails after webhook registration, registration may already have succeeded; inspect the bot state and retry deliberately. The helper only uses private DMs; group/edited/channel messages are ignored by the app.
+This opt-in script verifies `getMe` first, registers the HTTPS `/api/telegram/webhook` for message and callback updates, and sets the Mini App menu URL. It does not send messages or discard pending updates. If the menu call fails after webhook registration, registration may already have succeeded; inspect the bot state and retry deliberately. The helper only uses private DMs; group/edited/channel messages are ignored by the app.
 
 Activate `WEDDINGOPS_SEND_NOTIFICATIONS=true` only in the disposable test cell after checking recipients, then recreate API/worker so both use identical settings. Simulated notices are not replayed automatically when sending is enabled. Create a fresh test interaction instead of resetting delivery state indiscriminately.
 
 Issue one personal invitation, open its Telegram link and start the bot. Test `/now`, `/guest Sarah Tan`, explicit report confirmation, Mini App login, task acknowledgement, revocation, missing secret headers, duplicate updates, blocked bot delivery and worker restart. Verify Android/iOS/Web separately. Browser-cookie behavior in Telegram was not exercised here. Do not weaken CSRF/HMAC checks to make a webview work.
 
 Official reference: https://core.telegram.org/bots/api and https://core.telegram.org/bots/webapps . They describe API behavior; the local mocked tests do not certify deployment.
+
+### Optional setup photo review
+
+Leave `WEDDINGOPS_TELEGRAM_VISION_MODEL` unset during a deterministic rehearsal.
+To commission photo review, use a supported Mistral vision model and a server-side
+`WEDDINGOPS_MISTRAL_API_KEY`. Set `WEDDINGOPS_TELEGRAM_VISION_MODEL` explicitly
+and restart the worker. The feature also works with deterministic text replies.
+Verify provider terms and account limits before enabling it for real event photos.
+
+Test with a fictional Telegram setup photo and optional caption. The worker
+downloads a JPEG up to 2 MiB, sends the image and caption for a structured
+read-only review, and keeps no image bytes. For a text report or an arrival, the
+helper uses the existing confirmation flow.
 
 ## Mistral commissioning
 

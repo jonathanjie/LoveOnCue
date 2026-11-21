@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-from sqlalchemy import create_engine, event, select
+from sqlalchemy import create_engine, event, inspect, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -38,7 +38,16 @@ class Database:
 
     def create_schema(self) -> None:
         """For demo/tests only. Production migrations use Alembic."""
-        Base.metadata.create_all(self.engine)
+        with self.engine.begin() as connection:
+            if self.sqlite:
+                connection.exec_driver_sql("BEGIN IMMEDIATE")
+            Base.metadata.create_all(connection)
+            if self.sqlite:
+                schema = inspect(connection)
+                # Older local demos used create_all without an Alembic revision.
+                if (not schema.has_table("alembic_version")
+                        and all(column["name"] != "telegram_draft_id" for column in schema.get_columns("notifications"))):
+                    connection.exec_driver_sql("ALTER TABLE notifications ADD COLUMN telegram_draft_id VARCHAR(64)")
 
     @contextmanager
     def transaction(self, wedding_id: str, *, write: bool = False) -> Iterator[tuple[Session, Wedding]]:

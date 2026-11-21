@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .clock import Clock, iso
@@ -135,6 +135,54 @@ class Queries:
                     "counts": {"guests": len(guest_people), "onsite": sum(p.attendance == "onsite" for p in guest_people),
                                "open_incidents": sum(i["status"] == "open" for i in incidents),
                                "pending_approvals": sum(p["status"] == "pending" for p in approvals)}}
+
+    def coordinator_brief(self, actor: Actor) -> dict:
+        with self.db.transaction(self.wid) as (session, wedding):
+            access = load_access(session, actor, self.wid)
+            access.require("timeline:approve")
+            now = self.clock.now()
+            urgent, followups, notes = [], [], []
+            owners = dict(session.execute(
+                select(Member.id, Person.name).join(
+                    Person, (Person.id == Member.person_id) & (Person.wedding_id == Member.wedding_id)
+                ).where(Member.wedding_id == self.wid, Member.active)
+            ).all())
+            tasks = sorted(rows(session, Task, self.wid), key=lambda task: (task.due_at, task.id))
+            task_by_id = {task.id: task for task in tasks}
+            blockers_by_task: dict[str, list[str]] = {}
+            for dependency in rows_for_edges(session, TaskDependency, self.wid):
+                prerequisite = task_by_id[dependency.depends_on_id]
+                if prerequisite.state != "done":
+                    blockers_by_task.setdefault(dependency.task_id, []).append(prerequisite.title)
+            for task in tasks:
+                if task.state in {"done", "cancelled"} or task.due_at > now + timedelta(minutes=10):
+                    continue
+                blockers = blockers_by_task.get(task.id, [])
+                if blockers:
+                    followups.append((task.title, "Unfinished prerequisites: " + ", ".join(sorted(blockers)) + "."))
+                if not task.acknowledged_at:
+                    owner = owners.get(task.owner_id)
+                    detail = f"{owner} has not acknowledged this assignment." if owner else "The assigned helper is unavailable."
+                    section = urgent if task.due_at <= now - timedelta(minutes=5) else followups
+                    section.append((task.title, detail))
+            for incident in sorted(rows(session, Incident, self.wid), key=lambda item: (item.created_at, item.id)):
+                if incident.status == "open":
+                    details = "Review this open incident in LoveOnCue."
+                    (urgent if incident.severity == "urgent" else notes).append((incident.title, details))
+            for proposal in sorted(rows(session, Approval, self.wid), key=lambda item: (item.created_at, item.id)):
+                if proposal.status == "pending" and proposal.expires_at > now:
+                    details = "A human coordinator must review this proposal."
+                    if proposal.base_timeline_version != wedding.timeline_version:
+                        details = "The run sheet changed after this proposal. Review it again in LoveOnCue."
+                    followups.append((proposal.title, details))
+            failures = session.scalar(select(func.count()).select_from(Notification).where(
+                Notification.wedding_id == self.wid, Notification.state.in_(("failed", "undeliverable")),
+                Notification.topic != "bot_reply",
+            ))
+            if failures:
+                title = "1 delivery problem" if failures == 1 else f"{failures} delivery problems"
+                followups.append((title, "Check recipient enrollment and review failed notices."))
+            return {"urgent": urgent, "followups": followups, "notes": notes}
 
     def guests(self, actor: Actor, query: str, *, sensitive: bool = False) -> list[dict]:
         with self.db.transaction(self.wid) as (s, _):
