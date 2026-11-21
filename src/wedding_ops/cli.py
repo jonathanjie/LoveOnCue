@@ -19,6 +19,8 @@ from .policy import Actor
 from .seed import DEMO_TIME, seed_demo
 
 
+INBOUND_WORK_BUDGET_SECONDS = 2
+
 def bootstrap(db: Database, settings: Settings, name: str, event_date: str, venue: str,
               coordinator: str, timezone: str) -> dict:
     date.fromisoformat(event_date)
@@ -106,14 +108,20 @@ def main() -> None:
         auth = Auth(db, settings)
         queries = Queries(db, settings.wedding_id, clock)
         operations = Operations(db, settings.wedding_id, clock)
-        model_parser = MistralParser(settings) if settings.agent_mode == "mistral" else None
-        assistant = Assistant(queries, operations, model_parser)
-        telegram = TelegramIngress(db, settings, clock, auth, assistant, operations)
+        uses_model = settings.agent_mode == "mistral" or bool(settings.telegram_vision_model)
+        model = MistralParser(settings) if uses_model else None
+        assistant = Assistant(queries, operations, model if settings.agent_mode == "mistral" else None)
+        telegram = TelegramIngress(
+            db, settings, clock, auth, assistant, operations,
+            photo_reviewer=model.review_photo if model and settings.telegram_vision_model else None,
+        )
         worker = Worker(db, settings, clock)
         try:
             while True:
+                # Check the outbox between batches even when photo review is slow.
+                deadline = time.monotonic() + INBOUND_WORK_BUDGET_SECONDS
                 for _ in range(20):
-                    if not telegram.process_one():
+                    if not telegram.process_one() or time.monotonic() >= deadline:
                         break
                 result = worker.tick()
                 if args.once:
@@ -121,8 +129,8 @@ def main() -> None:
                     break
                 time.sleep(2)
         finally:
-            if model_parser is not None:
-                model_parser.close()
+            if model is not None:
+                model.close()
             db.close()
     elif args.command=="export":
         from .views import Queries

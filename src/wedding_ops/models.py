@@ -274,6 +274,7 @@ class Notification(TenantRecord, Base):
     recipient_id: Mapped[str] = mapped_column(String(64))
     topic: Mapped[str] = mapped_column(String(64))
     message: Mapped[str] = mapped_column(Text)
+    telegram_draft_id: Mapped[str | None] = mapped_column(String(64))
     dedupe_key: Mapped[str] = mapped_column(String(220))
     audience_team_ids: Mapped[list] = mapped_column(JSON, default=list)
     required_permission: Mapped[str | None] = mapped_column(String(80))

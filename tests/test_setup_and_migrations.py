@@ -140,3 +140,20 @@ def test_postgres_migration_runtime_when_configured(db,monkeypatch):
     command.check(config)
     assert set(Base.metadata.tables).issubset(inspect(db.engine).get_table_names())
     command.downgrade(config,'base')
+
+
+def test_existing_unversioned_demo_preserves_fixture_when_outbox_gains_draft_reference(tmp_path):
+    from wedding_ops.seed import seed_demo
+
+    database = Database(f"sqlite:///{tmp_path / 'old-demo.db'}")
+    try:
+        database.create_schema()
+        seed_demo(database)
+        with database.engine.begin() as connection:
+            connection.exec_driver_sql("ALTER TABLE notifications DROP COLUMN telegram_draft_id")
+        database.create_schema()
+        snapshot = Queries(database, "demo-wedding", DemoClock(DEMO_TIME)).snapshot(Actor("demo-wedding", "coordinator"))
+        assert snapshot["counts"]["guests"] == 180
+        assert any(task["id"] == "signage" for task in snapshot["tasks"])
+    finally:
+        database.close()

@@ -1,4 +1,4 @@
-# WeddingOps
+# LoveOnCue
 
 **A working, human-led wedding-day operations foundation.** Role-aware helpers, a live run sheet, guarded reports and approvals, and targeted updates. This is a tested local rehearsal build, **not a production-certified wedding coordinator**.
 
@@ -46,6 +46,27 @@ Reset only this fictional local database with `python scripts/dev.py --reset`. T
 **FastAPI + Pydantic + SQLAlchemy/Alembic; TypeScript browser UI; PostgreSQL for deployment; SQLite for the demo.** The original Next.js/Prisma suggestion was not a requirement. A functioning, tested stack was preferable to an unverified framework scaffold in this build environment. See [ADR 0002](docs/adr/0002-stack-and-database.md).
 
 The application owns Telegram, operational state, permissions, and approvals. Explicit commands run locally. When enabled, Mistral interprets one free-form message per request and returns a typed intent. See [agent design](AGENT_DESIGN.md) and [provider commissioning](deploy/README.md#mistral-commissioning).
+
+## Telegram rehearsal
+
+In Telegram, helpers can open their tasks or find a guest if their role permits
+it. Coordinators can open the summary with `/brief` or the expanded view with
+`/brief_more`. Confirm a report with its button or the supplied `/confirm`
+command. A schedule proposal still requires approval in the coordinator app.
+
+To exercise multiple fictional roles locally:
+
+```bash
+python scripts/rehearse-telegram.py \
+  --as coordinator /brief \
+  --as banquet /brief \
+  --as registration-a '/guest Sarah Tan'
+```
+
+The rehearsal starts with a fresh fixture database and produces local replies.
+The [recovery notes](docs/plans/2026-11-21-loveoncue-telegram-recovery.md) record
+which October behaviors were kept. Setup photo analysis is read-only and
+optional. See the [Telegram deployment notes](deploy/README.md#telegram-commissioning).
 
 ## Verify and develop
 

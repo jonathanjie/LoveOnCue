@@ -156,8 +156,10 @@ class Auth:
             s.add(AuthReplay(digest=replay, wedding_id=self.wid, expires_at=now + timedelta(minutes=6)))
             return self._session(s, member.id)
 
-    def telegram_actor(self, ident: str) -> Actor:
-        with self.db.transaction(self.wid) as (s, _):
+    def telegram_actor(self, ident: str, *, require_open_event: bool = False) -> Actor:
+        with self.db.transaction(self.wid) as (s, wedding):
+            if require_open_event and wedding.status == "archived":
+                raise denied("This wedding is archived")
             member = s.scalar(select(Member).where(Member.wedding_id == self.wid, Member.telegram_user_id == ident))
             if not member or not member.active:
                 raise denied("Unregistered or inactive Telegram sender")

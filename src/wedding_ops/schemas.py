@@ -242,3 +242,14 @@ class Intent(Strict):
     kind: Literal["now", "guest", "location", "vendor", "knowledge", "family_status", "arrival", "missing_family", "delay", "unknown"]
     query: Annotated[str, Field(max_length=160)] = ""
     minutes: int | None = Field(default=None, ge=1, le=180)
+
+
+
+PhotoDetail = Annotated[str, Field(min_length=1, max_length=230)]
+
+
+class PhotoReview(Strict):
+    """Untrusted observations from one photo. This schema has no command fields."""
+    summary: Annotated[str, Field(min_length=1, max_length=300)]
+    observations: Annotated[list[PhotoDetail], Field(min_length=1, max_length=5)]
+    uncertainties: Annotated[list[PhotoDetail], Field(min_length=1, max_length=5)]

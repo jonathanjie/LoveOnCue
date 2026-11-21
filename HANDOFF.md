@@ -1,4 +1,4 @@
-# Codex handoff — WeddingOps 0.1.0
+# LoveOnCue handoff
 
 **Owner:** Jon. **Build review date:** 3 October 2026. **Status:** working local rehearsal foundation; not cleared to coordinate a real wedding without a supervised deployment rehearsal.
 
@@ -13,8 +13,8 @@ The original release bundle preserves the full build history. See [docs/PERSISTE
 Clone the GitHub repository, then run the rehearsal:
 
 ```bash
-git clone https://github.com/jonathanjie/wedding-ops.git
-cd wedding-ops
+git clone https://github.com/jonathanjie/LoveOnCue.git
+cd LoveOnCue
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements-runtime.lock -r requirements-dev.txt -e .

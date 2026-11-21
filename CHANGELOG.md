@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Rename the project checkout and GitHub repository to LoveOnCue.
+- Restore coordinator briefs, Telegram navigation, confirmation buttons, and
+  explicit repeat-confirmation replies.
+- Add optional read-only setup photo review and a local multi-role Telegram rehearsal.
+
 - Pin the browser CI runner to Ubuntu 24.04.
 - Run explicit chat commands locally and use a direct Mistral API adapter for optional free-form intent parsing.
 

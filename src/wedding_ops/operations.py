@@ -34,12 +34,14 @@ def audit(s: Session, w: Wedding, actor_id: str, event_type: str, entity_id: str
 
 def notify(s: Session, wid: str, member_id: str, topic: str, message: str, key: str, now,
            *, teams: list[str] | None = None, permission: str | None = None,
-           timeline_version: int | None = None, task: Task | None = None) -> None:
+           timeline_version: int | None = None, task: Task | None = None,
+           telegram_draft_id: str | None = None) -> None:
     unique = f"{key}:{member_id}"
     if s.scalar(select(Notification.id).where(Notification.wedding_id == wid, Notification.dedupe_key == unique)):
         return
     s.add(Notification(wedding_id=wid, recipient_id=member_id, topic=topic, message=message,
                        dedupe_key=unique, audience_team_ids=teams or [], required_permission=permission,
+                       telegram_draft_id=telegram_draft_id,
                        timeline_version=timeline_version, task_id=task.id if task else None,
                        task_version=task.version if task else None, state="queued", attempts=0,
                        next_attempt_at=now, created_at=now))
