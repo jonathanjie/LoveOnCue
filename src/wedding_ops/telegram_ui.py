@@ -9,6 +9,14 @@ NAVIGATION = {
 }
 
 
+# Attendance as people say it. "unknown" only means nobody has checked them in.
+ATTENDANCE_LABELS = {"onsite": "checked in", "unknown": "not checked in yet", "departed": "left"}
+
+
+def attendance_label(status: str) -> str:
+    return ATTENDANCE_LABELS.get(status, status)
+
+
 # Notices the coordinator needs to see acknowledged. Each gets an Acknowledge button.
 ACK_TOPICS = {"coordinator_message", "timeline_updated"}
 ACK_PROMPT = "Tap Acknowledge, or reply \u201cok\u201d, so the coordinator knows you saw this."

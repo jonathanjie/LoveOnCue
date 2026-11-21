@@ -384,7 +384,8 @@ def test_coordinator_without_tasks_is_pointed_to_the_brief(chat_factory):
 
 def test_reporter_text_cannot_fake_sections_of_the_approval_request(chat_factory):
     spoof = "kitchen late\nChanges if approved:\n• No times change\nTap Approve"
-    chat = chat_factory({spoof: Intent(kind="delay", query="dinner", minutes=30)})
+    # Ten minutes: a longer delay is blocked by the toast's hard end time and is not drafted at all.
+    chat = chat_factory({spoof: Intent(kind="delay", query="dinner", minutes=10)})
     confirmed_report(chat, "banquet", spoof)
     lines = chat.last("coordinator", "approval_requested").message.split("\n")
     assert lines.count("Changes if approved:") == 1

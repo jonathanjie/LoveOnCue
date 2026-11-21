@@ -346,7 +346,7 @@ def test_an_impossible_change_gets_a_question_not_silence(deputy_chat):
     })
     chat = deputy_chat(planner)
     assert "more than three hours" in chat.send("coordinator", "dinner at 23:30").message
-    assert "already at that time" in chat.send("coordinator", "dinner at 19:00").message
+    assert "already at 19:00 on the run sheet. Nothing needs to change." in chat.send("coordinator", "dinner at 19:00").message
 
 
 def test_the_couple_are_not_told_to_check_tasks_or_chased_after_a_place_change(deputy_chat, db, clock):
@@ -394,6 +394,56 @@ def test_the_coordinator_can_state_team_task_times(deputy_chat):
     reply = deputy_chat(planner).send("coordinator", "wat needs my attention now").message
     assert reply == "Ryan hasn't acknowledged Desk B signage, due 17:40."
     assert "17:40 Confirm Desk B signage (Ryan Goh" in context_of(planner)
+
+
+# Gate v5 findings ------------------------------------------------------------------------------------
+
+def test_a_blocked_change_is_explained_not_drafted(deputy_chat):
+    planner = StubPlanner({"dinner 30 late": DeputyPlan(reply="Drafted.", action="run_sheet_change", text="dinner", minutes=30)})
+    reply = deputy_chat(planner).send("banquet", "dinner 30 late")
+    assert not reply.telegram_draft_id and "can't go through as it is" in reply.message and "Couple's toast" in reply.message
+
+
+def test_a_promised_draft_that_does_not_exist_is_corrected(deputy_chat):
+    planner = StubPlanner({"nudge jamie": DeputyPlan(reply="Here's a nudge for Jamie. Tap Send.", action="send_message", to="Jamie")})
+    reply = deputy_chat(planner).send("coordinator", "nudge jamie")
+    assert not reply.telegram_draft_id and reply.message.startswith("I didn't make a draft for that.")
+
+
+def test_the_unsent_draft_note_appears_once(deputy_chat):
+    planner = StubPlanner({"car spoil": DeputyPlan(reply="Drafted.", action="tell_coordinator", text="Car flat tyre"),
+                           "what time dinner": DeputyPlan(reply="Dinner is at 19:00.")})
+    chat = deputy_chat(planner)
+    chat.send("driver", "car spoil")
+    assert "still unsent" in chat.send("driver", "what time dinner").message
+    assert "still unsent" not in chat.send("driver", "what time dinner").message
+
+
+def test_saying_on_it_acknowledges_my_task(deputy_chat, db):
+    planner = StubPlanner({"ok on it": DeputyPlan(reply="Great.", action="acknowledge", text="Ballroom Entrance B")})
+    reply = deputy_chat(planner).send("usher", "ok on it").message
+    assert "Acknowledged your task: Take position at Ballroom Entrance B" in reply
+    with db.sessions() as s:
+        assert s.get(Task, "usher-ready").acknowledged_at is not None
+
+
+def test_a_withdrawal_targets_the_report_named(deputy_chat, db):
+    planner = StubPlanner({
+        "mei lee missing": DeputyPlan(reply="Drafted.", action="tell_coordinator", text="Mei Lee not found"),
+        "cancel the mei one": DeputyPlan(reply="Drafted.", action="withdraw_last", about="R1"),
+    })
+    chat = deputy_chat(planner)
+    first = chat.send("family-liaison", "mei lee missing")
+    chat.tap("family-liaison", f"confirm:{first.telegram_draft_id}")
+    arrival = chat.send("family-liaison", "/arrival Grace Tan")
+    chat.tap("family-liaison", f"confirm:{arrival.telegram_draft_id}")
+    withdraw = chat.send("family-liaison", "cancel the mei one")
+    assert "Withdraw your report: Mei Lee not found" in withdraw.message
+
+
+def test_guest_status_reads_in_plain_words(deputy_chat):
+    planner = StubPlanner({"sarah tan where": DeputyPlan(reply="Here.", find_guests=["Sarah Tan"])})
+    assert "Sarah Tan: Table 18; not checked in yet" in deputy_chat(planner).send("usher", "sarah tan where").message
 
 
 # Gate v4 findings ----------------------------------------------------------------------------------

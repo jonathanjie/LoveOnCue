@@ -769,8 +769,8 @@ class Operations:
         incident = s.scalar(select(Incident).where(Incident.wedding_id == self.wid, Incident.id == incident_id))
         return incident.kind if incident else None
 
-    def latest_report(self, actor: Actor) -> dict | None:
-        """The sender's most recent confirmed report that can still be withdrawn."""
+    def latest_report(self, actor: Actor, entity_id: str | None = None) -> dict | None:
+        """The sender's most recent confirmed report that can still be withdrawn, or the one for a record."""
         with self.db.transaction(self.wid) as (s, _):
             withdrawn = {e.entity_id for e in rows(s, AuditEvent, self.wid) if e.event_type == "report_withdrawn"}
             receipts = sorted((r for r in s.scalars(select(CommandReceipt).where(
@@ -780,6 +780,8 @@ class Operations:
                 if receipt.request_id in withdrawn or self.clock.now() - receipt.created_at > WITHDRAW_WINDOW:
                     continue
                 target = self._report_target(s, receipt)
+                if entity_id and receipt.result.get("id") != entity_id:
+                    continue
                 if target and target["withdrawable"]:
                     return {"request_id": receipt.request_id, "title": target["title"]}
             return None

@@ -376,10 +376,10 @@ class Assistant:
             message = "Your recent reports and what happened to them:" if reports else "You have not sent any reports yet."
             return {"kind": "my_reports", "message": message, "data": reports[:8]}
         if intent.kind == "acknowledge":
-            notice = self.operations.acknowledge_latest(actor)
-            if notice is None:
-                return {"kind": "help", "message": "Thanks. Nothing is waiting for your acknowledgement.", "data": []}
-            return {"kind": "help", "message": f"Acknowledged\n{notice[:120]}", "data": []}
+            notice = None if intent.query else self.operations.acknowledge_latest(actor)
+            if notice is not None:
+                return {"kind": "help", "message": f"Acknowledged\n{notice[:120]}", "data": []}
+            return self._acknowledge_task(actor, intent.query, snapshot)
         if intent.kind == "late":
             name = snapshot["me"]["name"]
             title = (f"{name} is running about {intent.minutes} minutes late" if intent.minutes
@@ -393,7 +393,7 @@ class Assistant:
                     "message": f"{counts['onsite']} of {counts['guests']} guests are recorded as onsite. "
                                "Guests who skipped registration are not counted."}
         if intent.kind == "withdraw":
-            report = self.operations.latest_report(actor)
+            report = self.operations.latest_report(actor, intent.query or None)
             if report is None:
                 return {"kind": "help", "message": "Nothing to withdraw. You have no recent report that is still open. Ask the coordinator to correct older records.", "data": []}
             draft = self.operations.draft(actor, {"type": "withdraw_report", "request_id": report["request_id"]},
@@ -466,7 +466,10 @@ class Assistant:
         if len(preview["changes"]) > 1:
             parts.append("Later items move too, so that nothing overlaps.")
         if preview["blockers"]:
-            parts.append("Blocked: " + "; ".join(preview["blockers"]) + ". This cannot be approved as it is.")
+            # A change that cannot be approved is not offered as a draft at all.
+            return {"kind": "help", "data": [],
+                    "message": "That change can't go through as it is: " + "; ".join(preview["blockers"])
+                               + ". Try a smaller change, or adjust the run sheet in LoveOnCue."}
         if preview["replaces"]:
             parts.append(f"This replaces your pending request: {preview['replaces']}.")
         parts.append(f"Reason: \u201c{command['reason']}\u201d")
@@ -476,6 +479,20 @@ class Assistant:
         message = ("Check the change before it goes out." if coordinator else
                    "Confirm the report to create a proposal, not to change the schedule.")
         return {"kind": "confirmation", "message": message, "draft": draft}
+
+    def _acknowledge_task(self, actor: Actor, which: str, snapshot: dict) -> dict:
+        """"On it" in words: acknowledges one of the person's own tasks, like the On it button."""
+        waiting = [t for t in snapshot["tasks"] if t["mine"] and not t["acknowledged_at"]
+                   and t["state"] not in {"done", "cancelled"}]
+        task = match_timeline_item(waiting, which) if which else (waiting[0] if len(waiting) == 1 else None)
+        if task is None:
+            if not waiting:
+                return {"kind": "help", "message": "Thanks. Nothing is waiting for your acknowledgement.", "data": []}
+            titles = "; ".join(t["title"] for t in waiting)
+            return {"kind": "clarification", "data": [], "message": f"Which task are you on? Not yet acknowledged: {titles}."}
+        self.operations.execute(actor, {"type": "task_action", "task_id": task["id"], "action": "acknowledge",
+                                        "expected_version": task["version"]}, f"taskack:{task['id']}:{task['version']}")
+        return {"kind": "help", "message": f"Acknowledged your task: {task['title']}. The coordinator can see it.", "data": []}
 
     def complete_task_draft(self, actor: Actor, which: str, snapshot: dict) -> dict:
         """Draft marking one of the person's own open tasks done. The task is matched by its title."""

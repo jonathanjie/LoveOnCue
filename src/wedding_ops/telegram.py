@@ -20,7 +20,7 @@ from .models import InboundUpdate, new_id
 from .operations import Operations, audit, notify
 from .schemas import PhotoReview
 from .telegram_photo import MAX_PHOTO_BYTES, download_photo, render_photo
-from .telegram_ui import NAVIGATION, render_brief
+from .telegram_ui import NAVIGATION, attendance_label, render_brief
 from .views import row
 
 
@@ -127,9 +127,9 @@ def render_reply(result: dict) -> str:
             note = f" — {item['note']}" if item.get("note") else ""
             message += f"\n• {item['title']}: {item['status']}{note}"
         elif result["kind"] == "guests":
-            message += f"\n• {item['name']}: Table {item['table'] or 'unassigned'}; {item['attendance']}"
+            message += f"\n• {item['name']}: Table {item['table'] or 'unassigned'}; {attendance_label(item['attendance'])}"
         elif result["kind"] == "family":
-            message += f"\n• {item['name']}: {item['attendance']}"
+            message += f"\n• {item['name']}: {attendance_label(item['attendance'])}"
         elif result["kind"] == "knowledge":
             message += f"\n\n{item['excerpt']}\nSource: {item['source']}, revision {item['revision']}, line {item['line']}"
         elif result["kind"] == "vendors":

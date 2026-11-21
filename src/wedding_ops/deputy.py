@@ -33,7 +33,7 @@ from .models import ActionDraft, ConversationTurn, DeputyPing
 from .operations import Operations
 from .policy import Actor
 from .schemas import Intent, Strict
-from .telegram_ui import ACK_PROMPT, ACK_TOPICS
+from .telegram_ui import ACK_PROMPT, ACK_TOPICS, attendance_label
 from .views import Queries
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,8 @@ MEMORY_TTL = timedelta(hours=12)
 DECISION_WINDOW = timedelta(hours=1)  # how far back the coordinator's context lists decisions
 TEAM_TASK_WINDOW = timedelta(hours=1)  # how far ahead the coordinator's context lists team tasks
 MAX_LOOKUPS = 5
+# Words that tell the person a draft is waiting under the reply.
+DRAFT_CLAIM = re.compile(r"\b(button|tap)\b", re.IGNORECASE)
 MAX_SHIFT_MINUTES = 180  # the command's own limit on one change
 TIME_PATTERN = re.compile(r"\b([01]?\d|2[0-3]):[0-5]\d\b")
 
@@ -132,9 +134,11 @@ and say what to send next.
   are reported); for the coordinator it changes the run sheet when they tap.
 - complete_task: text = which of their own tasks is done, when they say it is done or ready.
 - draft_arrival: text = the guest or family member who arrived.
-- withdraw_last: they take back their last report.
-- acknowledge: only when the whole message is a short confirmation ("ok noted", "got it", a
-  thumbs up) and an update is waiting. A question is never an acknowledgement.
+- withdraw_last: they take back a report; set about to its reference (for example R2), or leave it
+  empty for their latest report.
+- acknowledge: only when the whole message is a short confirmation ("ok noted", "got it", "on it", a
+  thumbs up) of an update or of their task; text = the task, if they name one. A question is never an
+  acknowledgement.
 - send_message: coordinator only. to = "everyone", or the names of people or teams; text = the
   message, tidied, with no facts they did not give. To answer a helper's question, set about to
   its reference (for example Q1).
@@ -188,17 +192,16 @@ class Deputy:
             logger.warning("Deputy reply stated a time not in the context; using the intent path")
             return self.assistant.ask(actor, text)
         result = self._act(actor, text, plan, snapshot, trusted, refs)
-        if not result.get("draft") and result["kind"] == "chat" and re.search(r"\bbutton\b", plan.reply, re.IGNORECASE):
-            # The reply promised a button but no draft exists; answer plainly instead.
-            logger.warning("Deputy reply mentioned a button without a draft; using the intent path")
-            return self.assistant.ask(actor, text)
+        if not result.get("draft") and result["kind"] == "chat" and DRAFT_CLAIM.search(plan.reply):
+            # The reply promised something to tap, but no draft exists. Say so plainly.
+            logger.warning("Deputy reply promised a draft that does not exist")
+            result = result | {"message": "I didn't make a draft for that. Tell me exactly what to send, and to whom."}
         result = self._add_lookups(actor, plan, snapshot, result)
-        if not result.get("draft"):
-            pending = self._pending_draft(actor.member_id)
-            if pending:
-                # An earlier button is still live; say exactly what it sends, so nobody taps it by mistake.
-                result = result | {"message": result["message"] + f"\n\nYour earlier draft is still unsent. "
-                                   f"Its button sends only this: {pending}"}
+        pending_id, pending = self._pending(actor.member_id)
+        if not result.get("draft") and pending and self._last_offered(actor.member_id) == pending_id:
+            # An earlier button is still live; say once what it sends, so nobody taps it by mistake.
+            result = result | {"message": result["message"] + f"\n\nYour earlier draft is still unsent. "
+                               f"Its button sends only this: {pending}"}
         zone = snapshot["wedding"]["timezone"]
         from .telegram import (
             render_reply,  # Imported here: telegram.py uses this module.
@@ -244,13 +247,19 @@ class Deputy:
         intent = {
             "report_late": Intent(kind="late", minutes=plan.minutes),
             "draft_arrival": Intent(kind="arrival", query=plan.text),
-            "withdraw_last": Intent(kind="withdraw"),
-            "acknowledge": Intent(kind="acknowledge"),
+            "withdraw_last": Intent(kind="withdraw", query=self._report_entity(refs, plan.about)),
+            "acknowledge": Intent(kind="acknowledge", query=plan.text),
         }.get(plan.action)
         if intent is None:
             return {"kind": "chat", "message": plan.reply, "data": []}
         # The Assistant resolves names, checks permissions and creates the draft.
         return self._with_reply(plan, self.assistant._answer(actor, details or text, intent, snapshot))
+
+    @staticmethod
+    def _report_entity(refs: dict, about: str) -> str:
+        """The record behind a reference such as R2, so a withdrawal targets the report the person meant."""
+        found = refs.get(about.upper().strip())
+        return found[1] if found else ""
 
     @staticmethod
     def _with_reply(plan: DeputyPlan, result: dict) -> dict:
@@ -276,7 +285,7 @@ class Deputy:
                     "message": "That moves it more than three hours. Check the time, or change it in LoveOnCue."}
         if not (shift or plan.place or plan.note):
             return {"kind": "clarification", "data": [],
-                    "message": f"{item['title']} is already at that time. What should change: the time, the place or a note?"}
+                    "message": f"{item['title']} is already at {plan.new_time or 'that time'} on the run sheet. Nothing needs to change."}
         place = None
         if plan.place:
             found = match_locations(snapshot["locations"], plan.place)
@@ -346,7 +355,7 @@ class Deputy:
             found = self.queries.guests(actor, guest_query(name))
             if len(found) == 1:
                 guest = found[0]
-                lines.append(f"• {guest['name']}: Table {guest['table'] or 'unassigned'}; {guest['attendance']}")
+                lines.append(f"• {guest['name']}: Table {guest['table'] or 'unassigned'}; {attendance_label(guest['attendance'])}")
             elif found:
                 lines.append(f"• {name}: {len(found)} guests match; send the full name")
             else:
@@ -372,7 +381,9 @@ class Deputy:
         emergency = snapshot["wedding"].get("emergency_contact") or "not set (say: venue security or the duty manager)"
         lines = [f"Now: {local(snapshot['now'])} at {snapshot['wedding']['venue']}.",
                  f"You are talking to {me['name']} (roles: {', '.join(me['roles'])}).",
-                 "They are the coordinator." if coordinator else f"Coordinator: {coordinator_contact(snapshot)}.",
+                 ("They are the coordinator: nobody is above them, so never offer to ask the coordinator; "
+                  "offer to message the right helper instead.") if coordinator
+                 else f"Coordinator: {coordinator_contact(snapshot)}.",
                  f"[record] Emergency contact: {emergency}.", "", "[run sheet] Approved run sheet, newest facts:"]
         for item in snapshot["timeline"]:
             moved = "" if item["current_start"] == item["planned_start"] else f" (moved from {local(item['planned_start'])})"
@@ -411,8 +422,9 @@ class Deputy:
         if recent:
             lines += ["", "[record] Their recorded actions in the last hour:"] + [f"- {line}" for line in recent]
         if "family:status" in me["grants"]:
-            lines += ["", "[record] Family status (unknown means nobody has reported them):"]
-            lines += [f"- {p['name']} ({p['relationship']}): {p['attendance']}" for p in self.queries.family(actor)]
+            lines += ["", "[record] Family status (not checked in yet means nobody has reported them, not that they are absent):"]
+            lines += [f"- {p['name']} ({p['relationship']}): {attendance_label(p['attendance'])}"
+                      for p in self.queries.family(actor)]
         if "guests:seating" in me["grants"]:
             counts = snapshot["counts"]
             lines += ["", f"[record] {counts['onsite']} of {counts['guests']} guests are recorded as onsite. "
@@ -529,12 +541,23 @@ class Deputy:
         return (["", "Updates sent to them, newest first:"] + lines) if lines else []
 
     def _pending_draft(self, member_id: str) -> str | None:
-        """The last line of the summary of the person's draft still waiting for a tap."""
+        return self._pending(member_id)[1]
+
+    def _pending(self, member_id: str) -> tuple[str | None, str | None]:
+        """The person's draft still waiting for a tap: its ID and the first line of its summary."""
         with self.db.sessions() as s:
             drafts = s.scalars(select(ActionDraft).where(
                 ActionDraft.wedding_id == self.queries.wid, ActionDraft.member_id == member_id,
                 ActionDraft.consumed_at.is_(None), ActionDraft.expires_at > utcnow())).all()
-        return drafts[-1].summary.splitlines()[0][:300] if drafts else None
+        return (drafts[-1].id, drafts[-1].summary.splitlines()[0][:300]) if drafts else (None, None)
+
+    def _last_offered(self, member_id: str) -> str | None:
+        """The draft offered in the person's most recent reply, if any."""
+        with self.db.sessions() as s:
+            turn = s.scalars(select(ConversationTurn).where(
+                ConversationTurn.wedding_id == self.queries.wid, ConversationTurn.member_id == member_id,
+                ConversationTurn.role == "assistant").order_by(ConversationTurn.created_at.desc()).limit(1)).first()
+        return turn.draft_id if turn else None
 
     # Memory ------------------------------------------------------------------------------
 
