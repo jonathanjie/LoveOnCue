@@ -205,6 +205,15 @@ class Queries:
         return (f"Not acknowledged: latest {label} ({len(group) - len(missing)} of {len(group)} acknowledged)",
                 ", ".join(missing[:12]) + (" and others" if len(missing) > 12 else ""))
 
+    def help_contact(self, member_id: str) -> tuple[list[str], list[str]]:
+        """A member's roles and the active coordinators' names, for explaining a refusal."""
+        with self.db.transaction(self.wid) as (s, _):
+            members = rows(s, Member, self.wid)
+            people = {p.id: p.name for p in rows(s, Person, self.wid)}
+            me = next((m for m in members if m.id == member_id), None)
+            coordinators = sorted(people[m.person_id] for m in members if m.active and "coordinator" in m.roles)
+            return (list(me.roles) if me else []), coordinators
+
     def guests(self, actor: Actor, query: str, *, sensitive: bool = False) -> list[dict]:
         with self.db.transaction(self.wid) as (s, _):
             a = load_access(s, actor, self.wid)

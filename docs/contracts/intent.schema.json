@@ -18,6 +18,8 @@
         "withdraw",
         "schedule",
         "my_reports",
+        "late",
+        "headcount",
         "unknown"
       ],
       "title": "Kind",

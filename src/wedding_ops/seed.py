@@ -36,6 +36,8 @@ def seed_demo(db: Database, wid: str = "demo-wedding") -> None:
             ("stage", "Stage & AV desk", "Front of ballroom; AV desk at stage right.", 50, 10),
             ("service", "Banquet service door", "Staff-only east corridor. Keep access unobstructed.", 88, 55),
             ("portraits", "Portrait alcove", "North-west corner of the garden terrace.", 10, 10),
+            ("entrance-b", "Ballroom Entrance B", "Second set of ballroom doors, off the foyer opposite the lift.", 30, 60),
+            ("restrooms", "Restrooms", "Level 1, left of the foyer lift. Accessible restroom beside the service door.", 20, 70),
         ]:
             s.add(Location(id=ident, wedding_id=wid, name=name, directions=directions, x=x, y=y))
         s.flush()

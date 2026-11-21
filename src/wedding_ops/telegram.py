@@ -112,6 +112,10 @@ def render_reply(result: dict) -> str:
     for item in result.get("data", [])[:8]:
         if result["kind"] == "tasks":
             message += f"\n• {item['title']} · due {local_time(item['due_at'], zone)} · {item['state']}"
+            if item.get("where"):
+                message += f"\n  Where: {item['where']['name']}. {item['where']['directions']}"
+            if item.get("instructions"):
+                message += f"\n  What: {item['instructions']}"
             if item.get("blocked_by"):
                 message += " · blocked by " + ", ".join(item["blocked_by"])
         elif result["kind"] == "schedule":
@@ -176,6 +180,14 @@ class TelegramIngress:
         except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError, IndexError):
             # Exceptions from Telegram may include the bot token in a request URL.
             return "I couldn't review this photo. Send a text report for any issue or arrival."
+
+    def _explain_denial(self, member_id: str, error: OpsError) -> str:
+        """Say which role was refused and who can help, instead of a bare refusal."""
+        roles, coordinators = self.assistant.queries.help_contact(member_id)
+        contact = f"{' or '.join(coordinators)} (coordinator)" if coordinators else "the coordinator"
+        if error.message == "Your role does not permit this action":
+            return f"Your role ({', '.join(roles)}) does not permit this action. Ask {contact} if you need it."
+        return f"{error.message}. Ask {contact} if you need help."
 
     def _decide(self, actor, decision: str, approval_id: str, note: str) -> str:
         """A coordinator's explicit Approve or Reject from Telegram. The model is not involved."""
@@ -302,7 +314,7 @@ class TelegramIngress:
         except OpsError as exc:
             failure, retry = exc.code, False
             if member_id:
-                result = exc.message
+                result = self._explain_denial(member_id, exc) if exc.code == "forbidden" else exc.message
         except Exception:
             failure, retry = "processing_error", True
         with self.db.transaction(self.wid, write=True) as (s,w):

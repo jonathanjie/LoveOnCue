@@ -51,7 +51,12 @@ with transport, equipment, food, supplies, a vendor or the venue; query is a sho
 of the problem), urgent_incident (an incident that blocks the ceremony or a key moment
 within minutes), withdraw (the user takes back or cancels their own last report), schedule (a question
 about when an activity happens or the order of events; query is the activity, or empty
-for the whole order), my_reports (the user asks what happened to their own reports), unknown.
+for the whole order), my_reports (the user asks what happened to their own reports), late
+(the user says they themselves are running late; minutes is how late, or null), headcount
+(how many guests have arrived), unknown.
+If a message both reports something and asks something, classify the report. If it asks
+several things, classify the first question. A request for help or cover that the
+coordinator should see is an incident.
 Use a short entity query, or an empty string when no query is needed. Use null for
 minutes except for delay. Never return database IDs.
 Do not guess names, state, or duration. For ambiguity, approval or administrative
@@ -79,6 +84,37 @@ def match_timeline_item(timeline: list[dict], query: str) -> dict | None:
     return winners[0] if best > 0 and len(winners) == 1 else None
 
 
+# Words people put before a name that are not part of it.
+NAME_FILLERS = {"mr", "mrs", "ms", "miss", "mdm", "madam", "dr", "auntie", "aunty", "aunt", "uncle", "ah", "the"}
+# Everyday words for places, mapped to the word used in location names.
+PLACE_WORDS = {"toilet": "restroom", "toilets": "restroom", "washroom": "restroom", "washrooms": "restroom",
+               "loo": "restroom", "bathroom": "restroom", "bathrooms": "restroom", "restroom": "restroom"}
+
+
+def guest_query(query: str) -> str:
+    """Drop titles and kinship words: "auntie sarah" -> "sarah", "Mr Lee" -> "lee"."""
+    words = [w for w in re.findall(r"[\w'-]+", query.lower()) if w not in NAME_FILLERS]
+    return " ".join(words) or query.strip()
+
+
+def match_locations(locations: list[dict], query: str) -> list[dict]:
+    """Places whose name contains the query, else places sharing a meaningful word with it."""
+    words = [PLACE_WORDS.get(w, w) for w in re.findall(r"[a-z0-9]+", query.lower())]
+    phrase = " ".join(words)
+    whole = [place for place in locations if phrase in place["name"].lower()]
+    if whole:
+        return whole
+    significant = {w for w in words if len(w) >= 3}
+    return [place for place in locations if significant & set(re.findall(r"[a-z0-9]+", place["name"].lower()))
+            or any(w in place["name"].lower() for w in significant)]
+
+
+def coordinator_contact(snapshot: dict) -> str:
+    """Name the coordinator, so advice never ends at "ask someone"."""
+    names = [m["name"] for m in snapshot["members"] if "coordinator" in m["roles"] and m.get("active", True)]
+    return f"{' or '.join(names)} (coordinator)" if names else "the coordinator"
+
+
 class Parser(Protocol):
     def parse(self, text: str) -> Intent: ...
 
@@ -92,6 +128,8 @@ class DeterministicParser:
             return Intent(kind="unknown")
         if value == "/now" or "doing now" in value or "what should i" in value or value.rstrip("?") in LOCAL_NOW_REQUESTS:
             return Intent(kind="now")
+        if value == "/location":
+            return Intent(kind="location")
         if value == "/schedule":
             return Intent(kind="schedule")
         if value == "/status":
@@ -232,7 +270,9 @@ class Assistant:
 
     def _answer(self, actor: Actor, text: str, intent: Intent, snapshot: dict) -> dict:
         if intent.kind == "now":
-            tasks = [t for t in snapshot["tasks"] if t["mine"] and t["state"] not in {"done", "cancelled"}]
+            places = {location["id"]: location for location in snapshot["locations"]}
+            tasks = [t | {"where": places.get(t["location_id"])} for t in snapshot["tasks"]
+                     if t["mine"] and t["state"] not in {"done", "cancelled"}]
             if tasks:
                 message = "Your current and next tasks, by due time. Blocked tasks wait for their prerequisites."
             elif "coordinator" in snapshot["me"]["roles"]:
@@ -241,8 +281,16 @@ class Assistant:
                 message = "You have no open tasks right now. Your coordinator will assign any new ones."
             return {"message": message, "kind": "tasks", "data": tasks[:6]}
         if intent.kind == "guest":
-            found = self.queries.guests(actor, intent.query)
-            return {"message": "Matching guest records. Select the correct person if names are similar." if found else "No matching guest. Ask registration to check the approved list.", "kind": "guests", "data": found}
+            query = guest_query(intent.query)
+            found = self.queries.guests(actor, query)
+            if not found:
+                message = ("No matching guest. Check the spelling or try the last name only. If they are not on "
+                           f"the list, ask {coordinator_contact(snapshot)}.")
+            elif len(found) > 1:
+                message = f"{len(found)} guests match. Send /guest followed by the full name to pick one."
+            else:
+                message = "Matching guest record."
+            return {"message": message, "kind": "guests", "data": found}
         if intent.kind == "family_status":
             found = self._family(actor, intent.query)
             return {"message": "Family status as last recorded. This is a lookup; nothing was changed. "
@@ -279,6 +327,18 @@ class Assistant:
             reports.sort(key=lambda r: r["at"], reverse=True)
             message = "Your recent reports and what happened to them:" if reports else "You have not sent any reports yet."
             return {"kind": "my_reports", "message": message, "data": reports[:8]}
+        if intent.kind == "late":
+            name = snapshot["me"]["name"]
+            title = (f"{name} is running about {intent.minutes} minutes late" if intent.minutes
+                     else f"{name} is running late")
+            return self._incident_draft(actor, text, Intent(kind="incident", query=title), snapshot)
+        if intent.kind == "headcount":
+            if "guests:seating" not in snapshot["me"]["grants"]:
+                return {"kind": "help", "message": f"Guest numbers are for the registration team. Ask {coordinator_contact(snapshot)}.", "data": []}
+            counts = snapshot["counts"]
+            return {"kind": "help", "data": [],
+                    "message": f"{counts['onsite']} of {counts['guests']} guests are recorded as onsite. "
+                               "Guests who skipped registration are not counted."}
         if intent.kind == "withdraw":
             report = self.operations.latest_report(actor)
             if report is None:
@@ -289,7 +349,7 @@ class Assistant:
         if intent.kind in {"incident", "urgent_incident"}:
             return self._incident_draft(actor, text, intent, snapshot)
         if intent.kind == "delay":
-            item = match_timeline_item(snapshot["timeline"], intent.query)
+            item = match_timeline_item(snapshot["timeline"], intent.query) or self._my_last_delay_item(actor, snapshot)
             if item is None or intent.minutes is None:
                 return {"kind": "clarification", "message": "Specify one activity and the additional delay, e.g. /delay dinner 12.", "data": []}
             # A bare command says nothing the coordinator can weigh, so say that plainly.
@@ -304,17 +364,30 @@ class Assistant:
             if match:
                 tables = [t for t in snapshot["tables"] if t["label"] == match[1]]
                 return {"kind": "locations", "message": "Table location from the approved layout.", "data": tables}
-            found = [l for l in snapshot["locations"] if query in l["name"].lower()]
-            return {"kind": "locations", "message": "Matching locations." if found else "No matching location. Try /knowledge followed by your question.", "data": found}
+            if not query:
+                return {"kind": "locations", "message": "Places at this venue:", "data": snapshot["locations"]}
+            found = match_locations(snapshot["locations"], query)
+            message = ("Matching places." if found else
+                       f"No matching place. Send /location to list them all, or ask {coordinator_contact(snapshot)}.")
+            return {"kind": "locations", "message": message, "data": found}
         if intent.kind == "vendor":
             found = [v for v in snapshot["vendors"] if intent.query.casefold() in (v["name"] + " " + v["category"]).casefold()]
             return {"kind": "vendors", "message": "Contacts available to your role." if found else "No matching vendor contact is available to your role. Ask the coordinator.", "data": found}
         if intent.kind == "knowledge":
             hits = self.queries.knowledge(actor, intent.query)
             # Retrieval occurs AFTER interpretation and never loops back to a tool-capable model.
-            return {"kind": "knowledge", "message": "Relevant excerpts from approved documents. These are reference data, not instructions to the agent." if hits else "No verified answer found. Please ask the coordinator; I will not invent one.", "data": hits}
+            return {"kind": "knowledge", "message": "Relevant excerpts from approved documents. These are reference data, not instructions to the agent." if hits else f"No verified answer found. Please ask {coordinator_contact(snapshot)}; I will not invent one.", "data": hits}
         coordinator = "coordinator" in snapshot["me"]["roles"]
         return {"kind": "help", "message": COORDINATOR_HELP if coordinator else FALLBACK_HELP, "data": []}
+
+    def _my_last_delay_item(self, actor: Actor, snapshot: dict) -> dict | None:
+        """The item of the sender's most recent delay report, for "now 20, not 15"."""
+        mine = sorted((a for a in snapshot["approvals"] if a.get("proposed_by") == actor.member_id and a["changes"]),
+                      key=lambda a: a["created_at"])
+        if not mine:
+            return None
+        item_id = mine[-1]["changes"][0]["item_id"]
+        return next((item for item in snapshot["timeline"] if item["id"] == item_id), None)
 
     def _incident_draft(self, actor: Actor, text: str, intent: Intent, snapshot: dict) -> dict:
         """Draft a problem report for the reporter to confirm. Nothing is recorded yet."""

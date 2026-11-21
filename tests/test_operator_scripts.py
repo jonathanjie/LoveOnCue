@@ -63,7 +63,7 @@ def test_telegram_rehearsal_uses_distinct_roles_and_ignores_deployed_settings(mo
         "--as", "registration-a", "/guest Sarah Tan",
     ], cwd=root, capture_output=True, text=True, check=True)
     assert "Coordinator brief" in result.stdout
-    assert "Your role does not permit this action" in result.stdout
+    assert "does not permit this action" in result.stdout
     assert "Sarah Tan: Table 18" in result.stdout
     assert "Sent to Telegram" not in result.stdout
 
