@@ -17,7 +17,7 @@ calls to the model provider when a key file is present.
     simulate.py --dir D desk view            Coordinator web desk: approvals, incidents.
     simulate.py --dir D desk approve ID [--note TEXT]
     simulate.py --dir D desk reject ID [--note TEXT]
-    simulate.py --dir D desk resolve INCIDENT_ID
+    simulate.py --dir D desk resolve INCIDENT_ID [--note TEXT]
 
 Put a model API key in D/model.key (mode 600) to parse free-form messages with
 the configured model, as staging does. Without it, only commands are parsed.
@@ -221,13 +221,17 @@ def command_desk(world: World, action: str, target: str | None, note: str) -> No
             print(f"  {approval['id']}  {approval.get('title')}  expires {approval.get('expires_at')}")
             # The web desk shows the reason on each approval card.
             print(f"      reason: {approval.get('reason')}")
+            for blocker in approval.get("blockers") or []:
+                print(f"      blocked: {blocker}")
         open_incidents = [i for i in snapshot["incidents"] if i.get("status") == "open"]
         print(f"Open incidents: {len(open_incidents)}")
         for incident in open_incidents:
             print(f"  {incident['id']}  [{incident.get('severity')}] {incident.get('title')}")
         print("Timeline:")
         for item in snapshot["timeline"]:
-            print(f"  {item.get('planned_start') or item.get('start_at')}  {item['title']}")
+            # current_start holds the approved time; planned_start is the original plan.
+            moved = "" if item.get("current_start") == item.get("planned_start") else f" (planned {item.get('planned_start')})"
+            print(f"  {item.get('current_start')}  {item['title']}{moved}")
         return
     if not target:
         raise SystemExit(f"desk {action} needs an ID.")
@@ -235,7 +239,7 @@ def command_desk(world: World, action: str, target: str | None, note: str) -> No
     if action in {"approve", "reject"}:
         command = {"type": "decide_approval", "approval_id": target, "decision": action, "note": note}
     else:
-        command = {"type": "resolve_incident", "incident_id": target, "resolution": note or "Resolved by coordinator"}
+        command = {"type": "resolve_incident", "incident_id": target, "note": note or "Resolved by coordinator"}
     result = world.operations.execute(actor, command, request_id)
     world.run_background_work()
     print(json.dumps(result, default=str)[:1500])
