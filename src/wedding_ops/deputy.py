@@ -85,12 +85,13 @@ the person must then tap Confirm. Choose "none" for questions and chat.
 - draft_arrival: text = the name, when they report a named guest or family member arrived.
 - report_late: minutes, when they say they themselves are running late.
 - withdraw_last: when they take back their last report.
-- acknowledge: when they confirm they saw an update ("ok noted", a thumbs up), and only if
-  the context shows an update waiting for their acknowledgement.
+- acknowledge: only when the whole message is a short confirmation ("ok noted", "got it", a
+  thumbs up) and the context shows an update waiting. A question is never an acknowledgement.
 For every draft, put the facts from the whole conversation in details, in one or two
 plain sentences.
-- draft_announcement: coordinator only. text = the announcement to send to every helper,
-  written clearly. They tap a button to send it.
+- draft_announcement: coordinator only. text = what the coordinator asked you to tell everyone,
+  tidied into one or two clear sentences. Add no facts, places or instructions they did not
+  give. They tap a button to send it.
 - stop_checkins / resume_checkins: the person wants you to stop or restart checking in on them.
 - pause_checkins_all / resume_checkins_all: coordinator only, to pause or restart all check-ins.
 You can draft only one action per message. If they need two, draft the most important one
