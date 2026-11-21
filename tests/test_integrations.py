@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from wedding_ops.agent import Assistant
+from wedding_ops.schemas import Intent
 from wedding_ops.api import create_app
 from wedding_ops.auth import Auth, validate_init_data
 from wedding_ops.clock import utcnow
@@ -360,3 +361,23 @@ def test_draft_to_live_enables_reminder_generation(ops,db,settings,clock):
     assert worker.schedule()['queued']==0
     ops.execute(actor(),{'type':'set_wedding_status','status':'live'},'activate-reminders-test')
     assert worker.schedule()['queued']>0
+
+
+def test_model_delay_query_matches_one_activity_by_its_words(queries, ops):
+    class StubParser:
+        def __init__(self, query):
+            self.query = query
+
+        def parse(self, text):
+            return Intent(kind="delay", query=self.query, minutes=4)
+
+    def ask(query):
+        return Assistant(queries, ops, StubParser(query)).ask(actor("banquet"), "Dinner is running behind")
+
+    # "dinner" matches only Dinner service; the extra word does not block the match.
+    reply = ask("dinner meal")
+    assert reply["kind"] == "confirmation" and "Dinner service" in reply["draft"]["summary"]
+    # Both titles contain "service", so the best match is a tie and needs clarification.
+    assert ask("service")["kind"] == "clarification"
+    # More shared words win: "dinner service" fits Dinner service better than Dessert service.
+    assert "Dinner service" in ask("dinner service")["draft"]["summary"]

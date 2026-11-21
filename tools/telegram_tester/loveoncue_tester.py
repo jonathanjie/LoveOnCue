@@ -11,6 +11,9 @@ Commands:
     tap LABEL           Press the callback button LABEL on the newest bot
                         message that has it, then print the replies.
     history [COUNT]     Print the last COUNT messages in the bot chat.
+    photo [PATH]        Send a photo (default: a generated test card) and
+                        print the replies. Use --caption to add text.
+    whoami              Print the numeric Telegram user ID of the session.
 
 Configuration lives in a root-only directory (default /etc/loveoncue-tester):
     config.env      LOVEONCUE_TESTER_API_ID and LOVEONCUE_TESTER_API_HASH
@@ -24,8 +27,11 @@ import asyncio
 import getpass
 import os
 import stat
+import struct
 import sys
+import tempfile
 import time
+import zlib
 from pathlib import Path
 
 from telethon import TelegramClient
@@ -40,6 +46,12 @@ REPLY_TIMEOUT_SECONDS = 25.0
 # Stop waiting once no new bot message has arrived for this long.
 REPLY_QUIET_SECONDS = 4.0
 POLL_INTERVAL_SECONDS = 1.0
+
+
+# Size of the generated test card. Telegram rejects very small photos.
+SAMPLE_WIDTH, SAMPLE_HEIGHT = 480, 320
+# Wide vertical stripes, so a vision model has something plain to describe.
+SAMPLE_STRIPES = [(196, 64, 64), (240, 200, 80), (72, 150, 96), (64, 110, 190), (240, 240, 240)]
 
 
 class TesterError(Exception):
@@ -80,6 +92,33 @@ def prompt_for_config(config_dir: Path) -> None:
         config_dir / "config.env",
         f"LOVEONCUE_TESTER_API_ID={api_id}\nLOVEONCUE_TESTER_API_HASH={api_hash}\n",
     )
+
+
+def sample_png() -> bytes:
+    """Build a small striped PNG with the standard library only."""
+    stripe_width = SAMPLE_WIDTH // len(SAMPLE_STRIPES)
+    pixels = b"".join(bytes(SAMPLE_STRIPES[min(x // stripe_width, len(SAMPLE_STRIPES) - 1)])
+                      for x in range(SAMPLE_WIDTH))
+    # Each PNG row starts with filter type 0 (no filter).
+    raw = b"".join(b"\x00" + pixels for _ in range(SAMPLE_HEIGHT))
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+
+    header = struct.pack(">IIBBBBB", SAMPLE_WIDTH, SAMPLE_HEIGHT, 8, 2, 0, 0, 0)  # 8-bit RGB
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+
+
+async def send_photo(client: TelegramClient, bot: User, path: Path | None, caption: str) -> None:
+    if path is not None:
+        if not path.is_file():
+            raise TesterError(f"{path} is not a file.")
+        await client.send_file(bot, str(path), caption=caption or None)
+        return
+    with tempfile.NamedTemporaryFile(suffix=".png") as handle:
+        handle.write(sample_png())
+        handle.flush()
+        await client.send_file(bot, handle.name, caption=caption or None, force_document=False)
 
 
 def make_client(config_dir: Path) -> TelegramClient:
@@ -180,6 +219,9 @@ async def run_command(args: argparse.Namespace) -> None:
     try:
         if not await client.is_user_authorized():
             raise TesterError("The session is not logged in. Run the login command first.")
+        if args.command == "whoami":
+            print((await client.get_me()).id)
+            return
         bot = await resolve_bot(client, args.bot)
         if args.command == "history":
             messages = await client.get_messages(bot, limit=args.count)
@@ -189,6 +231,9 @@ async def run_command(args: argparse.Namespace) -> None:
         before = await newest_message_id(client, bot)
         if args.command == "send":
             await client.send_message(bot, args.text)
+        elif args.command == "photo":
+            await send_photo(client, bot, args.path, args.caption)
+            print("Sent photo.")
         else:
             message, button = await find_callback_button(client, bot, args.label)
             answer = await button.click()
@@ -211,6 +256,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     tap.add_argument("label")
     history = commands.add_parser("history", help="Print recent messages in the bot chat.")
     history.add_argument("count", nargs="?", type=int, default=10)
+    photo = commands.add_parser("photo", help="Send a photo and print the replies.")
+    photo.add_argument("path", nargs="?", type=Path, help="Image file. Default: a generated test card.")
+    photo.add_argument("--caption", default="")
+    commands.add_parser("whoami", help="Print the session's Telegram user ID.")
     return parser.parse_args(argv)
 
 

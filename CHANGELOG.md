@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add operator-only rehearsal role switching (`WEDDINGOPS_REHEARSAL=true`) so one
+  Telegram account can test every staging role.
+- Add `photo` and `whoami` to the Telegram user tester, plus `role.sh`.
 - Rename the project checkout and GitHub repository to LoveOnCue.
 - Restore coordinator briefs, Telegram navigation, confirmation buttons, and
   explicit repeat-confirmation replies.

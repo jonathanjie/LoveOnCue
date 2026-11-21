@@ -24,6 +24,8 @@ class Settings:
     telegram_bot_username: str = ""
     telegram_vision_model: str = ""
     send_notifications: bool = False
+    # Enables operator-only role switching for a fictional staging cell.
+    rehearsal: bool = False
     session_ttl_seconds: int = 12 * 60 * 60
     body_limit: int = 262_144
     web_root: Path = Path(__file__).resolve().parents[2] / "web"
@@ -49,6 +51,7 @@ class Settings:
             telegram_bot_username=env("TELEGRAM_BOT_USERNAME"),
             telegram_vision_model=env("TELEGRAM_VISION_MODEL").strip(),
             send_notifications=env("SEND_NOTIFICATIONS", "false").lower() == "true",
+            rehearsal=env("REHEARSAL", "false").lower() == "true",
         )
 
     def validate(self) -> None:

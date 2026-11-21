@@ -60,6 +60,14 @@ def main() -> None:
     boot.add_argument("--coordinator",required=True);boot.add_argument("--timezone",default="Asia/Singapore")
     export=sub.add_parser("export",help="Export a role-scoped operations snapshot, not authentication secrets")
     export.add_argument("--member",required=True);export.add_argument("--output",required=True)
+    rehearsal=sub.add_parser("rehearsal",help="Operator-only role switching for a fictional staging cell")
+    rehearsal_sub=rehearsal.add_subparsers(dest="rehearsal_command",required=True)
+    rehearsal_sub.add_parser("members",help="List active members, their roles and whether Telegram is linked")
+    link=rehearsal_sub.add_parser("link",help="Move a Telegram account's link to another member")
+    link.add_argument("--telegram-user",required=True,help="Numeric Telegram user ID of the tester")
+    target=link.add_mutually_exclusive_group(required=True)
+    target.add_argument("--role",help="Link to the first active member with this role")
+    target.add_argument("--member",help="Link to this member ID")
     args=parser.parse_args()
     settings=Settings.from_env();settings.validate()
     if args.command=="migrate":
@@ -132,6 +140,16 @@ def main() -> None:
             if model is not None:
                 model.close()
             db.close()
+    elif args.command=="rehearsal":
+        from .rehearsal import RehearsalError, link_telegram, list_members
+        try:
+            if args.rehearsal_command=="members":
+                result=list_members(db,settings)
+            else:
+                result=link_telegram(db,settings,args.telegram_user,role=args.role,member_id=args.member)
+        except RehearsalError as error:
+            parser.error(str(error))
+        print(json.dumps(result,indent=2))
     elif args.command=="export":
         from .views import Queries
         snapshot=Queries(db,settings.wedding_id,DemoClock(DEMO_TIME) if settings.demo else SystemClock()).snapshot(Actor(settings.wedding_id,args.member))
