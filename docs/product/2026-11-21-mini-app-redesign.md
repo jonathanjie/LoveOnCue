@@ -1,0 +1,104 @@
+# Mini App redesign — 21 November 2026
+
+Status: **proposed, waiting for approval.** Branch `claude/loveoncue-miniapp-redesign`,
+stacked on PR #4. Resume point: section 7.
+
+## 1. The people and the job
+
+| Person | Where they are | What they must do in the Mini App |
+|---|---|---|
+| **Coordinator** (Alex) | On their feet at the venue, phone in one hand, interrupted every minute. Chat is where things reach them. | 1. Decide a schedule change with full context, in under 60 seconds. 2. See who has not seen their job or the latest update. 3. See where the day is now and what changed. 4. See and close problems. 5. Send an update to teams. |
+| **Helper** (Jamie, usher) | A friend or relative with one job, no training. Opens the app from the chat button. | 1. See my job now: what, where, when. 2. Say "Got it" and "Done". 3. Read updates sent to me. 4. Find a guest's table. 5. See the whole schedule. |
+
+The chat deputy handles questions, reports and chasing. The Mini App covers what chat
+is bad at: the whole picture at a glance, a decision with full context, and lists.
+
+## 2. Audit of the current 11 screens (phone width, 390 px)
+
+Current screenshots: `work/audit/current/` (not committed). Proposed design mockups: `docs/screenshots/mini-app/design/`.
+
+| Screen | Problem on a phone | Decision |
+|---|---|---|
+| Overview | The header, role picker and rehearsal bar fill the first screen. Four equal metric boxes. "Command centre" and "a human in command" are jargon. | Replace with **Now** (coordinator) and **My jobs** (helper). |
+| Run of show | Long cards. "Version 1", "planned times remain preserved". Delay uses a browser prompt. | Keep as **Schedule** with a timeline and a "now" line. Delay uses an in-app form. |
+| My tasks | "Acknowledge", "Start", "Mark complete" have equal weight. State words are system words ("pending"). | Merge into **My jobs**. One main button at a time. |
+| Guest desk | Works, but the coordinator's guest editor is a long form inside the result card. | Keep as **Guests**. Editor opens in a sheet. |
+| People & teams | Roster only. No view of who has seen what. | Becomes **Crew**: each person's next job and whether they have seen it. Send an update from here. |
+| Issues | Report form above the list. | Coordinator: in **Review**. Helper: "Report a problem" in **Help**. |
+| Approvals | Table of changes is hard to read on a phone. No name of the person who asked. Approve is behind a browser confirm. | Becomes **Review**. Before-and-after cues, who asked and their words, plain blockers, an in-app confirm. |
+| Venue & vendors | The schematic floor plan is too small to read on a phone. | **Places & vendors**: a list with directions and call links. Floor plan removed. |
+| Knowledge | Mixes search with document approval. | **Venue notes**: search for everyone; approval stays for the coordinator. |
+| Audit trail | Raw event types and JSON. | **Activity log**: plain sentences, JSON on request. |
+| Setup & imports | Timestamps "including UTC offset". | **Set up**: time pickers in the wedding's time zone. Same commands. |
+| Chat panel (all screens) | A second chat beside Telegram. Uses a slash command (`/now`). | Removed. Chat lives in Telegram. |
+
+## 3. Information architecture
+
+A bottom tab bar (thumb reach), at most five tabs, chosen by role. No sidebar.
+
+**Coordinator:** `Now` · `Schedule` · `Review (n)` · `Crew` · `Guests`, and a `More` menu
+in the top bar: Places & vendors, Venue notes, Set up, Activity log, rehearsal tools.
+
+- **Now:** the current and next cue on the timeline, then "Needs you": schedule changes
+  to decide, urgent problems, jobs not seen 5 minutes before they are due, late jobs.
+  Each row opens the right item.
+- **Review:** schedule changes first (waiting, then decided), then problems (open, then sorted).
+- **Crew:** each person, their next job, and "Seen 17:41" or "Not seen yet".
+  Button "Send an update" uses the existing `broadcast` command (team picker plus message).
+
+**Helper:** `My jobs` · `Schedule` · `Guests` (only with a guest permission) · `Help`.
+
+- **My jobs:** unread updates first ("I've read this"), then the next job as a large
+  card with one main button ("Got it", then "Done"), then later jobs.
+- **Help:** report a problem, places and directions, my vendors (if permitted), venue notes search.
+
+## 4. Visual direction
+
+- **Feel:** calm and certain, like a well-run venue at dusk. Ivory linen, evergreen,
+  brass candle light. Not a dashboard.
+- **Colour:** linen page `#F7F4EE`, white cards, evergreen `#173D35` for the one main
+  action, brass `#8A5E12` for "now" and changes. Status: clay red (urgent), amber
+  (waiting), sage (done). All text pairs meet WCAG AA (4.5:1). Dark mode follows Telegram.
+- **Type:** the phone's own sans-serif at 16 px (the same as Telegram, no web-font
+  download). A serif only for the couple's name and screen titles, like a place card.
+  Times use tabular numbers.
+- **Signature, the cue line:** a vertical line with each cue as a dot. A brass "Now"
+  line crosses it at the current time. A moved cue shows the old time struck through
+  and a brass "+12 min" chip. The same line appears in Now, Schedule, the approval
+  before-and-after, and the helper's job card.
+- **Touch:** every control is at least 48 px high. Confirmations use an in-app sheet,
+  not the browser's `confirm()`.
+
+## 5. Plain words
+
+| System word | Shown as |
+|---|---|
+| pending / acknowledged / in_progress / done | Not seen yet / Got it / Doing it / Done |
+| overdue | Late |
+| approval pending / approved / rejected / expired | Waiting for you / Approved / Not approved / Too late to decide |
+| incident open / resolved, severity urgent | Open / Sorted, Urgent |
+| notification acknowledged | Read |
+| knowledge document draft / approved / retired | Not checked yet / In use / Retired |
+| timeline_version, state_version | not shown |
+
+## 6. What does not change
+
+- The same endpoints, session cookie, CSRF header and `X-WeddingOps-Client` header.
+- The same commands and permission checks. Buttons only show when the snapshot grants
+  allow them, and the server checks again. No new admin shortcuts.
+- Demo sign-in stays loopback-only. The rehearsal role picker stays visible in demo mode.
+
+**Open question for approval:** the per-person read status of the latest *announcement*
+("4 of 6 read the rain update") is computed in `Queries.coordinator_brief`, but no web
+endpoint returns it. Option A: show only job acknowledgements (data that exists now).
+Option B: add one read-only endpoint `GET /api/brief` that returns `coordinator_brief`,
+with its existing `timeline:approve` check. I recommend B.
+
+## 7. Build plan and resume point
+
+1. Split `web/src/app.ts` into small modules: `api`, `format`, `ui`, one file per screen.
+2. Build the tabs, sheets and screens above. Delete the chat panel and the floor plan.
+3. Update `scripts/ui-smoke.py` for the new labels; add a phone-width pass for each tab.
+4. Checks: `pytest`, `npm run typecheck`, `npm run build`, `scripts/ui-smoke.py --url`
+   against a local demo server, phone screenshots of each main view into `docs/screenshots/mini-app/`.
+5. Open a PR stacked on PR #4. Do not deploy to staging without asking.
