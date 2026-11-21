@@ -130,6 +130,8 @@ def confirmation_reply(result: dict) -> str:
         return "Report sent\nThe coordinator and your team have been told."
     if kind == "arrival":
         return "Arrival recorded\nThe family liaison and photographer have been told."
+    if kind == "withdraw_report":
+        return f"Withdrawn\nYour report ({result['title']}) is cancelled. Everyone who was told has been told to ignore it."
     return "Report confirmed."
 
 

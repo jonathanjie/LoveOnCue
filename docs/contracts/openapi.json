@@ -885,6 +885,9 @@
                 "$ref": "#/components/schemas/ReportIncident"
               },
               {
+                "$ref": "#/components/schemas/WithdrawReport"
+              },
+              {
                 "$ref": "#/components/schemas/ResolveIncident"
               },
               {
@@ -971,7 +974,8 @@
                 "set_wedding_status": "#/components/schemas/SetWeddingStatus",
                 "task_action": "#/components/schemas/TaskAction",
                 "timeline_action": "#/components/schemas/TimelineAction",
-                "vendor_status": "#/components/schemas/VendorStatus"
+                "vendor_status": "#/components/schemas/VendorStatus",
+                "withdraw_report": "#/components/schemas/WithdrawReport"
               }
             }
           },
@@ -2021,6 +2025,30 @@
           "status"
         ],
         "title": "VendorStatus"
+      },
+      "WithdrawReport": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "withdraw_report",
+            "title": "Type"
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 7,
+            "pattern": "^draft:[a-zA-Z0-9_-]+$",
+            "title": "Request Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "request_id"
+        ],
+        "title": "WithdrawReport",
+        "description": "Withdraw the sender's own confirmed report, identified by its draft request ID."
       }
     }
   }

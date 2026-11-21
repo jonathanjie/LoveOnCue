@@ -33,7 +33,7 @@ question about presence), arrival (explicit report), missing_family (explicit re
 delay (explicit report with a stated duration), incident (an explicit report of a problem
 with transport, equipment, food, supplies, a vendor or the venue; query is a short title
 of the problem), urgent_incident (an incident that blocks the ceremony or a key moment
-within minutes), unknown.
+within minutes), withdraw (the user takes back or cancels their own last report), unknown.
 Use a short entity query, or an empty string when no query is needed. Use null for
 minutes except for delay. Never return database IDs.
 Do not guess names, state, or duration. For ambiguity, approval or administrative
@@ -74,6 +74,8 @@ class DeterministicParser:
             return Intent(kind="unknown")
         if value == "/now" or "doing now" in value or "what should i" in value or value.rstrip("?") in LOCAL_NOW_REQUESTS:
             return Intent(kind="now")
+        if value in {"/withdraw", "/undo"}:
+            return Intent(kind="withdraw")
         if value.startswith("/report "):
             return Intent(kind="incident", query=text[len("/report "):].strip()[:160])
         match = re.fullmatch(r"/delay\s+(.+?)\s+(\d+)", value)
@@ -231,6 +233,13 @@ class Assistant:
                 summary = f"Ask the family liaison to locate {p['name']}. Keep the recorded attendance unchanged."
             draft = self.operations.draft(actor, command, summary)
             return {"kind": "confirmation", "message": "Review my interpretation before recording it.", "draft": draft}
+        if intent.kind == "withdraw":
+            report = self.operations.latest_report(actor)
+            if report is None:
+                return {"kind": "help", "message": "Nothing to withdraw. You have no recent report that is still open. Ask the coordinator to correct older records.", "data": []}
+            draft = self.operations.draft(actor, {"type": "withdraw_report", "request_id": report["request_id"]},
+                                          f"Withdraw your report: {report['title']}. Everyone who was told will be told to ignore it.")
+            return {"kind": "confirmation", "message": "Check this before I withdraw it.", "draft": draft}
         if intent.kind in {"incident", "urgent_incident"}:
             return self._incident_draft(actor, text, intent, snapshot)
         if intent.kind == "delay":

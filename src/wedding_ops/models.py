@@ -265,7 +265,7 @@ class Approval(TenantRecord, Base):
         UniqueConstraint("wedding_id", "id"),
         ForeignKeyConstraint(["wedding_id", "proposed_by"], ["members.wedding_id", "members.id"]),
         ForeignKeyConstraint(["wedding_id", "decided_by"], ["members.wedding_id", "members.id"]),
-        CheckConstraint("status IN ('pending','approved','rejected','expired')", name="status"),
+        CheckConstraint("status IN ('pending','approved','rejected','expired','withdrawn','superseded')", name="status"),
     )
 
 

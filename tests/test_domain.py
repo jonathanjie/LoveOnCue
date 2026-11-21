@@ -17,8 +17,8 @@ WID = "demo-wedding"
 def actor(name="coordinator", source="web"):
     return Actor(WID, name, source)
 
-def proposal(ops, minutes=12, key="proposal-test-1"):
-    return ops.execute(actor("banquet"), {"type":"propose_delay", "item_id":"dinner", "minutes":minutes,"reason":"Kitchen reports a delay"},key)
+def proposal(ops, minutes=12, key="proposal-test-1", item="dinner"):
+    return ops.execute(actor("banquet"), {"type":"propose_delay", "item_id":item, "minutes":minutes,"reason":"Kitchen reports a delay"},key)
 
 def decide(ops, ident, decision="approve", key="decide-test-1", who="coordinator", source="web"):
     return ops.execute(actor(who,source), {"type":"decide_approval", "approval_id":ident,"decision":decision},key)
@@ -85,7 +85,8 @@ def test_idempotency_payload_conflict(ops):
 
 def test_stale_proposal_cannot_commit(ops):
     one=proposal(ops,key="first-proposal")
-    two=proposal(ops,key="second-proposal")
+    # A second proposal for the same item would replace the first, so use another item.
+    two=proposal(ops,key="second-proposal",item="dessert")
     decide(ops,one["id"])
     with pytest.raises(OpsError) as error:
         decide(ops,two["id"],key="other-approval")

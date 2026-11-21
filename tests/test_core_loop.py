@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from wedding_ops.agent import Assistant
 from wedding_ops.auth import Auth
-from wedding_ops.models import Incident, Notification
+from wedding_ops.models import Approval, Incident, Notification, Person
 from wedding_ops.policy import Actor
 from wedding_ops.schemas import Intent
 from wedding_ops.telegram import TelegramIngress
@@ -117,3 +117,57 @@ def test_a_repeat_report_warns_about_the_earlier_one(chat_factory):
     chat.tap("driver", f"confirm:{first.telegram_draft_id}")
     second = chat.send("driver", "car cannot move")
     assert "You already reported" in second.message and "Flat tyre" in second.message
+
+
+# 2. Withdraw a report; a new delay replaces an older pending one
+
+
+def pending_approvals(db):
+    with db.sessions() as s:
+        return s.scalars(select(Approval).where(Approval.status == "pending")).all()
+
+
+def test_a_newer_delay_report_replaces_the_pending_one_for_the_same_item(chat_factory, db):
+    chat = chat_factory()
+    for minutes in (20, 10):
+        draft = chat.send("banquet", f"/delay dinner {minutes}")
+        chat.tap("banquet", f"confirm:{draft.telegram_draft_id}")
+    live = pending_approvals(db)
+    assert [a.title for a in live] == ["Dinner service: +10 minutes"]
+    assert "Replaces" in live[0].reason and "+20" in live[0].reason
+    with db.sessions() as s:
+        older = s.scalars(select(Approval).where(Approval.title == "Dinner service: +20 minutes")).one()
+    assert older.status == "superseded"
+
+
+def test_withdraw_cancels_my_last_pending_delay(chat_factory, db):
+    chat = chat_factory({"cancel my last report": Intent(kind="withdraw")})
+    draft = chat.send("banquet", "/delay dinner 15")
+    chat.tap("banquet", f"confirm:{draft.telegram_draft_id}")
+    withdraw = chat.send("banquet", "cancel my last report")
+    assert "Dinner service: +15 minutes" in withdraw.message and withdraw.telegram_draft_id
+    done = chat.tap("banquet", f"confirm:{withdraw.telegram_draft_id}")
+    assert "Withdrawn" in done.message
+    assert pending_approvals(db) == []
+    assert "Withdrawn" in chat.last("coordinator", "report_withdrawn").message
+
+
+def test_withdraw_reverts_a_wrong_arrival(chat_factory, db):
+    chat = chat_factory()
+    draft = chat.send("registration-a", "/arrival Grace Tan")
+    chat.tap("registration-a", f"confirm:{draft.telegram_draft_id}")
+    withdraw = chat.send("registration-a", "/withdraw")
+    chat.tap("registration-a", f"confirm:{withdraw.telegram_draft_id}")
+    with db.sessions() as s:
+        assert s.scalars(select(Person).where(Person.name == "Grace Tan")).one().attendance == "unknown"
+
+
+def test_withdraw_closes_my_open_incident_and_cannot_repeat(chat_factory, db):
+    chat = chat_factory()
+    draft = chat.send("driver", "/report flat tyre")
+    chat.tap("driver", f"confirm:{draft.telegram_draft_id}")
+    withdraw = chat.send("driver", "/withdraw")
+    chat.tap("driver", f"confirm:{withdraw.telegram_draft_id}")
+    with db.sessions() as s:
+        assert s.scalars(select(Incident)).one().status == "resolved"
+    assert "nothing to withdraw" in chat.send("driver", "/withdraw").message.lower()

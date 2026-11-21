@@ -27,6 +27,10 @@ def digest(value: object) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
 
 
+# A reporter can withdraw their own report for this long after confirming it.
+WITHDRAW_WINDOW = timedelta(minutes=30)
+
+
 def audit(s: Session, w: Wedding, actor_id: str, event_type: str, entity_id: str, detail: dict, now) -> None:
     s.add(AuditEvent(wedding_id=w.id, actor_id=actor_id, event_type=event_type, entity_id=entity_id,
                      detail=detail, state_version=w.state_version, created_at=now))
@@ -62,7 +66,7 @@ def assert_teams(s: Session, wid: str, ids: list[str]) -> None:
 CAPABILITY = {
     "arrival": "guests:arrival", "report_incident": "incidents:report", "resolve_incident": "incidents:resolve",
     "propose_delay": "timeline:propose", "decide_approval": "timeline:approve",
-    "acknowledge_notification": "notifications:own", "add_knowledge": "knowledge:manage",
+    "acknowledge_notification": "notifications:own", "withdraw_report": "notifications:own", "add_knowledge": "knowledge:manage",
     "review_knowledge": "knowledge:manage", "revoke_member": "members:manage", "broadcast": "messages:broadcast",
     "set_wedding_status": "wedding:manage", "apply_guest_import": "guests:manage",
     "edit_guest": "guests:manage", "create_team": "members:manage", "create_member": "members:manage", "create_task": "tasks:manage",
@@ -159,11 +163,12 @@ class Operations:
             return {"id": task.id, "status": task.state, "version": task.version}
 
         if cmd.type == "arrival":
-            changed = []
+            changed, previous = [], {}
             for ident in dict.fromkeys(cmd.person_ids):
                 p = row(s, Person, wid, ident)
                 if p.attendance == cmd.status:
                     continue
+                previous[p.id] = p.attendance
                 p.attendance = cmd.status
                 p.arrived_at = now if cmd.status == "onsite" else p.arrived_at
                 p.version += 1
@@ -177,7 +182,7 @@ class Operations:
                             if incident.subject_person_id == p.id and incident.kind == "location_unconfirmed" and incident.status == "open":
                                 incident.status, incident.resolved_at = "resolved", now
                                 audit(s, w, actor.member_id, "incident_resolved_by_arrival", incident.id, {"person_id": p.id}, now)
-            return {"status": "recorded", "changed": changed}
+            return {"status": "recorded", "changed": changed, "previous": previous}
 
         if cmd.type == "report_incident":
             audience = sorted(a.team_ids)
@@ -200,6 +205,9 @@ class Operations:
                        permission="family:status" if cmd.kind == "location_unconfirmed" else None)
             return {"id": incident.id, "status": "open"}
 
+        if cmd.type == "withdraw_report":
+            return self._withdraw(s, w, a, cmd.request_id, now)
+
         if cmd.type == "resolve_incident":
             incident = row(s, Incident, wid, cmd.incident_id)
             if incident.status != "open":
@@ -211,8 +219,15 @@ class Operations:
         if cmd.type == "propose_delay":
             item = row(s, TimelineItem, wid, cmd.item_id)
             proposal = propose_shift(rows(s, TimelineItem, wid), rows_for_edges(s, TimelineDependency, wid), item.id, cmd.minutes)
+            reason = cmd.reason
+            # One live proposal per item: a newer report replaces older pending ones.
+            for older in rows(s, Approval, wid):
+                if older.status == "pending" and older.changes and older.changes[0]["item_id"] == item.id:
+                    older.status, older.decided_at = "superseded", now
+                    older.decision_note = "Replaced by a newer report."
+                    reason = f"{reason}\nReplaces the earlier proposal: {older.title.split(': ', 1)[-1]}."
             approval = Approval(id=new_id(), wedding_id=wid, proposed_by=a.member.id,
-                                title=f"{item.title}: +{cmd.minutes} minutes", reason=cmd.reason,
+                                title=f"{item.title}: +{cmd.minutes} minutes", reason=reason[:2000],
                                 base_timeline_version=w.timeline_version, changes=proposal["changes"],
                                 affected_team_ids=proposal["affected_team_ids"], blockers=proposal["blockers"],
                                 status="pending", created_at=now, expires_at=now + timedelta(minutes=10))
@@ -435,10 +450,71 @@ class Operations:
             return {"id": vendor.id, "status": vendor.status}
         raise OpsError("unsupported_command", "This command is not supported")
 
+    def latest_report(self, actor: Actor) -> dict | None:
+        """The sender's most recent confirmed report that can still be withdrawn."""
+        with self.db.transaction(self.wid) as (s, _):
+            withdrawn = {e.entity_id for e in rows(s, AuditEvent, self.wid) if e.event_type == "report_withdrawn"}
+            receipts = sorted((r for r in s.scalars(select(CommandReceipt).where(
+                CommandReceipt.wedding_id == self.wid, CommandReceipt.actor_id == actor.member_id,
+                CommandReceipt.request_id.like("draft:%")))), key=lambda r: r.created_at, reverse=True)
+            for receipt in receipts:
+                if receipt.request_id in withdrawn or self.clock.now() - receipt.created_at > WITHDRAW_WINDOW:
+                    continue
+                target = self._report_target(s, receipt)
+                if target and target["withdrawable"]:
+                    return {"request_id": receipt.request_id, "title": target["title"]}
+            return None
+
+    def _report_target(self, s, receipt: CommandReceipt) -> dict | None:
+        """Describe what a confirmed report created, from its stored result."""
+        result = receipt.result
+        if "changed" in result:
+            names = [row(s, Person, self.wid, ident).name for ident in result["changed"]]
+            return {"kind": "arrival", "title": "arrival of " + ", ".join(names), "withdrawable": bool(names)}
+        approval = s.scalar(select(Approval).where(Approval.wedding_id == self.wid, Approval.id == result.get("id")))
+        if approval:
+            return {"kind": "approval", "title": approval.title, "record": approval,
+                    "withdrawable": approval.status == "pending"}
+        incident = s.scalar(select(Incident).where(Incident.wedding_id == self.wid, Incident.id == result.get("id")))
+        if incident:
+            return {"kind": "incident", "title": incident.title, "record": incident,
+                    "withdrawable": incident.status == "open"}
+        return None
+
+    def _withdraw(self, s, w: Wedding, a: Access, request_id: str, now) -> dict:
+        receipt = s.get(CommandReceipt, (self.wid, a.member.id, request_id))
+        already = any(e.event_type == "report_withdrawn" and e.entity_id == request_id for e in rows(s, AuditEvent, self.wid))
+        target = self._report_target(s, receipt) if receipt else None
+        if target is None or already or not target["withdrawable"]:
+            raise conflict("This report can no longer be withdrawn. Ask the coordinator to correct it")
+        reporter = row(s, Person, self.wid, a.member.person_id).name
+        if target["kind"] == "arrival":
+            # Results from before this release did not store the earlier status.
+            previous = receipt.result.get("previous") or {ident: "unknown" for ident in receipt.result["changed"]}
+            for ident, status in previous.items():
+                person = row(s, Person, self.wid, ident)
+                person.attendance = status
+                person.version += 1
+            audience = recipients(s, self.wid, roles={"photographer", "family_liaison"})
+        elif target["kind"] == "approval":
+            target["record"].status, target["record"].decided_at = "withdrawn", now
+            target["record"].decision_note = f"Withdrawn by {reporter}."
+            audience = recipients(s, self.wid, coordinators=True)
+        else:
+            target["record"].status, target["record"].resolved_at = "resolved", now
+            audience = recipients(s, self.wid, teams=target["record"].audience_team_ids)
+        audit(s, w, a.member.id, "report_withdrawn", request_id, {"kind": target["kind"]}, now)
+        for member in audience:
+            if member.id != a.member.id:
+                notify(s, self.wid, member.id, "report_withdrawn",
+                       f"Withdrawn by {reporter}: {target['title']}. Ignore the earlier report.",
+                       f"withdrawn:{request_id}", now)
+        return {"id": request_id, "status": "withdrawn", "title": target["title"]}
+
     def draft(self, actor: Actor, command: dict, summary: str) -> dict:
         """The model may propose only an already-authorized command; no mutation occurs."""
         cmd = COMMAND.validate_python(command)
-        if cmd.type not in {"arrival", "report_incident", "propose_delay"}:
+        if cmd.type not in {"arrival", "report_incident", "propose_delay", "withdraw_report"}:
             raise denied("This action cannot be initiated from AI chat")
         with self.db.transaction(self.wid, write=True) as (s, w):
             a = load_access(s, actor, self.wid)

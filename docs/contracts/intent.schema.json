@@ -15,6 +15,7 @@
         "delay",
         "incident",
         "urgent_incident",
+        "withdraw",
         "unknown"
       ],
       "title": "Kind",
