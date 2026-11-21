@@ -96,15 +96,34 @@ def main() -> None:
     elif args.command=="worker":
         if settings.demo:
             parser.error("Use the web demo's Run reminders button; separate demo workers would have independent simulated clocks")
-        from .api import create_app
-        app=create_app(settings,db,SystemClock());services=app.state.services
-        while True:
-            for _ in range(20):
-                if not services["telegram"].process_one():break
-            result=services["worker"].tick()
-            if args.once:
-                print(json.dumps(result));break
-            time.sleep(2)
+        from .agent import Assistant, MistralParser
+        from .operations import Operations
+        from .telegram import TelegramIngress
+        from .views import Queries
+        from .worker import Worker
+
+        clock = SystemClock()
+        auth = Auth(db, settings)
+        queries = Queries(db, settings.wedding_id, clock)
+        operations = Operations(db, settings.wedding_id, clock)
+        model_parser = MistralParser(settings) if settings.agent_mode == "mistral" else None
+        assistant = Assistant(queries, operations, model_parser)
+        telegram = TelegramIngress(db, settings, clock, auth, assistant, operations)
+        worker = Worker(db, settings, clock)
+        try:
+            while True:
+                for _ in range(20):
+                    if not telegram.process_one():
+                        break
+                result = worker.tick()
+                if args.once:
+                    print(json.dumps(result))
+                    break
+                time.sleep(2)
+        finally:
+            if model_parser is not None:
+                model_parser.close()
+            db.close()
     elif args.command=="export":
         from .views import Queries
         snapshot=Queries(db,settings.wedding_id,DemoClock(DEMO_TIME) if settings.demo else SystemClock()).snapshot(Actor(settings.wedding_id,args.member))

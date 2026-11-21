@@ -1,5 +1,6 @@
 """Operator integration configuration with mocked external transport only."""
 import importlib.util,json
+import sys
 from pathlib import Path
 import httpx,pytest
 from wedding_ops.config import Settings
@@ -28,3 +29,20 @@ def test_wrong_bot_never_changes_configuration():
         return httpx.Response(200,json={'ok':True,'result':{'is_bot':True,'username':'AnotherBot'}})
     with pytest.raises(ValueError):module.configure(settings(),'WeddingOpsFixtureBot',httpx.MockTransport(transport))
     assert len(calls)==1
+
+
+
+def test_worker_tick_does_not_load_web_server(db, monkeypatch, capsys):
+    from wedding_ops.cli import main
+
+    monkeypatch.setitem(sys.modules, "wedding_ops.api", None)
+    monkeypatch.setenv("WEDDINGOPS_MODE", "test")
+    monkeypatch.setenv("WEDDINGOPS_DATABASE_URL", db.engine.url.render_as_string(hide_password=False))
+    monkeypatch.setenv("WEDDINGOPS_WEDDING_ID", "demo-wedding")
+    monkeypatch.setenv("WEDDINGOPS_AGENT_MODE", "deterministic")
+    monkeypatch.setenv("WEDDINGOPS_SEND_NOTIFICATIONS", "false")
+    monkeypatch.setattr(sys, "argv", ["weddingops", "worker", "--once"])
+
+    main()
+
+    assert json.loads(capsys.readouterr().out)["transport"] == "simulated"
