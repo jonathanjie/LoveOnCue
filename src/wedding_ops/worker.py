@@ -90,6 +90,11 @@ class Worker:
             expired = 0
             expired_ids = []
             deputy_chases = self.settings.deputy and w.deputy_enabled
+            pinged = {}
+            if deputy_chases:
+                from .models import DeputyPing
+                for ping in rows(s, DeputyPing, self.wid):
+                    pinged.setdefault(ping.task_id, ping)
             for task in rows(s, Task, self.wid):
                 if task.state in {"done", "cancelled"} or task.acknowledged_at:
                     continue
@@ -100,11 +105,15 @@ class Worker:
                 if task.due_at - timedelta(minutes=10) <= now <= task.due_at:
                     notify(s, self.wid, owner.id, "task_reminder", f"Due {due}: {task.title}. Open My tasks, review prerequisites and acknowledge the assignment.",
                            f"reminder:{task.id}:{task.version}", now, task=task)
-                elif now > task.due_at and deputy_chases:
-                    continue  # The deputy heartbeat pings the owner and tells the coordinator instead.
                 elif now > task.due_at:
-                    notify(s, self.wid, owner.id, "task_overdue", f"Unacknowledged task due {due}: {task.title}. Confirm your status in My tasks.",
-                           f"overdue:{task.id}:{task.version}", now, task=task)
+                    # The deputy covers a task only once it has pinged the owner about it.
+                    ping = pinged.get(task.id) if deputy_chases else None
+                    if ping is not None and ping.answered_at is None:
+                        continue  # The heartbeat's silence note tells the coordinator instead.
+                    if ping is None:
+                        notify(s, self.wid, owner.id, "task_overdue",
+                               f"Unacknowledged task due {due}: {task.title}. Confirm your status in My tasks.",
+                               f"overdue:{task.id}:{task.version}", now, task=task)
                     if now >= task.due_at + timedelta(minutes=5):
                         for m in recipients(s, self.wid):
                             notify(s, self.wid, m.id, "task_escalation", f"Needs follow-up: {task.title} was due {due} and has not been acknowledged. Contact the assigned helper.",
@@ -204,10 +213,14 @@ class Worker:
         return True
 
     def tick(self, max_deliveries: int = 30) -> dict:
-        result = self.schedule()
+        # The heartbeat runs first, so the reminder schedule can see which tasks it already chased.
+        pinged = 0
         if self.settings.deputy:
             from .deputy import Heartbeat
-            result["deputy"] = Heartbeat(self.db, self.wid, self.clock).run()
+            pinged = Heartbeat(self.db, self.wid, self.clock).run()
+        result = self.schedule()
+        if self.settings.deputy:
+            result["deputy"] = pinged
         dispatched = 0
         for _ in range(max_deliveries):
             if not self.dispatch_one():

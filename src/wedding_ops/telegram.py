@@ -199,7 +199,7 @@ class TelegramIngress:
             self.operations.execute(actor, {"type": "task_action", "task_id": task_id, "action": "acknowledge",
                                             "expected_version": version}, f"taskack:{task_id}:{version}")
             from .deputy import Heartbeat
-            Heartbeat(self.db, self.wid, self.clock).record_answer(actor.member_id, "On it", acknowledged=True)
+            Heartbeat(self.db, self.wid, self.clock).record_answer(actor.member_id, "On it", acknowledged=True, task_id=task_id)
             return "Thanks, marked as acknowledged. The coordinator can see it."
         if command in {"quiet", "unquiet"}:
             self.operations.set_deputy_quiet(actor, command == "quiet")

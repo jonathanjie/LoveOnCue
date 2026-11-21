@@ -107,3 +107,37 @@ def test_the_brief_shows_assistant_activity(heartbeat_chat, queries):
     tick(chat, 6)
     brief = queries.coordinator_brief(Actor(WEDDING, "coordinator"))
     assert any(title.startswith("Assistant activity") for title, _ in brief["notes"])
+
+
+def test_tasks_the_heartbeat_does_not_cover_still_escalate(heartbeat_chat):
+    chat = heartbeat_chat()
+    chat.send("usher", "/quiet")  # A quiet owner is not pinged...
+    tick(chat, 11)
+    # ...so the usual overdue notice and coordinator escalation still happen.
+    assert chat.notices("usher", "task_overdue")
+    assert any("Take position at Ballroom Entrance B" in n.message for n in chat.notices("coordinator", "task_escalation"))
+
+
+def test_a_text_answer_does_not_hide_a_still_unacknowledged_task(heartbeat_chat):
+    chat = heartbeat_chat()
+    tick(chat, 6)
+    chat.send("usher", "omw")  # Answered, but the task is still unacknowledged.
+    tick(chat, 6)
+    assert any("Take position at Ballroom Entrance B" in n.message for n in chat.notices("coordinator", "task_escalation"))
+
+
+def test_on_it_closes_only_the_ping_for_that_task(heartbeat_chat, db):
+    chat = heartbeat_chat()
+    with db.transaction(WEDDING, write=True) as (s, _):
+        first = s.get(Task, "usher-ready")
+        s.add(Task(id="usher-second", wedding_id=WEDDING, title="Hand out programmes", instructions="",
+                   owner_id="usher", team_id=first.team_id, location_id=first.location_id,
+                   timeline_item_id=first.timeline_item_id, offset_minutes=first.offset_minutes,
+                   due_at=first.due_at, planned_due=first.planned_due, state="pending", version=1))
+    tick(chat, 6)
+    tick(chat, 11)  # Now both tasks have a ping.
+    chat.tap("usher", "taskack:usher-ready")
+    with db.sessions() as s:
+        answered = {p.task_id: p.answered_at is not None for p in s.scalars(select(DeputyPing).where(
+            DeputyPing.recipient_id == "usher"))}
+    assert answered == {"usher-ready": True, "usher-second": False}

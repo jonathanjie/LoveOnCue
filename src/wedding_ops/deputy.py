@@ -268,7 +268,8 @@ class Heartbeat:
                 w.state_version += 1
         return queued
 
-    def record_answer(self, member_id: str, text: str, *, acknowledged: bool = False) -> bool:
+    def record_answer(self, member_id: str, text: str, *, acknowledged: bool = False,
+                      task_id: str | None = None) -> bool:
         """Treat the member's next message as the answer to their open ping, and tell the coordinator."""
         from .models import Member, Person, Task
         from .operations import audit, one_line, notify, recipients
@@ -279,6 +280,9 @@ class Heartbeat:
             open_pings = sorted(s.scalars(select(DeputyPing).where(
                 DeputyPing.wedding_id == self.wid, DeputyPing.recipient_id == member_id,
                 DeputyPing.answered_at.is_(None), DeputyPing.expires_at > now)).all(), key=lambda p: p.created_at)
+            if task_id is not None:
+                # An On it tap answers only the ping about that task.
+                open_pings = [p for p in open_pings if p.task_id == task_id]
             if not open_pings:
                 return False
             ping = open_pings[-1]
