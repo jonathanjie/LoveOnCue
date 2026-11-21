@@ -14,7 +14,8 @@ from .config import Settings
 from .db import Database
 from .errors import OpsError
 from .models import Approval, Member, Notification, Task, new_id
-from .operations import audit, notify, recipients
+from .attention import already_told, send_digest, tell_coordinators
+from .operations import audit, notify
 from .policy import Actor, load_access
 from .telegram_ui import approval_markup, notice_markup, reply_markup
 from .views import row, rows
@@ -80,6 +81,9 @@ def deputy_ping_markup(s, wedding_id: str, notice: Notification) -> dict | None:
     from .models import DeputyPing
     ping = s.scalar(select(DeputyPing).where(DeputyPing.wedding_id == wedding_id,
                                              DeputyPing.id == notice.dedupe_key.split(":")[1]))
+    if ping is not None and ping.notification_id:
+        # A chase about an update acknowledges that update itself.
+        return {"inline_keyboard": [[{"text": "Acknowledge", "callback_data": f"ack:{ping.notification_id}"}]]}
     if ping is None or ping.task_id is None:
         return None
     return {"inline_keyboard": [[{"text": "On it", "callback_data": f"taskack:{ping.task_id}"}]]}
@@ -117,21 +121,24 @@ class Worker:
                 elif now > task.due_at:
                     # The deputy covers a task only once it has pinged the owner about it.
                     ping = pinged.get(task.id) if deputy_chases else None
-                    if ping is not None and ping.answered_at is None:
-                        continue  # The heartbeat's silence note tells the coordinator instead.
+                    if ping is not None:
+                        # The deputy covers this task: its answer, or its silence note, is the coordinator's news.
+                        continue
                     if ping is None:
                         notify(s, self.wid, owner.id, "task_overdue",
                                f"Unacknowledged task due {due}: {task.title}. Confirm your status in My tasks.",
                                f"overdue:{task.id}:{task.version}", now, task=task)
-                    if now >= task.due_at + timedelta(minutes=5):
-                        for m in recipients(s, self.wid):
-                            notify(s, self.wid, m.id, "task_escalation", f"Needs follow-up: {task.title} was due {due} and has not been acknowledged. Contact the assigned helper.",
-                                   f"escalation:{task.id}:{task.version}", now, task=task)
+                    if now >= task.due_at + timedelta(minutes=5) and not already_told(s, self.wid, f"task:{task.id}", task.due_at):
+                        # Once per due time. A silence note about the same task replaces this line in the digest.
+                        tell_coordinators(s, w, f"task:{task.id}",
+                                          f"Not acknowledged: \u201c{task.title}\u201d (due {due}). Contact the assigned helper.", now)
             for proposal in rows(s, Approval, self.wid):
                 if proposal.status == "pending" and proposal.expires_at <= now:
                     proposal.status = "expired"
                     expired += 1
                     expired_ids.append(proposal.id)
+            s.flush()
+            send_digest(s, w, now)  # Counted below with the other queued notices.
             s.flush()
             after_count = s.scalar(select(func.count()).select_from(Notification).where(Notification.wedding_id == self.wid))
             queued = after_count - before_count

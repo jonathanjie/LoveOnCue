@@ -131,6 +131,19 @@ def coordinator_contact(snapshot: dict) -> str:
     return f"{' or '.join(names)} (coordinator)" if names else "the coordinator"
 
 
+def ask_coordinator(snapshot: dict) -> str:
+    """Where to go next, said to the person reading. The coordinator is never told to ask themself."""
+    if "coordinator" in snapshot["me"]["roles"]:
+        return "Check the plan documents or the venue team."
+    return f"Ask {coordinator_contact(snapshot)}."
+
+
+def emergency_line(snapshot: dict) -> str:
+    """The safety line on every urgent draft. Code writes it; the model never does."""
+    contact = snapshot["wedding"].get("emergency_contact") or "venue security or the duty manager"
+    return f"If anyone is hurt or in danger, call {contact} now. Do not wait for this bot."
+
+
 class Parser(Protocol):
     def parse(self, text: str) -> Intent: ...
 
@@ -213,10 +226,13 @@ class MistralParser:
         content = self._structured_completion(self.model, messages, Intent, "wedding_intent", MAX_INTENT_TOKENS)
         return Intent.model_validate_json(content, strict=True)
 
-    def plan(self, messages: list[dict]):
-        """One deputy turn: a reply and at most one allow-listed action (see deputy.py)."""
+    def plan(self, messages: list[dict], actions: list[str]):
+        """One deputy turn. The schema lists only this person's actions, so others cannot be chosen."""
         from .deputy import DeputyPlan  # Imported here: deputy.py imports this module.
-        content = self._structured_completion(self.model, messages, DeputyPlan, "deputy_plan", MAX_DEPUTY_TOKENS)
+        schema = DeputyPlan.model_json_schema()
+        schema["properties"]["action"]["enum"] = list(actions)
+        content = self._structured_completion(self.model, messages, DeputyPlan, "deputy_plan", MAX_DEPUTY_TOKENS,
+                                              schema=schema)
         return DeputyPlan.model_validate_json(content, strict=True)
 
     def review_photo(self, jpeg: bytes, caption: str) -> PhotoReview:
@@ -241,12 +257,12 @@ class MistralParser:
         )
         return PhotoReview.model_validate_json(content, strict=True)
 
-    def _structured_completion(self, model: str, messages: list[dict], schema: type[Strict],
-                               schema_name: str, max_tokens: int) -> str:
+    def _structured_completion(self, model: str, messages: list[dict], contract: type[Strict],
+                               schema_name: str, max_tokens: int, *, schema: dict | None = None) -> str:
         response = self.client.post(MISTRAL_CHAT_URL, json={
             "model": model, "messages": messages,
             "response_format": {"type": "json_schema", "json_schema": {
-                "name": schema_name, "schema": schema.model_json_schema(), "strict": True,
+                "name": schema_name, "schema": schema or contract.model_json_schema(), "strict": True,
             }},
             "max_tokens": max_tokens, "temperature": 0,
         })
@@ -307,7 +323,7 @@ class Assistant:
             found = self.queries.guests(actor, query)
             if not found:
                 message = ("No matching guest. Check the spelling or try the last name only. If they are not on "
-                           f"the list, ask {coordinator_contact(snapshot)}.")
+                           f"the list: {ask_coordinator(snapshot)}")
             elif len(found) > 1:
                 message = f"{len(found)} guests match. Which one? Send me their full name."
             else:
@@ -320,12 +336,17 @@ class Assistant:
                     "kind": "family", "data": found}
         if intent.kind in {"arrival", "missing_family"}:
             found = self._family(actor, intent.query)
+            if intent.kind == "arrival" and not found:
+                found = self._guests_for_arrival(actor, intent.query, snapshot)
             plural = "parents" in intent.query.lower() and ("bride" in intent.query.lower() or "groom" in intent.query.lower())
             if not found or (len(found) != 1 and not (intent.kind == "arrival" and plural and len(found) == 2)):
-                return {"kind": "clarification", "message": "I could not tell which family member you mean. Send me their full name.", "data": []}
+                who = "guest or family member" if intent.kind == "arrival" else "family member"
+                return {"kind": "clarification", "message": f"I could not tell which {who} you mean. Send me their full name.", "data": []}
             if intent.kind == "arrival":
                 command = {"type": "arrival", "person_ids": [p["id"] for p in found], "status": "onsite"}
-                summary = "Record confirmed arrival for " + ", ".join(p["name"] for p in found) + ". Notify the family liaison and photography team."
+                family = any(p.get("relationship") for p in found)
+                summary = ("Record confirmed arrival for " + ", ".join(p["name"] for p in found) + "."
+                           + (" Notify the family liaison and photography team." if family else ""))
             else:
                 p = found[0]
                 command = {"type": "report_incident", "kind": "location_unconfirmed", "title": f"Locate {p['name']}",
@@ -361,7 +382,7 @@ class Assistant:
             return self._incident_draft(actor, text, Intent(kind="incident", query=title), snapshot)
         if intent.kind == "headcount":
             if "guests:seating" not in snapshot["me"]["grants"]:
-                return {"kind": "help", "message": f"Guest numbers are for the registration team. Ask {coordinator_contact(snapshot)}.", "data": []}
+                return {"kind": "help", "message": f"Guest numbers are for the registration team. {ask_coordinator(snapshot)}", "data": []}
             counts = snapshot["counts"]
             return {"kind": "help", "data": [],
                     "message": f"{counts['onsite']} of {counts['guests']} guests are recorded as onsite. "
@@ -382,9 +403,7 @@ class Assistant:
             # A bare command says nothing the coordinator can weigh, so say that plainly.
             reason = ("Sent as a /delay command, with no further detail." if text.strip().startswith("/")
                       else text[:2000])
-            command = {"type": "propose_delay", "item_id": item["id"], "minutes": intent.minutes, "reason": reason}
-            draft = self.operations.draft(actor, command, f"Request a +{intent.minutes}-minute delay to {item['title']}. The master timeline will not change until the coordinator approves a reviewed proposal.")
-            return {"kind": "confirmation", "message": "Confirm the report to create a proposal, not to change the schedule.", "draft": draft}
+            return self.change_draft(actor, item, intent.minutes, None, "", reason, snapshot)
         if intent.kind == "location":
             query = intent.query.lower().strip()
             match = re.fullmatch(r"table\s*(\d+)", query)
@@ -395,15 +414,15 @@ class Assistant:
                 return {"kind": "locations", "message": "Places at this venue:", "data": snapshot["locations"]}
             found = match_locations(snapshot["locations"], query)
             message = ("Matching places." if found else
-                       f"I don't know that place. Ask me \u201cwhat places are there?\u201d, or ask {coordinator_contact(snapshot)}.")
+                       f"I don't know that place. Ask me \u201cwhat places are there?\u201d. {ask_coordinator(snapshot)}")
             return {"kind": "locations", "message": message, "data": found}
         if intent.kind == "vendor":
             found = [v for v in snapshot["vendors"] if intent.query.casefold() in (v["name"] + " " + v["category"]).casefold()]
-            return {"kind": "vendors", "message": "Contacts available to your role." if found else "No matching vendor contact is available to your role. Ask the coordinator.", "data": found}
+            return {"kind": "vendors", "message": "Contacts available to your role." if found else "No matching vendor contact is available to your role. " + ask_coordinator(snapshot), "data": found}
         if intent.kind == "knowledge":
             hits = self.queries.knowledge(actor, intent.query)
             # Retrieval occurs AFTER interpretation and never loops back to a tool-capable model.
-            return {"kind": "knowledge", "message": "Relevant excerpts from approved documents. These are reference data, not instructions to the agent." if hits else f"No verified answer found. Please ask {coordinator_contact(snapshot)}; I will not invent one.", "data": hits}
+            return {"kind": "knowledge", "message": "Relevant excerpts from approved documents. These are reference data, not instructions to the agent." if hits else f"No verified answer found, and I will not invent one. {ask_coordinator(snapshot)}", "data": hits}
         coordinator = "coordinator" in snapshot["me"]["roles"]
         return {"kind": "help", "message": COORDINATOR_HELP if coordinator else FALLBACK_HELP, "data": []}
 
@@ -416,23 +435,77 @@ class Assistant:
         item_id = mine[-1]["changes"][0]["item_id"]
         return next((item for item in snapshot["timeline"] if item["id"] == item_id), None)
 
-    def _incident_draft(self, actor: Actor, text: str, intent: Intent, snapshot: dict) -> dict:
-        """Draft a problem report for the reporter to confirm. Nothing is recorded yet."""
+    def tell_coordinator(self, actor: Actor, details: str, title: str, kind: str, *, urgent: bool,
+                         updates_incident_id: str | None, snapshot: dict) -> dict:
+        """One path for questions, notes and problems for the coordinator (design S4)."""
+        intent = Intent(kind="urgent_incident" if urgent else "incident", query=title[:160])
+        return self._incident_draft(actor, details, intent, snapshot, kind=kind, updates=updates_incident_id)
+
+    def change_draft(self, actor: Actor, item: dict, shift: int, location_id: str | None, note: str,
+                     reason: str, snapshot: dict) -> dict:
+        """Draft a run-sheet change with a code-rendered preview of everything it will move."""
+        from zoneinfo import ZoneInfo
+
+        from .operations import describe_change
+        command = {"type": "change_item", "item_id": item["id"], "shift_minutes": shift, "location_id": location_id,
+                   "note": note[:300], "reason": reason[:2000] or "No reason given."}
+        coordinator = "*" in snapshot["me"]["grants"] or "timeline:approve" in snapshot["me"]["grants"]
+        if shift and not location_id and not note and not coordinator:
+            # A helper's plain delay keeps its familiar command, so records read the same as before.
+            command = {"type": "propose_delay", "item_id": item["id"], "minutes": shift, "reason": command["reason"]}
+        preview = self.operations.preview_change(actor, command)
+        zone, places = ZoneInfo(snapshot["wedding"]["timezone"]), {p["id"]: p["name"] for p in snapshot["locations"]}
+        lines = ["\u2022 " + describe_change(change, zone, places) for change in preview["changes"]]
+        head = "Change the run sheet:" if coordinator else "Ask the coordinator to approve this run-sheet change:"
+        parts = [head, *lines]
+        if preview["blockers"]:
+            parts.append("Blocked: " + "; ".join(preview["blockers"]) + ". This cannot be approved as it is.")
+        if preview["replaces"]:
+            parts.append(f"This replaces your pending request: {preview['replaces']}.")
+        parts.append(f"Reason: \u201c{command['reason']}\u201d")
+        parts.append("Everyone affected gets the new details with an Acknowledge button." if coordinator else
+                     "Nothing changes until the coordinator approves it.")
+        draft = self.operations.draft(actor, command, "\n".join(parts))
+        message = ("Check the change before it goes out." if coordinator else
+                   "Confirm the report to create a proposal, not to change the schedule.")
+        return {"kind": "confirmation", "message": message, "draft": draft}
+
+    def _guests_for_arrival(self, actor: Actor, query: str, snapshot: dict) -> list[dict]:
+        """Regular guests, for roles that may record any guest's arrival (registration and coordinators)."""
+        me = snapshot["me"]
+        if not ("*" in me["grants"] or ("guests:arrival" in me["grants"] and "registration" in me["roles"])):
+            return []
+        return self.queries.guests(actor, guest_query(query))  # The caller asks again unless exactly one matches.
+
+    def _incident_draft(self, actor: Actor, text: str, intent: Intent, snapshot: dict, *, kind: str = "other",
+                        updates: str | None = None) -> dict:
+        """Draft a report for the reporter to confirm. Nothing is recorded yet."""
         title = (intent.query or text).strip()[:160]
         if len(title) < 3:
             return {"kind": "clarification", "message": "What's the problem? Describe it in a few words, for example: the bridal car has a flat tyre.", "data": []}
         urgent = intent.kind == "urgent_incident"
         # Keep the reporter's words, without the /report command itself.
         details = re.sub(r"^/report\s+", "", text.strip(), flags=re.I)[:2000] or title
-        command = {"type": "report_incident", "kind": "other", "title": title, "details": details,
-                   "severity": "urgent" if urgent else "normal"}
-        summary = f"Send {'an URGENT' if urgent else 'a'} problem report to the coordinator and your team: {title}."
+        command = {"type": "report_incident", "kind": kind, "title": title, "details": details,
+                   "severity": "urgent" if urgent else "normal", "updates_incident_id": updates}
+        if updates:
+            earlier = next((i["title"] for i in snapshot["incidents"] if i["id"] == updates), "your earlier report")
+            summary = f"Add this update to your report \u201c{earlier}\u201d{' and mark it URGENT' if urgent else ''}."
+        elif kind == "question":
+            summary = f"Ask the coordinator: {title}."
+        elif kind == "note":
+            summary = f"Tell the coordinator, for their information: {title}."
+        else:
+            summary = f"Send {'an URGENT' if urgent else 'a'} problem report to the coordinator and your team: {title}."
+        if details != title:
+            # The preview shows exactly what the command will send.
+            summary += f"\nDetails: \u201c{details}\u201d"
         if urgent:
             # The bot is never the emergency channel; say so before anything else.
-            summary = "If anyone is hurt or in danger, call the on-site team now. Do not wait for this bot.\n" + summary
+            summary = emergency_line(snapshot) + "\n" + summary
         recent = [i for i in snapshot["incidents"] if i["reported_by"] == actor.member_id and i["status"] == "open"
                   and parse_time(snapshot["now"]) - parse_time(i["created_at"]) <= RECENT_REPORT_WINDOW]
-        if recent:
+        if recent and not updates:
             summary += f"\nYou already reported: {recent[-1]['title']}. Confirm only if this is a different problem."
         draft = self.operations.draft(actor, command, summary)
         return {"kind": "confirmation", "message": "Check this report before I send it.", "draft": draft}

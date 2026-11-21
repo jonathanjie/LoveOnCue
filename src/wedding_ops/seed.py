@@ -23,7 +23,8 @@ def seed_demo(db: Database, wid: str = "demo-wedding") -> None:
         if s.get(Wedding, wid):
             return
         s.add(Wedding(id=wid, name="Asha & Ben", timezone="Asia/Singapore", event_date="2026-11-14",
-                      venue="Cedar House · fictional Singapore venue", status="live"))
+                      venue="Cedar House · fictional Singapore venue", status="live",
+                      emergency_contact="Venue duty manager Lee (fictional), DEMO-NOT-A-REAL-NUMBER"))
         s.flush()
         for ident, name in [("coordination", "Coordination"), ("registration", "Registration"), ("ushers", "Ushers"),
                             ("family", "Family liaison"), ("photography", "Photography"), ("banquet", "Banquet"),

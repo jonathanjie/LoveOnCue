@@ -3,7 +3,7 @@ from dataclasses import replace
 
 import pytest
 from sqlalchemy import select
-from test_core_loop import Chat
+from test_core_loop import coordinator_news, Chat
 from test_deputy import StubPlanner
 
 from wedding_ops.deputy import Deputy
@@ -116,7 +116,7 @@ def test_tasks_the_heartbeat_does_not_cover_still_escalate(heartbeat_chat):
     tick(chat, 11)
     # ...so the usual overdue notice and coordinator escalation still happen.
     assert chat.notices("usher", "task_overdue")
-    assert any("Take position at Ballroom Entrance B" in n.message for n in chat.notices("coordinator", "task_escalation"))
+    assert "Not acknowledged: \u201cTake position at Ballroom Entrance B\u201d" in coordinator_news(chat.db)
 
 
 def test_a_text_answer_does_not_hide_a_still_unacknowledged_task(heartbeat_chat):
@@ -124,7 +124,7 @@ def test_a_text_answer_does_not_hide_a_still_unacknowledged_task(heartbeat_chat)
     tick(chat, 6)
     chat.send("usher", "omw")  # Answered, but the task is still unacknowledged.
     tick(chat, 6)
-    assert any("Take position at Ballroom Entrance B" in n.message for n in chat.notices("coordinator", "task_escalation"))
+    assert "Jamie Lim (\u201cTake position at Ballroom Entrance B\u201d): not acknowledged yet" in coordinator_news(chat.db)
 
 
 def test_on_it_closes_only_the_ping_for_that_task(heartbeat_chat, db):
@@ -151,8 +151,8 @@ def test_answers_reach_the_coordinator_in_one_rolling_digest(heartbeat_chat):
     chat.send("driver", "route confirmed")
     chat.send("registration-a", "desk A open")
     digests = [n for n in chat.notices("coordinator", "deputy_digest") if "Update from the floor" in n.message]
-    assert len(digests) == 1           # The next two wait for the ten-minute window.
-    tick(chat, 10)
+    assert len(digests) == 1           # The next two wait for the digest window.
+    tick(chat, 15)
     digests = [n for n in chat.notices("coordinator", "deputy_digest") if "Update from the floor" in n.message]
     assert len(digests) == 2 and "route confirmed" in digests[-1].message and "desk A open" in digests[-1].message
 
@@ -174,7 +174,7 @@ def test_replies_beyond_one_digest_carry_into_the_next(heartbeat_chat, db):
     assert len(answered) > 3  # More replies than one digest lists.
     for member in answered:
         chat.send(member, f"{member} ok")
-    tick(chat, 10)
-    tick(chat, 10)
+    tick(chat, 15)
+    tick(chat, 15)
     text = "\n".join(n.message for n in chat.notices("coordinator", "deputy_digest") if "Update from the floor" in n.message)
     assert all(f"{member} ok" in text for member in answered)

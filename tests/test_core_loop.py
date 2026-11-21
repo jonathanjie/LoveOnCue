@@ -20,6 +20,13 @@ SENDERS = {"coordinator": 201, "driver": 202, "banquet": 203, "usher": 204, "reg
            "mc": 206, "family-liaison": 207, "couple": 208, "registration-b": 209}
 
 
+def coordinator_news(db) -> str:
+    """Everything the coordinator has been told through the digest, sent or still waiting."""
+    from wedding_ops.models import DigestItem
+    with db.sessions() as s:
+        return "\n".join(item.text for item in s.scalars(select(DigestItem)))
+
+
 class StubParser:
     """Stands in for the model: maps exact messages to intents."""
 
@@ -154,7 +161,7 @@ def test_withdraw_cancels_my_last_pending_delay(chat_factory, db):
     done = chat.tap("banquet", f"confirm:{withdraw.telegram_draft_id}")
     assert "Withdrawn" in done.message
     assert pending_approvals(db) == []
-    assert "Withdrawn" in chat.last("coordinator", "report_withdrawn").message
+    assert "Withdrawn by Chris Wong" in coordinator_news(db)  # No decision needed: it waits for the digest.
 
 
 def test_withdraw_reverts_a_wrong_arrival(chat_factory, db):
@@ -186,7 +193,7 @@ def test_coordinator_announces_and_helpers_acknowledge(chat_factory, db, queries
     draft = chat.send("coordinator", "/announce Rain: ceremony moves to the Cedar Ballroom at 18:40")
     assert draft.telegram_draft_id and "everyone" in draft.message.lower()
     sent = chat.tap("coordinator", f"confirm:{draft.telegram_draft_id}")
-    assert "Announcement sent" in sent.message
+    assert "Message sent" in sent.message and "10 people" in sent.message
 
     notice = chat.last("usher", "coordinator_message")
     assert "Cedar Ballroom" in notice.message and "Acknowledge" in notice.message

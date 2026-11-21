@@ -107,6 +107,8 @@ def render_reply(result: dict) -> str:
         draft = result["draft"]
         note = ("\nTimeline changes still need the coordinator's approval."
                 if draft.get("command_type") == "propose_delay" else "")
+        if draft.get("command_type") == "change_item":
+            note = ""  # The preview itself says who approves the change.
         return f"{message}\n\n{draft['summary']}\n\nTap the button below within five minutes to send it.{note}"
     for item in result.get("data", [])[:8]:
         if result["kind"] == "tasks":
@@ -142,18 +144,23 @@ def confirmation_reply(result: dict) -> str:
     if result.get("replayed"):
         return "Already recorded\nThis report was confirmed earlier. No new change was made."
     kind = result.get("command_type")
-    if kind == "propose_delay":
+    if kind in {"propose_delay", "change_item"} and result.get("status") == "approved":
+        return (f"Run sheet updated\nVersion {result['timeline_version']}. Everyone affected is being told, "
+                "with an Acknowledge button.")
+    if kind in {"propose_delay", "change_item"}:
         return ("Report confirmed\nProposal awaiting approval from the coordinator. The run sheet does not change until "
                 "they approve it. I will tell you their decision.")
+    if kind == "report_incident" and result.get("status") == "updated":
+        return "Update added\nThe coordinator will see it with your earlier report."
     if kind == "report_incident":
-        return "Report sent\nThe coordinator and your team have been told."
+        return "Report sent\nThe coordinator has it. Problem reports also go to your team."
     if kind == "arrival":
         return "Arrival recorded\nThe family liaison and photographer have been told."
     if kind == "set_deputy_enabled":
         return ("Check-ins are on. I will chase unacknowledged tasks again." if result["status"] == "on" else
                 "Check-ins are paused for everyone. Helpers get the plain reminders instead.")
     if kind == "broadcast":
-        return ("Announcement sent\nEveryone gets an Acknowledge button. "
+        return (f"Message sent\n{result.get('recipients', 'Everyone')} people get it with an Acknowledge button. "
                 "Ask me who has not acknowledged yet.")
     if kind == "withdraw_report":
         return f"Withdrawn\nYour report ({result['title']}) is cancelled. Everyone who was told has been told to ignore it."

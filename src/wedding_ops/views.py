@@ -92,7 +92,8 @@ class Queries:
                                  "current_start": iso(i.current_start), "duration_minutes": i.duration_minutes,
                                  "location_id": i.location_id, "team_ids": i.team_ids, "status": i.status,
                                  "instructions": i.instructions if a.sees_teams(i.team_ids) else "",
-                                 "latest_end": iso(i.latest_end), "actual_start": iso(i.actual_start), "actual_end": iso(i.actual_end)})
+                                 "latest_end": iso(i.latest_end), "actual_start": iso(i.actual_start), "actual_end": iso(i.actual_end),
+                                 "change_note": i.change_note})
             incidents = [{"id": i.id, "kind": i.kind, "severity": i.severity, "title": i.title,
                           "details": i.details, "status": i.status, "created_at": iso(i.created_at),
                           "reported_by": i.reported_by, "subject_person_id": i.subject_person_id}
@@ -125,6 +126,7 @@ class Queries:
             guest_people = [p for p in people.values() if p.is_guest]
             return {"wedding": {"id": w.id, "name": w.name, "timezone": w.timezone, "event_date": w.event_date,
                                 "venue": w.venue, "status": w.status, "state_version": w.state_version,
+                                "emergency_contact": w.emergency_contact,
                                 "timeline_version": w.timeline_version},
                     "now": iso(now), "me": {"id": a.member.id, "name": people[a.member.person_id].name,
                     "roles": a.member.roles, "team_ids": sorted(a.team_ids), "grants": sorted(a.grants)},
@@ -190,6 +192,10 @@ class Queries:
                 waiting = sum(p.answered_at is None and p.expires_at > now for p in pings)
                 notes.append((f"Assistant activity: {len(pings)} check-ins sent",
                               f"{answered} answered, {waiting} waiting. Replies reach you as they come in."))
+            if not wedding.emergency_contact:
+                followups.append(("Emergency contact not set",
+                                  "Urgent reports tell people to call venue security or the duty manager. "
+                                  "Set a name and number in LoveOnCue."))
             pending_ack = self._latest_unacknowledged(session, owners)
             if pending_ack:
                 followups.insert(0, pending_ack)  # First, so the short brief always shows it.
