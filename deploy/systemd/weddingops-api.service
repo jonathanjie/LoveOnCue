@@ -1,0 +1,22 @@
+[Unit]
+Description=WeddingOps API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+User=weddingops
+Group=weddingops
+WorkingDirectory=/opt/weddingops/current
+EnvironmentFile=/etc/weddingops/weddingops.env
+Environment=PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+ExecStart=/opt/weddingops/current/.venv/bin/python -m wedding_ops.cli serve --port 8768
+Restart=on-failure
+RestartSec=3s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

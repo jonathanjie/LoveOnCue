@@ -6,6 +6,7 @@ import hashlib
 from http.cookies import SimpleCookie, CookieError
 import time
 from collections import defaultdict, deque
+from contextlib import asynccontextmanager
 from datetime import datetime
 from threading import Lock
 from urllib.parse import urlparse
@@ -17,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from .agent import Assistant, OpenClawParser
+from .agent import Assistant, MistralParser, Parser
 from .auth import Auth
 from .clock import Clock, DemoClock, SystemClock
 from .config import Settings
@@ -123,18 +124,27 @@ class TickRequest(Strict):
 
 
 def create_app(settings: Settings | None = None, db: Database | None = None, clock: Clock | None = None,
-               parser=None, transport=None) -> FastAPI:
+               parser: Parser | None = None, transport=None) -> FastAPI:
     settings = settings or Settings.from_env()
     settings.validate()
     db = db or Database(settings.database_url)
     clock = clock or (DemoClock(DEMO_TIME) if settings.demo else SystemClock())
     auth = Auth(db, settings)
     queries, operations = Queries(db,settings.wedding_id,clock), Operations(db,settings.wedding_id,clock)
-    assistant = Assistant(queries,operations,parser or (OpenClawParser(settings) if settings.agent_mode == "openclaw" else None))
+    model_parser = MistralParser(settings) if parser is None and settings.agent_mode == "mistral" else None
+    assistant = Assistant(queries, operations, parser if parser is not None else model_parser)
     worker = Worker(db,settings,clock,transport)
     telegram = TelegramIngress(db,settings,clock,auth,assistant,operations)
     imports = Imports(db,settings.wedding_id,clock)
-    app = FastAPI(title="WeddingOps",version="0.1.0",docs_url="/docs" if settings.mode != "production" else None,
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        try:
+            yield
+        finally:
+            if model_parser is not None:
+                model_parser.close()
+
+    app = FastAPI(title="WeddingOps",version="0.1.0",lifespan=lifespan,docs_url="/docs" if settings.mode != "production" else None,
                   redoc_url=None,openapi_url="/openapi.json" if settings.mode != "production" else None)
     app.state.services = {"db":db,"auth":auth,"queries":queries,"operations":operations,"assistant":assistant,
                           "worker":worker,"telegram":telegram,"imports":imports,"clock":clock,"settings":settings}

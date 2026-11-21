@@ -14,9 +14,9 @@ Mutations have strict schemas, explicit errors, idempotency and transactional au
 
 ## Data-handling boundaries
 
-Structured guest data belongs in the database, not repository fixtures or model memory. Documents are untrusted reference content even after human review. Only approved/audience-scoped text is searchable, and it is not passed into a tool-capable model. The optional classifier sends one user message to the provider; that text may contain personal data. Obtain suitable customer/provider handling terms and review gateway transcript retention.
+Structured guest data belongs in the database, not repository fixtures or model memory. Documents are untrusted reference content even after human review. Only approved/audience-scoped text is searchable, and the model receives none of that content. The optional classifier sends one user message to the provider; that text may contain personal data. Obtain suitable customer/provider handling terms and review provider retention.
 
-Bot/gateway/database credentials are explicit environment values. They must never reach a browser, be embedded in skills, appear in screenshots, or be committed. Error records use safe provider error codes, not Telegram URLs containing credentials. `.env*`, database files, runtime artifacts and caches are ignored by git. Ignore rules are not a secret scanner: inspect every release archive.
+Bot, model provider and database credentials are explicit environment values. They must never reach a browser, be embedded in skills, appear in screenshots, or be committed. Error records use safe provider error codes, not Telegram URLs containing credentials. `.env*`, database files, runtime artifacts and caches are ignored by git. Ignore rules are not a secret scanner: inspect every release archive.
 
 ## Trust and residual risks
 
@@ -24,7 +24,7 @@ A deployment operator/database administrator remains trusted. Audit rows are use
 
 Outbound delivery is at least once. A provider may accept a message before the worker records success, resulting in a repeat after a crash. A sent message cannot reliably be recalled from a recipient device. Revocation and retirement cannot retract previously viewed data. The UI has no offline cache or offline mutation queue.
 
-A single wedding database is the deployment boundary; cross-cell tests are defense in depth, not evidence that a shared gateway or shared host is secure. OpenClaw internal tools must be denied independently of the client function contract. Never distribute its operator bearer to helpers.
+Each deployment uses an isolated wedding database and role. Cross-cell tests are defense in depth. Provider requests carry only the current message and a fixed intent schema, and the model has no tools.
 
 ## Required before a live pilot
 
@@ -36,4 +36,4 @@ Run dependency vulnerability/license scanning and pin images/actions by digest. 
 
 Agree a written event-specific retention schedule before collecting real data. Proposed starting policy: revoke temporary helper access at closeout; archive operational writes after reconciliation; remove private contact/dietary data once its service purpose ends; retain only agreed incident/audit material for a bounded period. The customer must decide lawful purpose, notices, access/export expectations and backup retention with appropriate advice.
 
-The foundation does not implement an automatic expiry/deletion job or claim PDPA/GDPR compliance. Deletion must cover the event DB, backups, imported text, pending drafts/notifications, gateway transcripts, provider retention where controllable and support exports. The printed fallback is also personal data. Archive alone is not deletion. See `deploy/README.md` for backup/restore discipline and `THREAT_MODEL.md` for concrete cases.
+The foundation does not implement an automatic expiry/deletion job or claim PDPA/GDPR compliance. Deletion must cover the event DB, backups, imported text, pending drafts/notifications, provider retention where controllable and support exports. The printed fallback is also personal data. Archive alone is not deletion. See `deploy/README.md` for backup/restore discipline and `THREAT_MODEL.md` for concrete cases.

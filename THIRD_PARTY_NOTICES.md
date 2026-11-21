@@ -14,8 +14,6 @@ clarification before reusing implementation. Our independent implementation
 avoids making that licensing decision.
 
 ## Dependencies
-OpenClaw declares MIT in its package metadata (observed version 2026.9.7 on the
-queried default branch; not an assertion about the newest published release).
 FastAPI, Pydantic, SQLAlchemy, HTTPX, Uvicorn and TypeScript are permissively
 licensed dependencies. PostgreSQL has its own PostgreSQL licence; SQLite is
 public domain. Verify the exact locked transitive dependency licences before

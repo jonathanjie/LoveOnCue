@@ -103,7 +103,7 @@ function buildLayout():void{
  sidebar.append(group('sidebar-footer',text('Human-led. State-backed.'),text('The agent proposes.\nYour coordinator decides.','muted small')));
  const work=el('div','work');header=el('header','header');main=el('main','main');main.id='main-content';work.append(header,main);
  const skip=el('a','skip','Skip to content');skip.href='#main-content';app.replaceChildren(skip,sidebar,work);
- const assistantPanel=el('aside','assistant-panel');assistantPanel.setAttribute('aria-label','Operations assistant');assistantPanel.append(group('assistant-heading',el('h2','','Ask operations'),badge(config.agent_mode==='openclaw'?'OpenClaw adapter':'Deterministic demo')),
+ const assistantPanel=el('aside','assistant-panel');assistantPanel.setAttribute('aria-label','Operations assistant');assistantPanel.append(group('assistant-heading',el('h2','','Ask operations'),badge(config.agent_mode==='mistral'?'Model-assisted':'Deterministic')),
  text('Answers from current state. Reports need your confirmation.','muted small'));
  chatLog=el('div','chat-log');chatLog.setAttribute('aria-live','polite');assistantPanel.append(chatLog);
  const shortcuts=group('shortcuts',button('My next step',()=>ask('/now'),'chip'),button('Service lift',()=>ask('/knowledge service lift'),'chip'));

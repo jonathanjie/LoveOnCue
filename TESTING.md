@@ -14,7 +14,7 @@ Recorded on 3 October 2026. This document separates local evidence from the exte
 | Real HTTP | Passed isolated Uvicorn loopback smoke | Python HTTP client, real cookies and routing. Not a browser or a public HTTPS deployment. |
 | SQLite migrations | Upgrade/check/downgrade and clean bootstrap passed | Actual local database operations. |
 | PostgreSQL | DDL generation and unique constraint names passed | Server, psycopg execution, locks/concurrency and actual migrations not exercised here. |
-| External systems | Not executed | Docker/Compose, hosted CI, live Telegram, live OpenClaw/provider, production TLS and real device Mini App behavior. |
+| External systems | Not executed | Docker/Compose, hosted CI, live Telegram, live model provider, production TLS and real device Mini App behavior. |
 
 No external messages were sent. All test and demo people are fictional. Successful local runs are not a security certification or a guarantee of event-day reliability.
 
@@ -79,8 +79,8 @@ pytest -q
 
 The fixture rejects unsafe database names/reset settings, but the operator must still verify the target. The PostgreSQL CI job defines a separate service database for these destructive tests. Run the full suite rather than only testing SQL compilation.
 
-After server tests pass, execute `deploy/README.md` on an isolated cell, including TLS, browser-network UI checks, worker restart, duplicate/blocked Telegram delivery, proxy/venue-Wi-Fi load, actual Mini App sessions and backup restoration. Run the opt-in OpenClaw smoke with fictional inputs and inspect gateway traces separately. Never weaken authorization or expose gateway operator credentials merely to make an integration test pass.
+After server tests pass, execute `deploy/README.md` on an isolated cell, including TLS, browser-network UI checks, worker restart, duplicate/blocked Telegram delivery, proxy/venue-Wi-Fi load, actual Mini App sessions and backup restoration. Run the opt-in Mistral smoke with fictional inputs and record the result separately.
 
 ## Updating evidence
 
-Record the source revision, environment, command, transport mode and skipped checks whenever updating `docs/verification/`. Do not commit guest databases, raw private messages, environment files, credentials or full provider traces. A source bundle preserves engineering work, not runtime guest data. Hosted CI results should replace the current “not run” status only after a real workflow executes.
+Record the source revision, environment, command, transport mode and skipped checks whenever updating `docs/verification/`. Do not commit guest databases, raw private messages, environment files, credentials or full provider traces. A source bundle preserves engineering work, not runtime guest data. Treat this document's original build results and the hosted CI runs as separate evidence.

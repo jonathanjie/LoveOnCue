@@ -1,10 +1,48 @@
 # Deployment and operations runbook
 
-**Commissioning instructions, not a tested deployment claim.** Docker, a PostgreSQL server, live Telegram and live OpenClaw were unavailable in the build environment. Run these steps on a disposable, isolated development cell before any real wedding. Container/CI files are scaffolding that must pass their actual target environments.
+Commission a fictional wedding on an isolated staging instance before any real event. CI covers the core app, PostgreSQL, and the browser workflow. Verify HTTPS and external integrations on the target deployment.
 
 ## Local development versus production
 
 The zero-credential rehearsal is SQLite and loopback-only (`python scripts/dev.py`). Production settings reject SQLite, non-HTTPS public origins and the demo event ID. Do not bypass those guards. Use a source checkout/editable package; browser assets are served from the repository's `web` directory.
+
+## Shared VPS with Caddy and PostgreSQL
+
+On a VPS with working Caddy and PostgreSQL, run the API and worker directly
+under systemd. Use Python 3.12 or newer, a dedicated PostgreSQL database and
+login role, and a dedicated unprivileged `weddingops` system user. Install
+the locked runtime plus the PostgreSQL driver in a release-specific virtual
+environment:
+
+```bash
+python3.12 -m venv .venv
+.venv/bin/pip install -r requirements-runtime.lock -e '.[postgres]'
+```
+
+Use a root-owned release under `/opt/weddingops/releases/<revision>` and
+point `/opt/weddingops/current` to it. Copy the two units from [systemd/](systemd/)
+into the system unit directory. Set the required `WEDDINGOPS_` values in
+`/etc/weddingops/weddingops.env` (root owner, mode 0600). Use
+`WEDDINGOPS_MODE=production`, a non-demo wedding ID, the HTTPS public URL, and
+a PostgreSQL connection scoped to the dedicated role. Keep the classifier in
+deterministic mode and notifications disabled until commissioning.
+
+Run `weddingops migrate` followed by `weddingops bootstrap` as a one-shot under
+the service identity with the same environment. Capture the bootstrap
+invitation in a private file. Start the API and worker and verify loopback
+readiness with the configured hostname in the Host header. The API binds to
+loopback port 8768. Route only the selected hostname through the existing Caddy
+installation:
+
+```caddyfile
+wedding.example.invalid {
+    reverse_proxy 127.0.0.1:8768
+}
+```
+
+Validate Caddy's full configuration before reloading, then check `/health`
+and `/ready` over HTTPS from outside the VPS. Do not publish API or database
+ports.
 
 ## One-cell Compose setup
 
@@ -51,9 +89,23 @@ Issue one personal invitation, open its Telegram link and start the bot. Test `/
 
 Official reference: https://core.telegram.org/bots/api and https://core.telegram.org/bots/webapps . They describe API behavior; the local mocked tests do not certify deployment.
 
-## OpenClaw commissioning
+## Mistral commissioning
 
-Follow `integrations/openclaw/README.md`. The gateway bearer is operator authority; never give it to a helper or publish its port. Configure an empty/private runtime, deny internal tools and supply only a reviewed model. Run `scripts/smoke-openclaw.py --acknowledge-paid-provider-call` and inspect actual traces. Its live provider calls were not run here. Containers cannot access a host loopback service merely by using `127.0.0.1`; set up a private network endpoint deliberately.
+Keep `WEDDINGOPS_AGENT_MODE=deterministic` through initial setup. Set
+`WEDDINGOPS_MISTRAL_API_KEY` in the service environment and select
+`WEDDINGOPS_MISTRAL_MODEL` (default: `deepseek-v4-1-flash-1017`). Set
+`WEDDINGOPS_AGENT_MODE=mistral` when running the smoke test:
+
+```bash
+python scripts/smoke-mistral.py --acknowledge-paid-provider-call
+```
+
+The script sends a fixed set of fictional messages to Mistral. It reports
+classifications and latency without printing credentials or provider bodies.
+After a passing smoke test, reload both service processes with the same settings.
+Explicit slash commands run locally. Free-form messages use at most one model
+request and fall back to the deterministic parser on provider failure. Confirm
+model access, usage allowance, and provider retention before real-event use.
 
 ## Backups and restoration
 

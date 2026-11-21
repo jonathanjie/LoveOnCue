@@ -1,5 +1,7 @@
 # Research dossier and reference collection
 
+This records the original October 2026 research. The current direct Mistral adapter is described in [AGENT_DESIGN.md](AGENT_DESIGN.md).
+
 Reviewed during the 2026-10-03 build. Primary vendor documentation and public repository metadata were used where available. This is desk research, not customer interviewing, procurement testing or an independent security audit. Product marketing is labeled as such. Source URLs are retained so Codex can re-check capabilities and licensing before changing the implementation.
 
 ## Conclusions that changed the build

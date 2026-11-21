@@ -1,14 +1,14 @@
 # Threat model
 
-Scope: one wedding cell, its helper UI/DM channel, app/worker/database, optional private OpenClaw gateway, vendor APIs and human coordinator. No adversarial penetration test was performed; this is a design review with selected automated regressions.
+Scope: one wedding cell, its helper UI/DM channel, app/worker/database, optional Mistral API, vendor APIs and human coordinator. No adversarial penetration test was performed; this is a design review with selected automated regressions.
 
 Assets: correct timing/instructions, role-scoped guest/family information, credentials, availability, attribution and the coordinator's authority. Threat actors include an unauthenticated outsider, curious helper, compromised participant phone, malicious uploaded text, confused operator and compromised runtime/dependency.
 
 | Threat | Implemented control | Residual / release check |
 |---|---|---|
 | Helper says “I am coordinator” | Server-bound membership; roles absent from intent schema; authorization on every command | Account/invitation theft still grants that account's legitimate rights |
-| Cross-wedding ID substitution | Configured cell ID, scoped lookups, composite foreign keys, regression tests | Separate databases/gateways/secrets still required; no certified multitenancy |
-| Confused deputy through OpenClaw | No app credential in model context; one typed intent; human-source mutation requirement | Operator gateway token is powerful; validate internal tool denial in the actual runtime |
+| Cross-wedding ID substitution | Configured cell ID, scoped lookups, composite foreign keys, regression tests | Separate databases and secrets still required; no certified multitenancy |
+| Model returns an unauthorized request | No callable tools or app credentials in the model request; narrow typed intent; human-source mutation requirement | A model can misclassify a report; review the draft and verify authorization again on confirmation |
 | Prompt injection in a venue document | Human approval, audience filter, text-only reference return, no tool-capable synthesis loop | Human readers can still be misled; provenance review remains necessary |
 | “Has father arrived?” becomes a check-in | Question/negative-wording tests; exact entity resolution; confirmation draft | Model can misclassify new wording; measure wrong-action proposals |
 | Double/stale approval | Transaction lock, receipt hash, timeline base version, expiry and blockers | PostgreSQL runtime/concurrent worker execution still needs actual validation |
@@ -28,4 +28,4 @@ Unauthenticated read/write; forged actor field; ordinary usher approval; missing
 
 ## Incident procedure
 
-For suspected account compromise, revoke the membership and rotate relevant invitations. For bot/gateway compromise, disable the corresponding integration and rotate its credential outside source control; use the deterministic web app/manual run sheet. Preserve minimum necessary incident metadata without copying guest PII to public support. For availability loss, stop making conflicting digital updates, use the named human incident lead, then reconcile timestamped paper/radio reports before resuming. Notify affected parties according to the event's agreed legal/operating plan.
+For suspected account compromise, revoke the membership and rotate relevant invitations. For bot or model API key compromise, disable the corresponding integration and rotate its credential outside source control; use the deterministic web app/manual run sheet. Preserve minimum necessary incident metadata without copying guest PII to public support. For availability loss, stop making conflicting digital updates, use the named human incident lead, then reconcile timestamped paper/radio reports before resuming. Notify affected parties according to the event's agreed legal/operating plan.

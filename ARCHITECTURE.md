@@ -11,22 +11,22 @@ Private helper web app / Telegram DM
               |
   Query DTOs / typed command service <---- validated, untrusted intent
               |                                      ^
-       Wedding database                  optional PRIVATE OpenClaw HTTP
+       Wedding database                  optional Mistral HTTPS
               |
   transactional audit + notification outbox
               |
       deterministic worker ---> Telegram API
 ```
 
-The same-origin FastAPI service serves compiled TypeScript/CSS and HTTP endpoints. No browser holds a bot token, gateway token or database credential. Telegram messages pass a secret-header check and strict private-chat identity validation; enrollment binds a numeric Telegram sender to a pre-created membership. A one-use invitation can instead create a web session. Helpers cannot self-assign their role.
+The same-origin FastAPI service serves compiled TypeScript/CSS and HTTP endpoints. No browser holds a bot token, model API key or database credential. Telegram messages pass a secret-header check and strict private-chat identity validation; enrollment binds a numeric Telegram sender to a pre-created membership. A one-use invitation can instead create a web session. Helpers cannot self-assign their role.
 
-OpenClaw runs outside the authority boundary. The application forwards one human message, accepts one typed classification, resolves visible entities, and creates a human-confirmation draft where appropriate. Only application code executes business commands. A guessed actor, role, wedding ID or arbitrary SQL field is not a valid command argument.
+Mistral runs outside the authority boundary. The application forwards one human message, accepts one typed classification, resolves visible entities, and creates a human-confirmation draft where appropriate. Only application code executes business commands. A guessed actor, role, wedding ID or arbitrary SQL field is not a valid command argument.
 
 ## Single-wedding cell
 
-V1 deploys one API, one worker, one database, one bot credential and optionally one isolated gateway per wedding. Production settings require a unique non-demo wedding ID and PostgreSQL. Every read is scoped to that configured cell and every member is reloaded at authorization time. Composite foreign keys bind cross-table references to their wedding. This is defense in depth; no RLS, fleet scheduler or proven shared-SaaS isolation is claimed.
+V1 deploys one API, one worker, one database, and one bot credential per wedding, with optional direct model access. Production settings require a unique non-demo wedding ID and PostgreSQL. Every read is scoped to that configured cell and every member is reloaded at authorization time. Composite foreign keys bind cross-table references to their wedding. This is defense in depth; no RLS, fleet scheduler or proven shared-SaaS isolation is claimed.
 
-The example Compose file publishes only the HTTPS proxy. Database/API/gateway operator ports are not intended as public surfaces. Separate cells must also use separate Compose project names, volumes, networks and credentials. A future control plane may provision cells; it must not expose a cross-wedding super-agent.
+The example Compose file publishes only the HTTPS proxy. Database and API ports are not intended as public surfaces. Separate cells must also use separate Compose project names, volumes, networks and credentials. A future control plane may provision cells; it must not expose a cross-wedding super-agent.
 
 ## Transaction protocol
 

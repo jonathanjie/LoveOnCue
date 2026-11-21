@@ -5,9 +5,9 @@ Priorities are proposed engineering order, not calendar commitments. Do not add 
 ## P0 — prove the existing slice on the target environment
 
 1. Run the entire suite against PostgreSQL, including initial migration, check/downgrade, locking and concurrent approvals. Pass criterion: no unexpected skips or schema drift.
-2. Build and boot the Compose deployment on a disposable host. Verify TLS, readiness, non-root app, secret isolation, no public database/gateway ports, and a successful empty-wedding setup. Replace moving image/action tags with reviewed digests after validation.
+2. Build and boot the Compose deployment on a disposable host. Verify TLS, readiness, non-root app, secret isolation, no public database port, and a successful empty-wedding setup. Replace moving image/action tags with reviewed digests after validation.
 3. Commission a separate development Telegram bot. Test private invite enrollment, numeric identity, Mini App signatures, cookies on Android/iOS/Web, duplicate updates, outbound 429/retry, blocked users, acknowledgement and worker restarts. No real guests until this gate passes.
-4. Commission the isolated OpenClaw runtime only after checking its effective tool denial. Run the live classifier script and a larger adversarial intent set. Keep deterministic mode when the gateway/provider is unavailable or not validated.
+4. Commission direct Mistral intent parsing with fictional messages. Test ambiguous wording, rate limits, and outages. Keep deterministic mode available during provider failures.
 5. Test 10–30 operators on shared Wi-Fi/mobile networks, including reconnects and a 12-hour access lifecycle. Record latency, stale state, missed/duplicate notices and coordinator workload. Current local tests are not a capacity benchmark.
 6. Run backup/restore and privacy/retention reviews. Assign a named event incident lead, technical support owner and manual fallback channel. Complete the pilot checklist with a professional coordinator.
 
@@ -25,7 +25,7 @@ Priorities are proposed engineering order, not calendar commitments. Do not add 
 
 Planner templates, reusable runbooks, ceremony variants, role-dependent notification tuning, independent coordinator organizations, billing and lifecycle automation. Build Google Sheets/Drive read/sync adapters as explicit integrations with import/reconciliation state, not a second database of truth. Consider n8n only for peripheral integration if its commercial terms fit the product.
 
-A control plane may provision isolated cells and archive them after events. Do not place unrelated customers under one gateway bearer. Conferences/gala operations are a later vertical once wedding workflows are field-proven.
+A control plane may provision isolated cells and archive them after events. Keep event data and service credentials isolated. Conferences/gala operations are a later vertical once wedding workflows are field-proven.
 
 ## Research and commercial validation
 

@@ -39,13 +39,13 @@ Reset only this fictional local database with `python scripts/dev.py --reset`. T
 - CSV guest preview/import; guarded guest corrections, seating-capacity checks, family roster/contact access and dual guest/helper identity. Team, person, location, table, task, vendor and run-sheet creation.
 - Conservative dependency-aware delay proposals, expiry/staleness checks, hard-deadline blockers and explicit coordinator approval. Actual activity starts/finishes require human confirmation.
 - Approved, team-scoped text knowledge with source/revision/line references; no model-generated “facts” replacing the database.
-- Telegram ingress/outbox adapters, deterministic reminders/retries/escalations, and an optional real HTTP OpenClaw intent adapter. Local integration tests use controlled transports, not live credentials.
+- Telegram ingress/outbox adapters, deterministic reminders/retries/escalations, and an optional direct Mistral intent adapter. Local integration tests use controlled transports, not live credentials.
 
 ## Deliberate architecture
 
 **FastAPI + Pydantic + SQLAlchemy/Alembic; TypeScript browser UI; PostgreSQL for deployment; SQLite for the demo.** The original Next.js/Prisma suggestion was not a requirement. A functioning, tested stack was preferable to an unverified framework scaffold in this build environment. See [ADR 0002](docs/adr/0002-stack-and-database.md).
 
-The application owns Telegram and operational state. OpenClaw is a private, stateless intent interpreter—not a shared helper gateway or the source of authorization. [OpenClaw integration](integrations/openclaw/README.md) explains the runtime constraints and credentialed checks still required. No LangGraph/CrewAI/n8n layer is necessary for this slice.
+The application owns Telegram, operational state, permissions, and approvals. Explicit commands run locally. When enabled, Mistral interprets one free-form message per request and returns a typed intent. See [agent design](AGENT_DESIGN.md) and [provider commissioning](deploy/README.md#mistral-commissioning).
 
 ## Verify and develop
 
@@ -64,7 +64,7 @@ Browser tests: install `requirements-browser.txt`, run `playwright install chrom
 
 Read **[HANDOFF.md](HANDOFF.md)** and **[AGENTS.md](AGENTS.md)**. Then use [ARCHITECTURE.md](ARCHITECTURE.md), [DATA_MODEL.md](DATA_MODEL.md), [AGENT_DESIGN.md](AGENT_DESIGN.md), [SECURITY.md](SECURITY.md), [THREAT_MODEL.md](THREAT_MODEL.md), [PRODUCT.md](PRODUCT.md), [RESEARCH.md](RESEARCH.md), [ROADMAP.md](ROADMAP.md) and [deploy/README.md](deploy/README.md).
 
-Deployment files and CI are included but were not executed against Docker, PostgreSQL or a live provider in this environment. A supervised pilot requires the remaining gates in [docs/PILOT_RUNBOOK.md](docs/PILOT_RUNBOOK.md).
+CI exercises PostgreSQL, the core suite, and the browser workflow. The deployment runbook covers the separate live checks for TLS, Telegram, and Mistral. A supervised pilot requires the remaining gates in [docs/PILOT_RUNBOOK.md](docs/PILOT_RUNBOOK.md).
 
 ## Source and license
 

@@ -11,12 +11,11 @@ Key invariants:
 - Consequential timing changes require a separate human coordinator approval.
 - Commands are typed, scoped, version-checked, idempotent and auditable.
 - Mutation, receipt, audit and outbox commit together; no network I/O inside transactions.
-- One wedding cell per deployment. No shared omnipotent OpenClaw gateway.
+- One wedding cell per deployment. Isolate event data and service credentials.
 - Generic guest DTOs omit private phones/dietary notes. Sensitive reads need explicit grants.
 - No real event data, secrets, invitation links or credentials in git or test fixtures.
 - Demo auth must remain loopback-only. Never expose it as a production shortcut.
-- OpenClaw returns untrusted intent; its operator token never reaches a helper/client.
-- Do not weaken internal tool denial to make a model integration test pass.
+- Treat model output as untrusted intent. Keep provider credentials on the server and do not give the model callable tools.
 
 Test before claiming completion. Distinguish SQLite/ASGI/mock tests from PostgreSQL,
 real HTTPS browser, Telegram and model-provider runs. Current external gates are documented

@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
+
+
+DEFAULT_MISTRAL_MODEL = "deepseek-v4-1-flash-1017"
 
 
 @dataclass(frozen=True)
@@ -14,9 +17,8 @@ class Settings:
     wedding_id: str = "demo-wedding"
     public_url: str = "http://127.0.0.1:8000"
     agent_mode: str = "deterministic"
-    openclaw_url: str = "http://127.0.0.1:18789"
-    openclaw_agent: str = "weddingops-intent"
-    openclaw_token: str = ""
+    mistral_model: str = DEFAULT_MISTRAL_MODEL
+    mistral_api_key: str = field(default="", repr=False)
     telegram_bot_token: str = ""
     telegram_webhook_secret: str = ""
     telegram_bot_username: str = ""
@@ -39,9 +41,8 @@ class Settings:
             wedding_id=env("WEDDING_ID", "demo-wedding"),
             public_url=env("PUBLIC_URL", "http://127.0.0.1:8000").rstrip("/"),
             agent_mode=env("AGENT_MODE", "deterministic"),
-            openclaw_url=env("OPENCLAW_URL", "http://127.0.0.1:18789").rstrip("/"),
-            openclaw_agent=env("OPENCLAW_AGENT", "weddingops-intent"),
-            openclaw_token=env("OPENCLAW_TOKEN"),
+            mistral_model=env("MISTRAL_MODEL", DEFAULT_MISTRAL_MODEL).strip(),
+            mistral_api_key=env("MISTRAL_API_KEY").strip(),
             telegram_bot_token=env("TELEGRAM_BOT_TOKEN"),
             telegram_webhook_secret=env("TELEGRAM_WEBHOOK_SECRET"),
             telegram_bot_username=env("TELEGRAM_BOT_USERNAME"),
@@ -51,8 +52,8 @@ class Settings:
     def validate(self) -> None:
         if self.mode not in {"demo", "production", "test"}:
             raise ValueError("MODE must be demo, production or test")
-        if self.agent_mode not in {"deterministic", "openclaw"}:
-            raise ValueError("AGENT_MODE must be deterministic or openclaw")
+        if self.agent_mode not in {"deterministic", "mistral"}:
+            raise ValueError("AGENT_MODE must be deterministic or mistral")
         public = urlparse(self.public_url)
         if public.scheme not in {"http", "https"} or not public.hostname:
             raise ValueError("PUBLIC_URL must be an absolute HTTP(S) origin")
@@ -69,13 +70,10 @@ class Settings:
             raise ValueError("Demo mode cannot send external notifications")
         if self.demo and public.hostname not in {"localhost", "127.0.0.1", "::1"}:
             raise ValueError("Demo authentication is local-only. Use production mode for public deployment")
-        if self.agent_mode == "openclaw":
-            target = urlparse(self.openclaw_url)
-            if target.scheme not in {"http", "https"} or not target.hostname:
-                raise ValueError("OPENCLAW_URL must be an absolute HTTP(S) origin")
-            if target.username or target.password or target.query or target.fragment or target.path not in {"", "/"}:
-                raise ValueError("OPENCLAW_URL must not contain credentials, path or query")
-            if len(self.openclaw_token) < 24:
-                raise ValueError("Set a strong OPENCLAW_TOKEN before enabling the adapter")
+        if self.agent_mode == "mistral":
+            if not self.mistral_api_key:
+                raise ValueError("Set WEDDINGOPS_MISTRAL_API_KEY before enabling Mistral")
+            if not self.mistral_model:
+                raise ValueError("Set WEDDINGOPS_MISTRAL_MODEL to an available model ID")
         if self.send_notifications and not self.telegram_bot_token:
             raise ValueError("Sending notifications requires a Telegram bot token")

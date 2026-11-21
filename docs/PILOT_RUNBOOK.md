@@ -22,7 +22,7 @@ If the model fails, keep using structured controls and the deterministic command
 
 ## Closeout
 
-Resolve or hand off incidents, export an operational snapshot, back up the database under the agreed retention policy, revoke temporary helper access and archive the event. Archive is not deletion. Remove unnecessary PII/support exports/printed sheets according to policy, including gateway and provider records where applicable. Review missed/duplicate messages and wrong-person proposals without circulating guest details.
+Resolve or hand off incidents, export an operational snapshot, back up the database under the agreed retention policy, revoke temporary helper access and archive the event. Archive is not deletion. Remove unnecessary PII/support exports/printed sheets according to policy, including provider records where applicable. Review missed/duplicate messages and wrong-person proposals without circulating guest details.
 
 ## Proposed pilot measures
 

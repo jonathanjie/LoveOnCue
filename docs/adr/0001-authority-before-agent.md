@@ -1,24 +1,15 @@
-# ADR 0001: application authority, replaceable agent runtime
+# ADR 0001: application authority and replaceable model provider
 
-Decision: use a single WeddingOps application as the authenticated ingress and
-source of truth. OpenClaw is an optional private, stateless intent interpreter.
-Telegram does not connect helpers to an omnipotent OpenClaw agent.
+WeddingOps owns identity, roles, business rules, and the database. Both web and
+Telegram requests enter through authenticated application routes. A helper can
+report a delay and a coordinator separately approves the resulting change.
 
-Reason: OpenClaw's official trust model says users of a tool-enabled agent share
-its delegated tool authority. Per-wedding isolation alone does not separate an
-usher from a coordinator inside that wedding. No model-supplied role or actor ID
-can authorize an operation. Client-function arguments are untrusted proposals.
+For optional free-form input, one direct Mistral chat request returns JSON that
+WeddingOps validates against its intent schema. The request includes no tools,
+retrieved data, identities, or conversation history. The application resolves
+entities, checks permissions, and requests human confirmation before any report
+changes state. Explicit commands use the local parser.
 
-The dedicated OpenClaw agent must have no shell, file, session, browser, messaging,
-approval or DB tools. It returns a narrow structured intent to the application.
-The application resolves identities, enforces capability and team scope, asks
-for human confirmation where needed, and commits through deterministic handlers.
-The example runtime policy remains a live commissioning gate. No retrieved document text is fed back into an agent capable of writing state.
-
-Use fresh HTTP sessions: omit the OpenAI-compatible `user` field and explicit
-session headers. Keep the Gateway on private ingress. This is a reduced-trust
-embedding, not a claim that OpenClaw becomes a hostile multi-tenant service.
-Do not use its Control UI as the helper Mini App.
-
-Sources: https://docs.openclaw.ai/gateway/security/trust-model and
-https://docs.openclaw.ai/gateway/openai-http-api (reviewed 2026-10-03).
+The original v0.1.0 used OpenClaw for intent interpretation. The direct adapter
+replaces that gateway and its operator credentials while keeping the same authority
+boundary.

@@ -8,7 +8,7 @@ The suggested Next.js/Prisma stack was a default, not a hard requirement. The
 build environment has no npm registry DNS access, but has the Python stack and a
 TypeScript compiler installed. This choice allows the real workflows, HTTP auth,
 database transactions and UI to be exercised here rather than shipping an
-untested Next.js shell. OpenClaw's HTTP interface is language-independent.
+untested Next.js shell. Model inference uses HTTP and does not constrain the application language.
 
 No proprietary application framework is needed. Pydantic is the typed boundary;
 SQLAlchemy models describe normalized operational state. Alembic records schema

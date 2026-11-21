@@ -153,7 +153,7 @@ function buildLayout() {
     app.replaceChildren(skip, sidebar, work);
     const assistantPanel = el('aside', 'assistant-panel');
     assistantPanel.setAttribute('aria-label', 'Operations assistant');
-    assistantPanel.append(group('assistant-heading', el('h2', '', 'Ask operations'), badge(config.agent_mode === 'openclaw' ? 'OpenClaw adapter' : 'Deterministic demo')), text('Answers from current state. Reports need your confirmation.', 'muted small'));
+    assistantPanel.append(group('assistant-heading', el('h2', '', 'Ask operations'), badge(config.agent_mode === 'mistral' ? 'Model-assisted' : 'Deterministic')), text('Answers from current state. Reports need your confirmation.', 'muted small'));
     chatLog = el('div', 'chat-log');
     chatLog.setAttribute('aria-live', 'polite');
     assistantPanel.append(chatLog);

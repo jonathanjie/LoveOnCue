@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+from contextlib import closing
 from dataclasses import replace
 from datetime import timedelta
 from urllib.parse import urlencode
@@ -9,7 +10,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from wedding_ops.agent import Assistant, OpenClawParser
+from wedding_ops.agent import Assistant
 from wedding_ops.api import create_app
 from wedding_ops.auth import Auth, validate_init_data
 from wedding_ops.clock import utcnow
@@ -122,26 +123,89 @@ def test_production_refuses_demo_auth_and_insecure_settings(db):
     with pytest.raises(OpsError): Auth(db,Settings(mode='test')).demo_login('coordinator')
 
 
-def test_openclaw_contract_and_no_shared_session(settings):
-    seen=[]
-    def handler(request):
-        payload=json.loads(request.content);seen.append(payload)
-        assert request.url.path=='/v1/chat/completions'
-        return httpx.Response(200,json={'choices':[{'finish_reason':'tool_calls','message':{'tool_calls':[{'function':{'name':'interpret_wedding_intent','arguments':json.dumps({'kind':'guest','query':'Sarah Tan'})}}]}}]})
-    config=replace(settings,agent_mode='openclaw',openclaw_token='fixture-token-'*3)
-    parser=OpenClawParser(config,httpx.MockTransport(handler))
-    assert parser.parse('Where is Sarah Tan seated?').kind=='guest'
-    assert 'user' not in seen[0]
-    assert len(seen[0]['tools'])==1
-    assert 'approve' not in seen[0]['tools'][0]['function']['parameters']['properties']['kind']['enum']
-    assert all('Guest registration' not in m['content'] for m in seen[0]['messages'])
+def test_mistral_requires_explicit_credentials():
+    with pytest.raises(ValueError, match="MISTRAL_API_KEY"):
+        Settings(mode="test", agent_mode="mistral").validate()
 
 
-def test_openclaw_malformed_falls_back(queries,ops,settings):
-    parser=OpenClawParser(replace(settings,openclaw_token='fixture'*6),httpx.MockTransport(lambda r:httpx.Response(503)))
-    result=Assistant(queries,ops,parser).ask(actor('usher'),'/now')
-    assert result['degraded'] and result['engine']=='deterministic_fallback'
-    assert result['data'][0]['id']=='usher-ready'
+def test_mistral_request_sends_only_intent_schema_and_current_message(settings):
+    from wedding_ops.agent import MistralParser
+
+    message = "Where is Sarah Tan seated?"
+    calls = []
+
+    def respond(request):
+        calls.append(request)
+        payload = json.loads(request.content)
+        assert request.url == "https://api.mistral.ai/v1/chat/completions"
+        assert request.headers["Authorization"] == "Bearer fixture-key"
+        assert payload["model"] == "deepseek-v4-1-flash-1017"
+        assert [item["role"] for item in payload["messages"]] == ["system", "user"]
+        assert payload["messages"][1]["content"] == message
+        assert not {"user", "tools", "tool_choice"} & payload.keys()
+        schema = payload["response_format"]["json_schema"]["schema"]
+        assert set(schema["properties"]) == {"kind", "query", "minutes"}
+        assert "approve" not in schema["properties"]["kind"]["enum"]
+        assert "Cookie" not in request.headers
+        return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {
+            "content": json.dumps({"kind": "guest", "query": "Sarah Tan"}),
+        }}]})
+
+    config = replace(settings, agent_mode="mistral", mistral_api_key="fixture-key")
+    config.validate()
+    with closing(MistralParser(config, httpx.MockTransport(respond))) as parser:
+        assert parser.parse(message).model_dump() == {"kind": "guest", "query": "Sarah Tan", "minutes": None}
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("provider_result", [
+    429,
+    503,
+    "timeout",
+    "not JSON",
+    '{"kind":"delay","query":"dinner","minutes":"12"}',
+    '{"kind":"approve","query":"dinner","minutes":12}',
+    '{"kind":"delay","query":"dinner","minutes":12,"role":"coordinator"}',
+])
+def test_mistral_failure_falls_back_without_writing_schedule(queries, ops, settings, provider_result):
+    from wedding_ops.agent import MistralParser
+
+    calls = []
+
+    def respond(request):
+        calls.append(request)
+        if provider_result == "timeout":
+            raise httpx.ReadTimeout("fixture timeout", request=request)
+        if isinstance(provider_result, int):
+            return httpx.Response(provider_result)
+        return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {
+            "content": provider_result,
+        }}]})
+
+    config = replace(settings, agent_mode="mistral", mistral_api_key="fixture-key")
+    before = queries.snapshot(actor())["wedding"]["timeline_version"]
+    with closing(MistralParser(config, httpx.MockTransport(respond))) as parser:
+        result = Assistant(queries, ops, parser).ask(actor("banquet"), "Dinner needs another 12 minutes")
+    assert len(calls) == 1
+    assert result["degraded"] and result["engine"] == "deterministic_fallback"
+    assert result["kind"] == "confirmation"
+    assert queries.snapshot(actor())["wedding"]["timeline_version"] == before
+
+
+def test_explicit_commands_are_local_and_auth_precedes_model(queries, ops):
+    class ForbiddenParser:
+        def parse(self, text):
+            pytest.fail(f"Unexpected model call for {text!r}")
+
+    assistant = Assistant(queries, ops, ForbiddenParser())
+    now = assistant.ask(actor("usher"), "/now")
+    assert now["engine"] == "deterministic" and not now["degraded"]
+    assert now["data"][0]["id"] == "usher-ready"
+    guest = assistant.ask(actor("registration-a"), "  /guest Sarah Tan")
+    assert guest["data"][0]["table"] == "18"
+    assert assistant.ask(actor("usher"), "/approve")["engine"] == "deterministic"
+    with pytest.raises(OpsError):
+        assistant.ask(actor("unknown-member"), "Where should I be working?")
 
 
 def test_prompt_injected_document_is_data_not_action(ops,queries):

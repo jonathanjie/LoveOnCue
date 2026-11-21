@@ -6,7 +6,7 @@ import sys
 import time
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from wedding_ops.agent import OpenClawParser
+from wedding_ops.agent import MistralParser
 from wedding_ops.config import Settings
 
 
@@ -15,8 +15,8 @@ def main():
     arg.add_argument('--acknowledge-paid-provider-call',action='store_true',required=True)
     args=arg.parse_args()
     settings=Settings.from_env();settings.validate()
-    if settings.agent_mode!='openclaw':arg.error('Set WEDDINGOPS_AGENT_MODE=openclaw explicitly')
-    parser=OpenClawParser(settings)
+    if settings.agent_mode!='mistral':arg.error('Set WEDDINGOPS_AGENT_MODE=mistral explicitly')
+    parser=MistralParser(settings)
     cases=[('What should I be doing now?','now'),('Where is Sarah Tan seated?','guest'),
            ("Has the bride's father arrived?",'family_status'),
            ("Bride's parents just arrived",'arrival'),
@@ -33,8 +33,10 @@ def main():
         except Exception as exc:
             # Do not print response bodies, headers, URLs or credentials on failure.
             result={'expected':expected,'passed':False,'error_type':type(exc).__name__}
+            if hasattr(exc, 'response'):
+                result['status_code'] = exc.response.status_code
         results.append(result|{'elapsed_ms':round((time.monotonic()-started)*1000)})
-    print(json.dumps({'gateway_agent':settings.openclaw_agent,'cases':results,
-                      'internal_tool_policy_verified':False},indent=2))
+    parser.close()
+    print(json.dumps({'model':settings.mistral_model,'cases':results},indent=2))
     return 0 if all(r['passed'] for r in results) else 1
 if __name__=='__main__':raise SystemExit(main())
