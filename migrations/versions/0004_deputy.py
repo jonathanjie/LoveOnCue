@@ -36,6 +36,7 @@ def upgrade() -> None:
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("answered_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("answer", sa.Text(), nullable=True),
+        sa.Column("reported_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("id", sa.String(length=64), nullable=False),
         sa.Column("wedding_id", sa.String(length=64), nullable=False),
         sa.ForeignKeyConstraint(["wedding_id", "recipient_id"], ["members.wedding_id", "members.id"],

@@ -56,7 +56,8 @@ def test_a_reply_is_passed_to_the_coordinator_as_a_quoted_claim(heartbeat_chat):
     tick(chat, 6)
     chat.send("usher", "omw!! 2 min")
     update = chat.last("coordinator", "deputy_digest")
-    assert "Jamie Lim says" in update.message and "omw!! 2 min" in update.message
+    assert "Update from the floor" in update.message and "Jamie Lim" in update.message
+    assert "omw!! 2 min" in update.message
 
 
 def test_silence_is_escalated_to_the_coordinator_once(heartbeat_chat):
@@ -141,3 +142,16 @@ def test_on_it_closes_only_the_ping_for_that_task(heartbeat_chat, db):
         answered = {p.task_id: p.answered_at is not None for p in s.scalars(select(DeputyPing).where(
             DeputyPing.recipient_id == "usher"))}
     assert answered == {"usher-ready": True, "usher-second": False}
+
+
+def test_answers_reach_the_coordinator_in_one_rolling_digest(heartbeat_chat):
+    chat = heartbeat_chat()
+    tick(chat, 6)                      # Several helpers are pinged at 17:51.
+    chat.send("usher", "omw")          # The first answer goes out in a digest at once.
+    chat.send("driver", "route confirmed")
+    chat.send("registration-a", "desk A open")
+    digests = [n for n in chat.notices("coordinator", "deputy_digest") if "Update from the floor" in n.message]
+    assert len(digests) == 1           # The next two wait for the ten-minute window.
+    tick(chat, 10)
+    digests = [n for n in chat.notices("coordinator", "deputy_digest") if "Update from the floor" in n.message]
+    assert len(digests) == 2 and "route confirmed" in digests[-1].message and "desk A open" in digests[-1].message

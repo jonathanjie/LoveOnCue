@@ -200,7 +200,8 @@ class Operations:
                 # Kept so the reporter can withdraw this exact change later.
                 previous[p.id] = {"attendance": old_attendance, "version": p.version}
                 if p.relationship:
-                    for m in recipients(s, wid, roles={"photographer", "family_liaison"}):
+                    # Coordinators see arrivals in the brief; only the roles that act on them are interrupted.
+                    for m in recipients(s, wid, roles={"photographer", "family_liaison"}, coordinators=False):
                         notify(s, wid, m.id, "family_arrival", f"Confirmed report: {p.name} ({p.relationship}) is {cmd.status}. Reported by the arrival team.",
                                f"arrival:{p.id}:{p.version}", now, permission="family:status")
                     if cmd.status == "onsite":

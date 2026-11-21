@@ -450,6 +450,8 @@ class DeputyPing(TenantRecord, Base):
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
     answered_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     answer: Mapped[str | None] = mapped_column(Text)
+    # When the answer went to the coordinator in a digest; empty until then.
+    reported_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     __table_args__ = (
         UniqueConstraint("wedding_id", "id"),
         ForeignKeyConstraint(["wedding_id", "recipient_id"], ["members.wedding_id", "members.id"]),

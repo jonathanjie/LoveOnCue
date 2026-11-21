@@ -224,6 +224,8 @@ PING_LEAD = timedelta(minutes=5)        # start chasing this long before a task 
 PING_GAP = timedelta(minutes=10)        # at most one unprompted ping per person in this window
 SILENCE_AFTER = timedelta(minutes=5)    # tell the coordinator if a ping is unanswered this long
 PING_LIFETIME = timedelta(minutes=30)   # after this, a reply no longer counts as an answer
+DIGEST_GAP = timedelta(minutes=10)      # at most one rolling digest to the coordinator in this window
+DIGEST_ITEMS = 3                        # replies listed in one digest; the rest are in the brief
 
 
 class Heartbeat:
@@ -286,16 +288,44 @@ class Heartbeat:
                            "You may want to call them.", f"deputy-silence:{ping.id}", now)
                 audit(s, w, "agent", "deputy_silence", ping.id, {"recipient_id": ping.recipient_id}, now)
                 queued += 1
+            queued += self._digest(s, w, now, names, members, pings)
             if queued:
                 w.state_version += 1
         return queued
 
+    def _digest(self, s, w, now, names: dict, members: dict, pings: list) -> int:
+        """One rolling "update from the floor" for the coordinator, at most every DIGEST_GAP."""
+        from .models import Notification, Task
+        from .operations import one_line, notify, recipients
+
+        news = sorted((p for p in pings if p.answered_at is not None and p.reported_at is None),
+                      key=lambda p: p.answered_at)
+        if not news:
+            return 0
+        last = s.scalar(select(Notification.created_at).where(
+            Notification.wedding_id == self.wid, Notification.dedupe_key.like("deputy-digest:%"))
+            .order_by(Notification.created_at.desc()).limit(1))
+        if last is not None and now - last < DIGEST_GAP:
+            return 0
+        lines = ["Update from the floor:"]
+        for ping in news[:DIGEST_ITEMS]:
+            person = names[members[ping.recipient_id].person_id]
+            task = s.get(Task, ping.task_id).title if ping.task_id else "their task"
+            lines.append(f"• {person} (“{task}”): “{one_line(ping.answer or '', 160)}”")
+        if len(news) > DIGEST_ITEMS:
+            lines.append(f"…and {len(news) - DIGEST_ITEMS} more in the brief.")
+        lines.append("These are their replies; only buttons they tapped change records.")
+        for coordinator in recipients(s, self.wid):
+            notify(s, self.wid, coordinator.id, "deputy_digest", "\n".join(lines),
+                   f"deputy-digest:{now.isoformat()}", now)
+        for ping in news:
+            ping.reported_at = now
+        return 1
+
     def record_answer(self, member_id: str, text: str, *, acknowledged: bool = False,
                       task_id: str | None = None) -> bool:
         """Treat the member's next message as the answer to their open ping, and tell the coordinator."""
-        from .models import Member, Person, Task
-        from .operations import audit, one_line, notify, recipients
-        from .views import row
+        from .operations import audit
 
         with self.db.transaction(self.wid, write=True) as (s, w):
             now = self.clock.now()
@@ -309,14 +339,9 @@ class Heartbeat:
                 return False
             ping = open_pings[-1]
             ping.answered_at, ping.answer = now, text[:500]
-            member = row(s, Member, self.wid, member_id)
-            person = row(s, Person, self.wid, member.person_id).name
-            about = row(s, Task, self.wid, ping.task_id).title if ping.task_id else "their task"
-            for coordinator in recipients(s, self.wid):
-                message = (f"{person} tapped On it for “{about}”. The task is acknowledged." if acknowledged else
-                           f"{person} says: “{one_line(text, 200)}” (about “{about}”). "
-                           "This is their reply; nothing was recorded.")
-                notify(s, self.wid, coordinator.id, "deputy_digest", message, f"deputy-answer:{ping.id}", now)
+            if acknowledged:
+                ping.answer = "Tapped On it; the task is acknowledged."
+            # The coordinator hears about it in the next rolling digest (see Heartbeat.run).
             audit(s, w, "agent", "deputy_answer", ping.id, {"recipient_id": member_id}, now)
             w.state_version += 1
             return True
