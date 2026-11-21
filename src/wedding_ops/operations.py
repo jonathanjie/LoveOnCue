@@ -20,11 +20,39 @@ from .models import (
 from .policy import Access, Actor, ROLES, load_access, require_human
 from .schemas import COMMAND, Command
 from .scheduling import propose_shift
+from .telegram_ui import ACK_PROMPT, ACK_TOPICS
 from .views import row, rows, rows_for_edges
 
 
 def digest(value: object) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+
+
+# A reporter can withdraw their own report for this long after confirming it.
+WITHDRAW_WINDOW = timedelta(minutes=30)
+# Withdrawing a report needs the same permission as making it.
+WITHDRAW_CAPABILITY = {"arrival": "guests:arrival", "incident": "incidents:report", "approval": "timeline:propose"}
+
+
+def one_line(text: str, limit: int) -> str:
+    """Collapse user text onto one line, so it cannot imitate system-written sections."""
+    return " ".join(text.split())[:limit]
+
+
+def approval_request_message(approval: Approval, reporter: str, roles: list[str], zone: ZoneInfo) -> str:
+    """What the coordinator needs to decide. System facts come first; the reporter's words are quoted last."""
+    def local(value: str) -> str:
+        return parse_time(value).astimezone(zone).strftime("%H:%M")
+
+    changes = "\n".join(f"• {c['title']} {local(c['old_start'])} → {local(c['new_start'])}" for c in approval.changes)
+    lines = [f"Approval needed: {approval.title}", f"Reported by {reporter} ({', '.join(roles)})",
+             "Changes if approved:", changes or "• No times change"]
+    if approval.blockers:
+        lines += ["Blocked:"] + [f"• {b}" for b in approval.blockers]
+    lines.append(f"Reporter's words: \u201c{one_line(approval.reason, 300)}\u201d")
+    lines.append("Reject it, or adjust the run sheet in LoveOnCue." if approval.blockers else
+                 "Tap Approve or Reject, or review it in LoveOnCue. Nothing changes until you decide.")
+    return "\n".join(lines)
 
 
 def audit(s: Session, w: Wedding, actor_id: str, event_type: str, entity_id: str, detail: dict, now) -> None:
@@ -62,7 +90,8 @@ def assert_teams(s: Session, wid: str, ids: list[str]) -> None:
 CAPABILITY = {
     "arrival": "guests:arrival", "report_incident": "incidents:report", "resolve_incident": "incidents:resolve",
     "propose_delay": "timeline:propose", "decide_approval": "timeline:approve",
-    "acknowledge_notification": "notifications:own", "add_knowledge": "knowledge:manage",
+    "acknowledge_notification": "notifications:own", "withdraw_report": "notifications:own",
+    "set_deputy_enabled": "timeline:approve", "add_knowledge": "knowledge:manage",
     "review_knowledge": "knowledge:manage", "revoke_member": "members:manage", "broadcast": "messages:broadcast",
     "set_wedding_status": "wedding:manage", "apply_guest_import": "guests:manage",
     "edit_guest": "guests:manage", "create_team": "members:manage", "create_member": "members:manage", "create_task": "tasks:manage",
@@ -159,25 +188,31 @@ class Operations:
             return {"id": task.id, "status": task.state, "version": task.version}
 
         if cmd.type == "arrival":
-            changed = []
+            changed, previous, resolved_incidents = [], {}, []
             for ident in dict.fromkeys(cmd.person_ids):
                 p = row(s, Person, wid, ident)
                 if p.attendance == cmd.status:
                     continue
+                old_attendance = p.attendance
                 p.attendance = cmd.status
                 p.arrived_at = now if cmd.status == "onsite" else p.arrived_at
                 p.version += 1
                 changed.append(p.id)
+                # Kept so the reporter can withdraw this exact change later.
+                previous[p.id] = {"attendance": old_attendance, "version": p.version}
                 if p.relationship:
-                    for m in recipients(s, wid, roles={"photographer", "family_liaison"}):
+                    # Coordinators see arrivals in the brief; only the roles that act on them are interrupted.
+                    for m in recipients(s, wid, roles={"photographer", "family_liaison"}, coordinators=False):
                         notify(s, wid, m.id, "family_arrival", f"Confirmed report: {p.name} ({p.relationship}) is {cmd.status}. Reported by the arrival team.",
                                f"arrival:{p.id}:{p.version}", now, permission="family:status")
                     if cmd.status == "onsite":
                         for incident in rows(s, Incident, wid):
                             if incident.subject_person_id == p.id and incident.kind == "location_unconfirmed" and incident.status == "open":
                                 incident.status, incident.resolved_at = "resolved", now
+                                resolved_incidents.append(incident.id)
                                 audit(s, w, actor.member_id, "incident_resolved_by_arrival", incident.id, {"person_id": p.id}, now)
-            return {"status": "recorded", "changed": changed}
+            return {"status": "recorded", "changed": changed, "previous": previous,
+                    "set_to": cmd.status, "resolved_incidents": resolved_incidents}
 
         if cmd.type == "report_incident":
             audience = sorted(a.team_ids)
@@ -187,16 +222,28 @@ class Operations:
                 audience = sorted({mt.team_id for mt in rows_for_edges(s, MemberTeam, wid) if mt.member_id in target_ids})
             else:
                 target_members = recipients(s, wid, teams=audience)
+            # Incidents are operational: the couple is never interrupted with staff problems.
+            target_members = [m for m in target_members if "couple" not in m.roles]
             incident = Incident(id=new_id(), wedding_id=wid, kind=cmd.kind, severity=cmd.severity,
                                 title=cmd.title, details=cmd.details, subject_person_id=cmd.subject_person_id,
                                 task_id=cmd.task_id, reported_by=a.member.id, audience_team_ids=audience,
                                 status="open", created_at=now)
             s.add(incident)
+            reporter = row(s, Person, wid, a.member.person_id).name
             for member in target_members:
-                notify(s, wid, member.id, "incident", f"{cmd.severity.upper()}: {cmd.title}. {cmd.details}",
+                notify(s, wid, member.id, "incident",
+                       f"{cmd.severity.upper()} report from {reporter} ({', '.join(a.member.roles)}): "
+                       f"{one_line(cmd.title, 160)}\nDetails: \u201c{one_line(cmd.details, 600)}\u201d",
                        f"incident:{incident.id}", now, teams=audience,
                        permission="family:status" if cmd.kind == "location_unconfirmed" else None)
             return {"id": incident.id, "status": "open"}
+
+        if cmd.type == "withdraw_report":
+            return self._withdraw(s, w, a, cmd.request_id, now)
+
+        if cmd.type == "set_deputy_enabled":
+            w.deputy_enabled = cmd.enabled
+            return {"id": wid, "status": "on" if cmd.enabled else "off"}
 
         if cmd.type == "resolve_incident":
             incident = row(s, Incident, wid, cmd.incident_id)
@@ -209,14 +256,24 @@ class Operations:
         if cmd.type == "propose_delay":
             item = row(s, TimelineItem, wid, cmd.item_id)
             proposal = propose_shift(rows(s, TimelineItem, wid), rows_for_edges(s, TimelineDependency, wid), item.id, cmd.minutes)
+            reason = cmd.reason
+            # One live proposal per item: a newer report replaces older pending ones.
+            for older in rows(s, Approval, wid):
+                live = older.status == "pending" and older.expires_at > now
+                if live and older.changes and older.changes[0]["item_id"] == item.id:
+                    older.status, older.decided_at = "superseded", now
+                    older.decision_note = "Replaced by a newer report."
+                    reason = f"{reason}\nReplaces the earlier proposal: {older.title.split(': ', 1)[-1]}."
             approval = Approval(id=new_id(), wedding_id=wid, proposed_by=a.member.id,
-                                title=f"{item.title}: +{cmd.minutes} minutes", reason=cmd.reason,
+                                title=f"{item.title}: +{cmd.minutes} minutes", reason=reason[:2000],
                                 base_timeline_version=w.timeline_version, changes=proposal["changes"],
                                 affected_team_ids=proposal["affected_team_ids"], blockers=proposal["blockers"],
                                 status="pending", created_at=now, expires_at=now + timedelta(minutes=10))
             s.add(approval)
+            message = approval_request_message(approval, row(s, Person, wid, a.member.person_id).name,
+                                               a.member.roles, ZoneInfo(w.timezone))
             for member in recipients(s, wid):
-                notify(s, wid, member.id, "approval_requested", f"Approval requested: {approval.title}. Review the proposed schedule and constraints in LoveOnCue. No times have changed.",
+                notify(s, wid, member.id, "approval_requested", message,
                        f"approval:{approval.id}", now, permission="timeline:approve")
             return {"id": approval.id, "status": "pending", "changed_items": len(approval.changes), "blocked": bool(approval.blockers)}
 
@@ -242,15 +299,25 @@ class Operations:
                             task.version += 1
                 w.timeline_version += 1
                 for member in recipients(s, wid, teams=approval.affected_team_ids):
+                    if member.id == a.member.id:
+                        continue  # The coordinator who approved it already knows.
                     access = load_access(s, Actor(wid, member.id), wid)
                     relevant = [c for c in approval.changes if access.sees_teams(c["team_ids"])]
                     times = "; ".join(f"{c['title']} {parse_time(c['new_start']).astimezone(ZoneInfo(w.timezone)):%H:%M}" for c in relevant)
-                    notify(s, wid, member.id, "timeline_updated", f"Coordinator-approved timeline v{w.timeline_version}: {times}. Check your updated tasks and acknowledge this message.",
+                    notify(s, wid, member.id, "timeline_updated", f"Coordinator-approved timeline v{w.timeline_version}: {times}. Check your updated tasks. {ACK_PROMPT}",
                            f"timeline:{w.timeline_version}", now, teams=approval.affected_team_ids, timeline_version=w.timeline_version)
                 approval.status = "approved"
             else:
                 approval.status = "rejected"
             approval.decided_by, approval.decided_at, approval.decision_note = a.member.id, now, cmd.note
+            if approval.proposed_by != a.member.id:
+                decider = row(s, Person, wid, a.member.person_id).name
+                outcome = ("approved. The run sheet is updated; check My tasks" if approval.status == "approved"
+                           else "rejected. The run sheet is unchanged")
+                note = f"\nNote: {cmd.note}" if cmd.note else ""
+                notify(s, wid, approval.proposed_by, "report_decision",
+                       f"Your report ({approval.title}) was {outcome}. Decided by {decider}.{note}",
+                       f"decision:{approval.id}", now)
             return {"id": approval.id, "status": approval.status}
 
         if cmd.type == "acknowledge_notification":
@@ -285,8 +352,12 @@ class Operations:
         if cmd.type == "broadcast":
             assert_teams(s, wid, cmd.team_ids)
             ident = new_id()
+            sender = row(s, Person, wid, a.member.person_id).name
+            message = f"Announcement from {sender}:\n{cmd.message}\n\n{ACK_PROMPT}"
             for member in recipients(s, wid, teams=cmd.team_ids, coordinators=False):
-                notify(s, wid, member.id, "coordinator_message", cmd.message, f"broadcast:{ident}", now, teams=cmd.team_ids)
+                if member.id == a.member.id:
+                    continue  # The sender does not need their own announcement.
+                notify(s, wid, member.id, "coordinator_message", message, f"broadcast:{ident}", now, teams=cmd.team_ids)
             return {"id": ident, "status": "queued"}
 
         if cmd.type == "set_wedding_status":
@@ -433,10 +504,144 @@ class Operations:
             return {"id": vendor.id, "status": vendor.status}
         raise OpsError("unsupported_command", "This command is not supported")
 
+    def set_deputy_quiet(self, actor: Actor, quiet: bool) -> None:
+        """A member's own choice to stop unprompted deputy messages."""
+        require_human(actor)
+        with self.db.transaction(self.wid, write=True) as (s, w):
+            member = row(s, Member, self.wid, actor.member_id)
+            member.deputy_quiet = quiet
+            audit(s, w, actor.member_id, "deputy_quiet", member.id, {"quiet": quiet}, self.clock.now())
+
+    def set_deputy_enabled(self, actor: Actor, enabled: bool) -> None:
+        """The coordinator's switch for the deputy's unprompted messages."""
+        require_human(actor)
+        with self.db.transaction(self.wid, write=True) as (s, w):
+            load_access(s, actor, self.wid).require("timeline:approve")
+            w.deputy_enabled = enabled
+            w.state_version += 1
+            audit(s, w, actor.member_id, "deputy_enabled", self.wid, {"enabled": enabled}, self.clock.now())
+
+    def acknowledge_latest(self, actor: Actor, notification_id: str | None = None) -> str | None:
+        """Acknowledge one update that asks for it: the given one, or the newest waiting one."""
+        with self.db.transaction(self.wid) as (s, _):
+            waiting = sorted((n for n in rows(s, Notification, self.wid)
+                              if n.recipient_id == actor.member_id and n.topic in ACK_TOPICS
+                              and n.acknowledged_at is None and n.state in {"sent", "simulated"}
+                              and (notification_id is None or n.id == notification_id)),
+                             key=lambda n: (n.created_at, n.id))
+            if not waiting:
+                return None
+            notice_id, message = waiting[-1].id, waiting[-1].message
+        self.execute(actor, {"type": "acknowledge_notification", "notification_id": notice_id}, f"ack:{notice_id}")
+        return message
+
+    def recent_actions(self, actor: Actor, zone: ZoneInfo, hours: int = 1) -> list[str]:
+        """What this person recorded recently, in plain words, for the deputy's context."""
+        with self.db.transaction(self.wid) as (s, _):
+            cutoff = self.clock.now() - timedelta(hours=hours)
+            events = sorted((e for e in rows(s, AuditEvent, self.wid)
+                             if e.actor_id == actor.member_id and e.created_at >= cutoff
+                             and e.event_type in {"arrival", "report_incident", "propose_delay", "report_withdrawn"}),
+                            key=lambda e: e.created_at)
+            lines = []
+            for event in events[-8:]:
+                at = event.created_at.astimezone(zone).strftime("%H:%M")
+                result = event.detail.get("result", {})
+                if event.event_type == "arrival":
+                    names = [row(s, Person, self.wid, i).name for i in result.get("changed", [])]
+                    lines.append(f"{at} recorded arrival of {', '.join(names) or 'nobody new'}")
+                elif event.event_type == "report_withdrawn":
+                    lines.append(f"{at} withdrew a report ({event.detail.get('kind', 'report')})")
+                elif event.event_type == "propose_delay":
+                    lines.append(f"{at} sent a delay request")
+                else:
+                    lines.append(f"{at} sent a problem report")
+            return lines
+
+    def latest_report(self, actor: Actor) -> dict | None:
+        """The sender's most recent confirmed report that can still be withdrawn."""
+        with self.db.transaction(self.wid) as (s, _):
+            withdrawn = {e.entity_id for e in rows(s, AuditEvent, self.wid) if e.event_type == "report_withdrawn"}
+            receipts = sorted((r for r in s.scalars(select(CommandReceipt).where(
+                CommandReceipt.wedding_id == self.wid, CommandReceipt.actor_id == actor.member_id,
+                CommandReceipt.request_id.like("draft:%")))), key=lambda r: r.created_at, reverse=True)
+            for receipt in receipts:
+                if receipt.request_id in withdrawn or self.clock.now() - receipt.created_at > WITHDRAW_WINDOW:
+                    continue
+                target = self._report_target(s, receipt)
+                if target and target["withdrawable"]:
+                    return {"request_id": receipt.request_id, "title": target["title"]}
+            return None
+
+    def _report_target(self, s, receipt: CommandReceipt) -> dict | None:
+        """Describe what a confirmed report created, from its stored result."""
+        result = receipt.result
+        if "changed" in result:
+            names = [row(s, Person, self.wid, ident).name for ident in result["changed"]]
+            # Arrivals recorded before this release did not keep enough detail to undo safely.
+            return {"kind": "arrival", "title": "arrival of " + ", ".join(names),
+                    "withdrawable": bool(names) and "set_to" in result}
+        approval = s.scalar(select(Approval).where(Approval.wedding_id == self.wid, Approval.id == result.get("id")))
+        if approval:
+            return {"kind": "approval", "title": approval.title, "record": approval,
+                    "withdrawable": approval.status == "pending"}
+        incident = s.scalar(select(Incident).where(Incident.wedding_id == self.wid, Incident.id == result.get("id")))
+        if incident:
+            return {"kind": "incident", "title": incident.title, "record": incident,
+                    "withdrawable": incident.status == "open"}
+        return None
+
+    def _withdraw(self, s, w: Wedding, a: Access, request_id: str, now) -> dict:
+        receipt = s.get(CommandReceipt, (self.wid, a.member.id, request_id))
+        already = any(e.event_type == "report_withdrawn" and e.entity_id == request_id for e in rows(s, AuditEvent, self.wid))
+        target = self._report_target(s, receipt) if receipt else None
+        too_old = receipt is None or now - receipt.created_at > WITHDRAW_WINDOW
+        if target is None or already or too_old or not target["withdrawable"]:
+            raise conflict("This report can no longer be withdrawn. Ask the coordinator to correct it")
+        # The reporter must still hold the permission the original report needed.
+        a.require(WITHDRAW_CAPABILITY[target["kind"]])
+        reporter = row(s, Person, self.wid, a.member.person_id).name
+        if target["kind"] == "arrival":
+            people = {ident: row(s, Person, self.wid, ident) for ident in receipt.result["previous"]}
+            for ident, before in receipt.result["previous"].items():
+                person = people[ident]
+                if person.attendance != receipt.result["set_to"] or person.version != before["version"]:
+                    raise conflict(f"{person.name}'s status changed since your report. Ask the coordinator to correct it")
+            for ident, before in receipt.result["previous"].items():
+                people[ident].attendance = before["attendance"]
+                people[ident].version += 1
+            for incident_id in receipt.result.get("resolved_incidents", []):
+                incident = row(s, Incident, self.wid, incident_id)
+                incident.status, incident.resolved_at = "open", None
+            # Match the original arrival notice: family members only, to family-cleared roles.
+            family = [p.name for p in people.values() if p.relationship]
+            notice = (f"Arrival of {', '.join(family)}" if family else None, "family:status", None)
+            audience = recipients(s, self.wid, roles={"photographer", "family_liaison"}) if family else []
+        elif target["kind"] == "approval":
+            target["record"].status, target["record"].decided_at = "withdrawn", now
+            target["record"].decision_note = f"Withdrawn by {reporter}."
+            notice = (target["title"], "timeline:approve", None)
+            audience = recipients(s, self.wid, coordinators=True)
+        else:
+            incident = target["record"]
+            incident.status, incident.resolved_at = "resolved", now
+            permission = "family:status" if incident.kind == "location_unconfirmed" else None
+            notice = (target["title"], permission, incident.audience_team_ids)
+            audience = recipients(s, self.wid, teams=incident.audience_team_ids)
+        audit(s, w, a.member.id, "report_withdrawn", request_id, {"kind": target["kind"]}, now)
+        title, permission, teams = notice
+        for member in audience:
+            if member.id != a.member.id and title:
+                # Same restrictions as the original notice, so nobody learns more than before.
+                notify(s, self.wid, member.id, "report_withdrawn",
+                       f"Withdrawn by {reporter}: {one_line(title, 160)}. Ignore the earlier report.",
+                       f"withdrawn:{request_id}", now, teams=teams, permission=permission)
+        return {"id": request_id, "status": "withdrawn", "title": target["title"]}
+
     def draft(self, actor: Actor, command: dict, summary: str) -> dict:
         """The model may propose only an already-authorized command; no mutation occurs."""
         cmd = COMMAND.validate_python(command)
-        if cmd.type not in {"arrival", "report_incident", "propose_delay"}:
+        if cmd.type not in {"arrival", "report_incident", "propose_delay", "withdraw_report", "broadcast", "set_deputy_enabled"}:
             raise denied("This action cannot be initiated from AI chat")
         with self.db.transaction(self.wid, write=True) as (s, w):
             a = load_access(s, actor, self.wid)
@@ -447,7 +652,7 @@ class Operations:
             draft = ActionDraft(id=new_id(), wedding_id=self.wid, member_id=a.member.id, command=cmd.model_dump(mode="json"),
                                 summary=summary, created_at=now, expires_at=now + timedelta(minutes=5))
             s.add(draft)
-            return {"id": draft.id, "summary": summary, "expires_at": iso(draft.expires_at)}
+            return {"id": draft.id, "summary": summary, "expires_at": iso(draft.expires_at), "command_type": cmd.type}
 
     def confirm(self, actor: Actor, draft_id: str) -> dict:
         require_human(actor)
@@ -460,9 +665,9 @@ class Operations:
             self.authorize(s, a, cmd)
             receipt = s.get(CommandReceipt, (self.wid, actor.member_id, f"draft:{draft.id}"))
             if receipt:
-                return receipt.result | {"replayed": True}
+                return receipt.result | {"replayed": True, "command_type": cmd.type}
             if draft.expires_at <= utcnow():
                 raise conflict("This interpretation expired. Report it again")
             result = self._execute_in_tx(s, w, actor, a, cmd, draft.command, f"draft:{draft.id}")
             draft.consumed_at = utcnow()
-            return result
+            return result | {"command_type": cmd.type}

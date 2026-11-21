@@ -41,10 +41,10 @@ def test_recovered_brief_is_coordinator_only(db, settings, clock, queries, ops):
     short, full, denial = replies(db)
     assert short.message.startswith("Coordinator brief\n")
     assert "urgent" in short.message and "Confirm Desk B signage" in short.message
-    assert "More details: /brief_more" in short.message
+    assert "Tap More details" in short.message
     assert short.required_permission == "timeline:approve"
     assert full.message.startswith("Coordinator brief\n")
-    assert "Latest summary: /brief" in full.message
+    assert "Tap Coordinator brief" in full.message
     assert "Unfinished prerequisites: Confirm Desk B signage" in full.message
     assert "Dinner service" in full.message and "1 delivery problem" in full.message
     assert "availability" in full.message.lower()
@@ -73,7 +73,7 @@ def test_inline_confirmation_survives_outbox_and_uses_actor_authorization(db, se
     worker = Worker(db, config, clock, TelegramTransport(config.telegram_bot_token, httpx.MockTransport(send_fixture)))
     assert worker.dispatch_one()
     markup = sent[0]["reply_markup"]["inline_keyboard"]
-    assert markup[0] == [{"text": "Confirm report", "callback_data": f"confirm:{draft}"}]
+    assert markup[0] == [{"text": "Send to coordinator", "callback_data": f"confirm:{draft}"}]
     assert not {"nav:guest", "nav:brief"} & {button.get("callback_data") for buttons in markup for button in buttons}
 
     for number, sender in [(2, 102), (3, 101), (4, 101)]:

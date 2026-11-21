@@ -17,8 +17,8 @@ WID = "demo-wedding"
 def actor(name="coordinator", source="web"):
     return Actor(WID, name, source)
 
-def proposal(ops, minutes=12, key="proposal-test-1"):
-    return ops.execute(actor("banquet"), {"type":"propose_delay", "item_id":"dinner", "minutes":minutes,"reason":"Kitchen reports a delay"},key)
+def proposal(ops, minutes=12, key="proposal-test-1", item="dinner"):
+    return ops.execute(actor("banquet"), {"type":"propose_delay", "item_id":item, "minutes":minutes,"reason":"Kitchen reports a delay"},key)
 
 def decide(ops, ident, decision="approve", key="decide-test-1", who="coordinator", source="web"):
     return ops.execute(actor(who,source), {"type":"decide_approval", "approval_id":ident,"decision":decision},key)
@@ -61,7 +61,9 @@ def test_delay_needs_human_approval_and_preserves_slack(ops, queries, db):
         assert s.get(Task,"banquet-ready").due_at.minute == 2
         notices = [n for n in rows(s,Notification,WID) if n.topic == "timeline_updated"]
         assert "registration-a" not in [n.recipient_id for n in notices]
-        assert {"coordinator","banquet","usher","mc","photographer"}.issubset({n.recipient_id for n in notices})
+        recipients = {n.recipient_id for n in notices}
+        assert {"banquet","usher","mc","photographer"}.issubset(recipients)
+        assert "coordinator" not in recipients  # The approving coordinator is not notified of their own decision.
         banquet_text = next(n.message for n in notices if n.recipient_id == "banquet")
         assert "19:12" in banquet_text
         assert any(e.event_type == "decide_approval" for e in rows(s,AuditEvent,WID))
@@ -85,7 +87,8 @@ def test_idempotency_payload_conflict(ops):
 
 def test_stale_proposal_cannot_commit(ops):
     one=proposal(ops,key="first-proposal")
-    two=proposal(ops,key="second-proposal")
+    # A second proposal for the same item would replace the first, so use another item.
+    two=proposal(ops,key="second-proposal",item="dessert")
     decide(ops,one["id"])
     with pytest.raises(OpsError) as error:
         decide(ops,two["id"],key="other-approval")

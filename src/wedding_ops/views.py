@@ -11,10 +11,11 @@ from .clock import Clock, iso
 from .db import Database
 from .errors import missing
 from .models import (
-    Approval, AuditEvent, Incident, KnowledgeDocument, Location, Member, MemberTeam,
+    Approval, AuditEvent, DeputyPing, Incident, KnowledgeDocument, Location, Member, MemberTeam,
     Notification, Person, SeatingTable, Task, TaskDependency, Team, TimelineItem, Vendor, Wedding,
 )
 from .policy import Access, Actor, load_access, require_human
+from .telegram_ui import ACK_TOPICS
 
 
 def row(session: Session, cls, wedding_id: str, record_id: str):
@@ -40,6 +41,7 @@ def task_view(task: Task, access: Access, blockers: list[str], now) -> dict:
 
 def approval_view(item: Approval) -> dict:
     return {"id": item.id, "title": item.title, "reason": item.reason, "status": item.status,
+            "proposed_by": item.proposed_by,
             "base_timeline_version": item.base_timeline_version, "changes": item.changes,
             "blockers": item.blockers, "affected_team_ids": item.affected_team_ids,
             "created_at": iso(item.created_at), "expires_at": iso(item.expires_at),
@@ -182,7 +184,41 @@ class Queries:
             if failures:
                 title = "1 delivery problem" if failures == 1 else f"{failures} delivery problems"
                 followups.append((title, "Check recipient enrollment and review failed notices."))
+            pings = [p for p in rows(session, DeputyPing, self.wid)]
+            if pings:
+                answered = sum(p.answered_at is not None for p in pings)
+                waiting = sum(p.answered_at is None and p.expires_at > now for p in pings)
+                notes.append((f"Assistant activity: {len(pings)} check-ins sent",
+                              f"{answered} answered, {waiting} waiting. Replies reach you as they come in."))
+            pending_ack = self._latest_unacknowledged(session, owners)
+            if pending_ack:
+                followups.insert(0, pending_ack)  # First, so the short brief always shows it.
             return {"urgent": urgent, "followups": followups, "notes": notes}
+
+    def _latest_unacknowledged(self, session, owners: dict[str, str]) -> tuple[str, str] | None:
+        """Who has not acknowledged the newest announcement or timeline update."""
+        notices = [n for n in rows(session, Notification, self.wid)
+                   if n.topic in ACK_TOPICS and n.state in {"queued", "sending", "sent", "simulated"}]
+        if not notices:
+            return None
+        # notify() stores keys as "<update key>:<recipient>", so one update shares a prefix.
+        newest = max(notices, key=lambda n: (n.created_at, n.id)).dedupe_key.rsplit(":", 1)[0]
+        group = [n for n in notices if n.dedupe_key.rsplit(":", 1)[0] == newest]
+        missing = sorted(owners.get(n.recipient_id, "Unknown member") for n in group if n.acknowledged_at is None)
+        if not missing:
+            return None
+        label = "announcement" if group[0].topic == "coordinator_message" else "timeline update"
+        return (f"Not acknowledged: latest {label} ({len(group) - len(missing)} of {len(group)} acknowledged)",
+                ", ".join(missing[:12]) + (" and others" if len(missing) > 12 else ""))
+
+    def help_contact(self, member_id: str) -> tuple[list[str], list[str]]:
+        """A member's roles and the active coordinators' names, for explaining a refusal."""
+        with self.db.transaction(self.wid) as (s, _):
+            members = rows(s, Member, self.wid)
+            people = {p.id: p.name for p in rows(s, Person, self.wid)}
+            me = next((m for m in members if m.id == member_id), None)
+            coordinators = sorted(people[m.person_id] for m in members if m.active and "coordinator" in m.roles)
+            return (list(me.roles) if me else []), coordinators
 
     def guests(self, actor: Actor, query: str, *, sensitive: bool = False) -> list[dict]:
         with self.db.transaction(self.wid) as (s, _):

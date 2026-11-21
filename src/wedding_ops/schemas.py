@@ -214,8 +214,20 @@ class VendorStatus(Strict):
     status: Literal["expected", "onsite", "late", "complete"]
 
 
+class SetDeputyEnabled(Strict):
+    """The coordinator's switch for the deputy's check-ins, confirmed with a tap."""
+    type: Literal["set_deputy_enabled"]
+    enabled: bool
+
+
+class WithdrawReport(Strict):
+    """Withdraw the sender's own confirmed report, identified by its draft request ID."""
+    type: Literal["withdraw_report"]
+    request_id: Annotated[str, Field(min_length=7, max_length=80, pattern=r"^draft:[a-zA-Z0-9_-]+$")]
+
+
 Command = Annotated[
-    TaskAction | Arrival | ReportIncident | ResolveIncident | ProposeDelay | DecideApproval |
+    TaskAction | Arrival | ReportIncident | WithdrawReport | SetDeputyEnabled | ResolveIncident | ProposeDelay | DecideApproval |
     AcknowledgeNotification | AddKnowledge | ReviewKnowledge | RevokeMember | Broadcast |
     SetWeddingStatus | ApplyGuestImport | CreateTeam | CreateMember | CreateTask |
     CreateLocation | CreateTable | CreateTimelineItem | TimelineAction | CreateVendor | VendorStatus | EditGuest,
@@ -239,7 +251,7 @@ class ConfirmRequest(Strict):
 
 class Intent(Strict):
     """Untrusted model output. No approval, broadcast, admin, IDs or arbitrary tools."""
-    kind: Literal["now", "guest", "location", "vendor", "knowledge", "family_status", "arrival", "missing_family", "delay", "unknown"]
+    kind: Literal["now", "guest", "location", "vendor", "knowledge", "family_status", "arrival", "missing_family", "delay", "incident", "urgent_incident", "withdraw", "schedule", "my_reports", "late", "headcount", "acknowledge", "unknown"]
     query: Annotated[str, Field(max_length=160)] = ""
     minutes: int | None = Field(default=None, ge=1, le=180)
 

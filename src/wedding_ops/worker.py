@@ -16,7 +16,7 @@ from .errors import OpsError
 from .models import Approval, Member, Notification, Task, new_id
 from .operations import audit, notify, recipients
 from .policy import Actor, load_access
-from .telegram_ui import reply_markup
+from .telegram_ui import approval_markup, notice_markup, reply_markup
 from .views import row, rows
 
 
@@ -66,6 +66,25 @@ class TelegramTransport:
             raise DeliveryError("network_error", retryable=True) from exc
 
 
+def draft_type(s, wedding_id: str, draft_id: str | None) -> str | None:
+    """The command type of a draft, so its button can say what it does."""
+    from .models import ActionDraft
+    if not draft_id:
+        return None
+    draft = s.scalar(select(ActionDraft).where(ActionDraft.wedding_id == wedding_id, ActionDraft.id == draft_id))
+    return draft.command["type"] if draft else None
+
+
+def deputy_ping_markup(s, wedding_id: str, notice: Notification) -> dict | None:
+    """An On it button for the task a deputy ping asks about. Keys look like "deputy-ping:<id>:<member>"."""
+    from .models import DeputyPing
+    ping = s.scalar(select(DeputyPing).where(DeputyPing.wedding_id == wedding_id,
+                                             DeputyPing.id == notice.dedupe_key.split(":")[1]))
+    if ping is None or ping.task_id is None:
+        return None
+    return {"inline_keyboard": [[{"text": "On it", "callback_data": f"taskack:{ping.task_id}"}]]}
+
+
 class Worker:
     def __init__(self, db: Database, settings: Settings, clock: Clock, transport: Transport | None = None):
         self.db, self.settings, self.wid, self.clock = db, settings, settings.wedding_id, clock
@@ -79,6 +98,12 @@ class Worker:
             before_count = s.scalar(select(func.count()).select_from(Notification).where(Notification.wedding_id == self.wid))
             expired = 0
             expired_ids = []
+            deputy_chases = self.settings.deputy and w.deputy_enabled
+            pinged = {}
+            if deputy_chases:
+                from .models import DeputyPing
+                for ping in rows(s, DeputyPing, self.wid):
+                    pinged.setdefault(ping.task_id, ping)
             for task in rows(s, Task, self.wid):
                 if task.state in {"done", "cancelled"} or task.acknowledged_at:
                     continue
@@ -90,8 +115,14 @@ class Worker:
                     notify(s, self.wid, owner.id, "task_reminder", f"Due {due}: {task.title}. Open My tasks, review prerequisites and acknowledge the assignment.",
                            f"reminder:{task.id}:{task.version}", now, task=task)
                 elif now > task.due_at:
-                    notify(s, self.wid, owner.id, "task_overdue", f"Unacknowledged task due {due}: {task.title}. Confirm your status in My tasks.",
-                           f"overdue:{task.id}:{task.version}", now, task=task)
+                    # The deputy covers a task only once it has pinged the owner about it.
+                    ping = pinged.get(task.id) if deputy_chases else None
+                    if ping is not None and ping.answered_at is None:
+                        continue  # The heartbeat's silence note tells the coordinator instead.
+                    if ping is None:
+                        notify(s, self.wid, owner.id, "task_overdue",
+                               f"Unacknowledged task due {due}: {task.title}. Confirm your status in My tasks.",
+                               f"overdue:{task.id}:{task.version}", now, task=task)
                     if now >= task.due_at + timedelta(minutes=5):
                         for m in recipients(s, self.wid):
                             notify(s, self.wid, m.id, "task_escalation", f"Needs follow-up: {task.title} was due {due} and has not been acknowledged. Contact the assigned helper.",
@@ -149,7 +180,18 @@ class Worker:
             markup = None
             if n.topic == "bot_reply" and isinstance(self.transport, TelegramTransport):
                 markup = reply_markup(coordinator=a.coordinator, guest_lookup=a.permits("guests:seating"),
-                                      draft_id=n.telegram_draft_id, app_url=self.settings.public_url)
+                                      draft_id=n.telegram_draft_id, app_url=self.settings.public_url,
+                                      draft_type=draft_type(s, self.wid, n.telegram_draft_id))
+            elif n.topic == "approval_requested" and isinstance(self.transport, TelegramTransport):
+                # notify() keys approval notices as "approval:<approval id>:<recipient>".
+                approval = s.scalar(select(Approval).where(Approval.wedding_id == self.wid,
+                                                           Approval.id == n.dedupe_key.split(":")[1]))
+                if approval is not None and approval.status == "pending":
+                    markup = approval_markup(approval.id, blocked=bool(approval.blockers))
+            elif n.topic == "deputy_ping" and isinstance(self.transport, TelegramTransport):
+                markup = deputy_ping_markup(s, self.wid, n)
+            elif isinstance(self.transport, TelegramTransport):
+                markup = notice_markup(n.topic, n.id)
         # Never hold the wedding lock across a network call.
         try:
             if markup is not None and isinstance(self.transport, TelegramTransport):
@@ -181,7 +223,14 @@ class Worker:
         return True
 
     def tick(self, max_deliveries: int = 30) -> dict:
+        # The heartbeat runs first, so the reminder schedule can see which tasks it already chased.
+        pinged = 0
+        if self.settings.deputy:
+            from .deputy import Heartbeat
+            pinged = Heartbeat(self.db, self.wid, self.clock).run()
         result = self.schedule()
+        if self.settings.deputy:
+            result["deputy"] = pinged
         dispatched = 0
         for _ in range(max_deliveries):
             if not self.dispatch_one():

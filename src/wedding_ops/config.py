@@ -26,6 +26,8 @@ class Settings:
     send_notifications: bool = False
     # Enables operator-only role switching for a fictional staging cell.
     rehearsal: bool = False
+    # Answer free-form chat with the conversational deputy (ADR 0003). Needs the model key.
+    deputy: bool = False
     session_ttl_seconds: int = 12 * 60 * 60
     body_limit: int = 262_144
     web_root: Path = Path(__file__).resolve().parents[2] / "web"
@@ -52,6 +54,7 @@ class Settings:
             telegram_vision_model=env("TELEGRAM_VISION_MODEL").strip(),
             send_notifications=env("SEND_NOTIFICATIONS", "false").lower() == "true",
             rehearsal=env("REHEARSAL", "false").lower() == "true",
+            deputy=env("DEPUTY", "false").lower() == "true",
         )
 
     def validate(self) -> None:
@@ -77,6 +80,8 @@ class Settings:
             raise ValueError("Demo authentication is local-only. Use production mode for public deployment")
         if (self.agent_mode == "mistral" or self.telegram_vision_model) and not self.mistral_api_key:
             raise ValueError("Set WEDDINGOPS_MISTRAL_API_KEY before enabling Mistral")
+        if self.deputy and not self.mistral_api_key:
+            raise ValueError("Set WEDDINGOPS_MISTRAL_API_KEY before enabling the deputy")
         if self.agent_mode == "mistral" and not self.mistral_model:
             raise ValueError("Set WEDDINGOPS_MISTRAL_MODEL to an available model ID")
         if self.telegram_vision_model and (self.demo or not self.telegram_bot_token):

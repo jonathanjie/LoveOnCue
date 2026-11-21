@@ -137,11 +137,121 @@ unrecorded incidents, and zero conflicting pending proposals for one item.
 - Multi-event setup, templates and Mandarin replies.
 - The venue channel.
 
-## 6. Resume point
+## 6. Core-loop sprint and simulation gate (later on 21 November)
 
-- Code: `main` plus PR #3, which contains the rename, `scripts/simulate.py` and this document.
-- Staging: `loveoncue.jonathanjie.com` runs release `aa1b7a4`, with
+PR #4 implements the five core-loop steps from section 5, test-first: 124
+tests pass, migration 0003 is applied on staging, and live Telegram checks
+pass on staging release `08a6fd0`. I then reran both simulation rounds with
+the same personas on a fresh wedding.
+
+| Round | Ease (before → after) | Clarity | Trust |
+|---|---|---|---|
+| Normal day (6 users) | 2.0 → 2.2 | 1.7 → 2.0 | 2.3 → 2.0 |
+| Confounders (7 users) | 1.9 → 2.1 | 1.7 → 2.1 | 2.1 → 2.4 |
+
+**Gate: not met.** The target of at least 3.5 for ease and clarity is still
+far away.
+
+**Critical findings 1 to 4 from section 3, all verified in the gate database:**
+- The flat tyre and the missing meals were each recorded once, and both reached the coordinator.
+- The wrong arrival and the missing-person report were withdrawn, and everyone told was told to ignore them.
+- Revised delays never left two live proposals for one item.
+- Approval requests showed the changes and the reporter's words.
+- Blocked changes offered only Reject.
+- Reporters were told decisions with the coordinator's note.
+- Helpers acknowledged updates, and the brief showed "2 of 5 acknowledged".
+
+**What still blocks the gate:**
+1. **Understanding.** Mixed or vague messages still fall through to the
+   fallback, for example "was my delay approved, should I hold the food",
+   "I'm 25 minutes late", "who hasn't confirmed?" and "kitchen now 20, not 15".
+   This is now the main gap. Next fixes:
+   - a "late" intent for people
+   - default a delay without an activity to the sender's last delay item
+   - treat a combined question as several intents
+2. **Discoverability.** The coordinator did not find `/announce` and sent the
+   rain move as an incident instead. A coordinator-specific help is now live;
+   a pinned command menu would help more.
+3. **Dead ends.** Advice such as "ask registration" or "ask the coordinator"
+   points people back at themselves, and a denial message gives no reason.
+   Rejected reporters cannot reply with the reason the coordinator asked for.
+4. **Location knowledge.** Places named in tasks (Ballroom Entrance B) and
+   toilets are not in the seed data. That is a data gap more than a code gap.
+
+**Security:** an automated review flagged five issues in this work, and all five are fixed with tests:
+- the withdrawal window and permission are now enforced on the server
+- a withdrawn arrival is not reverted if someone changed it since
+- withdrawal notices keep the original notice's restrictions
+- reporter text cannot imitate system sections of a notice
+- reporter text stays quoted
+
+A pre-fix withdrawal notice reached the couple in the gate run. It was created
+before the restriction fix, and the round-2 notices were correctly restricted.
+
+## 7. Direction change: the deputy (ADR 0003)
+
+The founder redirected the product from "a rigid system with AI bolted on to
+parse text" to an agent that partners with the coordinator: it sees the
+schedule, chases people for updates, and keeps the coordinator informed.
+
+Inputs to the design:
+- the Fable advisor
+- prior art: the OpenClaw heartbeat, OpenAI Dots, and the Grok Bot check-in failures
+- a plan review
+
+The decision is in `docs/adr/0003-deputy-agent.md`. The model reads and
+drafts; only a human tap or deterministic code commits a change.
+
+**Built (PR #4), behind `WEDDINGOPS_DEPUTY=true`, live on staging:**
+- Conversational replies. Each turn sees a role-scoped context and the last
+  five exchanges, and can choose one action from an allow-list.
+- A deterministic heartbeat that pings task owners, with these limits:
+  - at most one ping per task, and one per person every 10 minutes
+  - a silence note to the coordinator after 5 minutes without an answer
+  - replies reach the coordinator in a rolling "Update from the floor" digest
+- Opt-outs: "stop pinging me" for anyone; pausing all check-ins for the
+  coordinator, confirmed with a tap.
+- No slash commands are shown to users, and buttons say what they do.
+- A Singlish intent evaluation: 40 cases, with accuracy rising from 88% to 98%.
+
+**Measured with the anchored rubric** (same personas as before; Singlish personas in the deputy runs):
+
+| Run | Ease | Clarity | Trust | Fallback replies |
+|---|---|---|---|---|
+| Intent bot, normal day | 2.2 | 2.0 | 2.0 | 22% (both rounds) |
+| Intent bot, confounders | 2.1 | 2.1 | 2.4 | |
+| Deputy, normal day | 3.2 | 3.0 | 2.3 | 0% |
+| Deputy, confounders | 2.9 | 2.9 | 2.3 | 0% |
+
+- **Median reply time** on staging was about 2.5 seconds, from message arrival to delivery.
+- **The gate (3.5) is not met.** Trust is held back by contradictions that
+  came from gaps in the deputy's context, not from made-up facts. Examples:
+  - a guest's table was later denied, because memory dropped the table lines
+  - an approval was unseen, because pushed updates were not in the context
+  - a withdrawal was unseen, because recorded actions were not in the context
+  - a question was taken as an acknowledgement
+
+  All of these, plus noise from coordinator notices, are fixed after the
+  runs. The fixes are not yet re-measured.
+- **The security review flagged nine issues in the deputy work, and all nine are fixed with tests.**
+  They covered escalation gaps, model text recorded as the user's words,
+  untrusted text reaching the model's trusted context, forged
+  acknowledgements, dropped replies, and the wedding-wide pause.
+
+**Next:**
+1. Rerun both gate rounds on staging's current code.
+2. Lower coordinator interruptions toward the target of at most 6 per hour.
+3. Let the coordinator approve conversationally ("approve the dinner one"),
+   as a draft confirmed with a tap.
+4. Redesign the Mini App (a separate task).
+5. Customer discovery, from section 5, is still the gate on the product
+   itself. The deputy goes into the interview script.
+
+## 8. Resume point
+
+- Code: `main`, plus PR #3 (rename, harness, this review) and PR #4 (core loop and deputy), which is stacked on #3.
+- Staging: `loveoncue.jonathanjie.com` runs release `bbf1080` (migration 0004) with the deputy on, plus
   DeepSeek V4.1 Flash for chat and photos, and `WEDDINGOPS_REHEARSAL=true`.
 - Simulation: create a world with `scripts/simulate.py --dir <dir> init`. Put a model key in
   `<dir>/model.key` (mode 600) to turn on free-form parsing.
-- The first item to build is core loop step 1, incident reporting.
+- Next to build: the items under "Next" in section 7. Rerun the gate first.

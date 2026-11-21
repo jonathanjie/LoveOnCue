@@ -899,6 +899,27 @@
       "title": "RevokeMember",
       "type": "object"
     },
+    "SetDeputyEnabled": {
+      "additionalProperties": false,
+      "description": "The coordinator's switch for the deputy's check-ins, confirmed with a tap.",
+      "properties": {
+        "type": {
+          "const": "set_deputy_enabled",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "enabled"
+      ],
+      "title": "SetDeputyEnabled",
+      "type": "object"
+    },
     "SetWeddingStatus": {
       "additionalProperties": false,
       "properties": {
@@ -1034,6 +1055,30 @@
       ],
       "title": "VendorStatus",
       "type": "object"
+    },
+    "WithdrawReport": {
+      "additionalProperties": false,
+      "description": "Withdraw the sender's own confirmed report, identified by its draft request ID.",
+      "properties": {
+        "type": {
+          "const": "withdraw_report",
+          "title": "Type",
+          "type": "string"
+        },
+        "request_id": {
+          "maxLength": 80,
+          "minLength": 7,
+          "pattern": "^draft:[a-zA-Z0-9_-]+$",
+          "title": "Request Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "request_id"
+      ],
+      "title": "WithdrawReport",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -1060,10 +1105,12 @@
           "resolve_incident": "#/$defs/ResolveIncident",
           "review_knowledge": "#/$defs/ReviewKnowledge",
           "revoke_member": "#/$defs/RevokeMember",
+          "set_deputy_enabled": "#/$defs/SetDeputyEnabled",
           "set_wedding_status": "#/$defs/SetWeddingStatus",
           "task_action": "#/$defs/TaskAction",
           "timeline_action": "#/$defs/TimelineAction",
-          "vendor_status": "#/$defs/VendorStatus"
+          "vendor_status": "#/$defs/VendorStatus",
+          "withdraw_report": "#/$defs/WithdrawReport"
         },
         "propertyName": "type"
       },
@@ -1076,6 +1123,12 @@
         },
         {
           "$ref": "#/$defs/ReportIncident"
+        },
+        {
+          "$ref": "#/$defs/WithdrawReport"
+        },
+        {
+          "$ref": "#/$defs/SetDeputyEnabled"
         },
         {
           "$ref": "#/$defs/ResolveIncident"

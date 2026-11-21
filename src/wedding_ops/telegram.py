@@ -5,13 +5,14 @@ import hmac
 import re
 from collections.abc import Callable
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 from sqlalchemy import or_, select
 
 from .agent import Assistant
 from .auth import Auth
-from .clock import Clock
+from .clock import Clock, parse_time
 from .config import Settings
 from .db import Database
 from .errors import OpsError, denied
@@ -78,29 +79,51 @@ def private_callback(update: dict, token: str) -> tuple[str, str | None, str] | 
         return None
     command = None
     if isinstance(data, str) and len(data) <= 64:
-        confirmation = re.fullmatch(r"confirm:([A-Za-z0-9_-]{1,56})", data)
-        command = f"/confirm {confirmation[1]}" if confirmation else NAVIGATION.get(data)
+        confirmation = re.fullmatch(r"(confirm|ack|approve|reject|taskack):([A-Za-z0-9_-]{1,56})", data)
+        command = f"/{confirmation[1]} {confirmation[2]}" if confirmation else NAVIGATION.get(data)
     return sender, command, callback_id
 
 
-HELP = ("Tap a button or type a question. Use /now for your tasks, /location for directions, "
-        "or /knowledge followed by a question. Photo reviews are read-only when enabled. "
+HELP = ("Just message me like you would a teammate. Ask what you should be doing, where something "
+        "is, or when something happens. Tell me about delays or problems in your own words and I will "
+        "pass them on once you confirm. Photo reviews are read-only when enabled. "
         "Reports need confirmation. "
         "Schedule changes need human approval in LoveOnCue.")
 
 
+def local_time(value: str | None, zone_name: str | None) -> str:
+    """Show a stored UTC time as the wedding's local HH:MM."""
+    if not value:
+        return "no time set"
+    return parse_time(value).astimezone(ZoneInfo(zone_name or "UTC")).strftime("%H:%M")
+
+
 def render_reply(result: dict) -> str:
     message = result["message"]
+    zone = result.get("timezone")
     if result.get("degraded"):
         message = "Model unavailable; using deterministic commands.\n" + message
     if result.get("draft"):
         draft = result["draft"]
-        return f"{message}\n\n{draft['summary']}\n\nTap Confirm report or send:\n/confirm {draft['id']}\n\nExpires in five minutes. Timeline proposals still need coordinator approval in the application."
+        note = ("\nTimeline changes still need the coordinator's approval."
+                if draft.get("command_type") == "propose_delay" else "")
+        return f"{message}\n\n{draft['summary']}\n\nTap the button below within five minutes to send it.{note}"
     for item in result.get("data", [])[:8]:
         if result["kind"] == "tasks":
-            message += f"\n• {item['title']} · due {item['due_at']} · {item['state']}"
+            message += f"\n• {item['title']} · due {local_time(item['due_at'], zone)} · {item['state']}"
+            if item.get("where"):
+                message += f"\n  Where: {item['where']['name']}. {item['where']['directions']}"
+            if item.get("instructions"):
+                message += f"\n  What: {item['instructions']}"
             if item.get("blocked_by"):
                 message += " · blocked by " + ", ".join(item["blocked_by"])
+        elif result["kind"] == "schedule":
+            moved = "" if item["current_start"] == item["planned_start"] else \
+                f" (moved from {local_time(item['planned_start'], zone)})"
+            message += f"\n• {item['title']} · {local_time(item['current_start'], zone)}{moved}"
+        elif result["kind"] == "my_reports":
+            note = f" — {item['note']}" if item.get("note") else ""
+            message += f"\n• {item['title']}: {item['status']}{note}"
         elif result["kind"] == "guests":
             message += f"\n• {item['name']}: Table {item['table'] or 'unassigned'}; {item['attendance']}"
         elif result["kind"] == "family":
@@ -114,12 +137,37 @@ def render_reply(result: dict) -> str:
     return message[:3900]
 
 
+def confirmation_reply(result: dict) -> str:
+    """Tell the reporter what their confirmed report did, in plain words."""
+    if result.get("replayed"):
+        return "Already recorded\nThis report was confirmed earlier. No new change was made."
+    kind = result.get("command_type")
+    if kind == "propose_delay":
+        return ("Report confirmed\nProposal awaiting approval from the coordinator. The run sheet does not change until "
+                "they approve it. I will tell you their decision.")
+    if kind == "report_incident":
+        return "Report sent\nThe coordinator and your team have been told."
+    if kind == "arrival":
+        return "Arrival recorded\nThe family liaison and photographer have been told."
+    if kind == "set_deputy_enabled":
+        return ("Check-ins are on. I will chase unacknowledged tasks again." if result["status"] == "on" else
+                "Check-ins are paused for everyone. Helpers get the plain reminders instead.")
+    if kind == "broadcast":
+        return ("Announcement sent\nEveryone gets an Acknowledge button. "
+                "Ask me who has not acknowledged yet.")
+    if kind == "withdraw_report":
+        return f"Withdrawn\nYour report ({result['title']}) is cancelled. Everyone who was told has been told to ignore it."
+    return "Report confirmed."
+
+
 class TelegramIngress:
     def __init__(self, db: Database, settings: Settings, clock: Clock, auth: Auth,
                  assistant: Assistant, operations: Operations, *,
                  photo_reviewer: Callable[[bytes, str], PhotoReview] | None = None,
                  photo_transport: httpx.BaseTransport | None = None):
         self.db, self.settings, self.clock, self.auth = db, settings, clock, auth
+        # Set to a Deputy to answer free-form messages conversationally (ADR 0003).
+        self.deputy = None
         self.assistant, self.operations, self.wid = assistant, operations, settings.wedding_id
         self.photo_reviewer = photo_reviewer
         self.photo_transport = photo_transport
@@ -136,6 +184,55 @@ class TelegramIngress:
         except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError, IndexError):
             # Exceptions from Telegram may include the bot token in a request URL.
             return "I couldn't review this photo. Send a text report for any issue or arrival."
+
+    def _explain_denial(self, member_id: str, error: OpsError) -> str:
+        """Say which role was refused and who can help, instead of a bare refusal."""
+        roles, coordinators = self.assistant.queries.help_contact(member_id)
+        contact = f"{' or '.join(coordinators)} (coordinator)" if coordinators else "the coordinator"
+        if error.message == "Your role does not permit this action":
+            return f"Your role ({', '.join(roles)}) does not permit this action. Ask {contact} if you need it."
+        return f"{error.message}. Ask {contact} if you need help."
+
+    def _deputy_command(self, actor, command: str) -> str:
+        """Opt-out, the coordinator's on/off switch, and the On it button on a deputy ping."""
+        if command.startswith("taskack"):
+            task_id = command.split()[1]
+            version = next(t["version"] for t in self.assistant.queries.snapshot(actor)["tasks"] if t["id"] == task_id)
+            self.operations.execute(actor, {"type": "task_action", "task_id": task_id, "action": "acknowledge",
+                                            "expected_version": version}, f"taskack:{task_id}:{version}")
+            from .deputy import Heartbeat
+            Heartbeat(self.db, self.wid, self.clock).record_answer(actor.member_id, "On it", acknowledged=True, task_id=task_id)
+            return "Thanks, marked as acknowledged. The coordinator can see it."
+        if command in {"quiet", "unquiet"}:
+            self.operations.set_deputy_quiet(actor, command == "quiet")
+            return ("Okay, I won't message you unprompted for the rest of the event, except urgent items. "
+                    "Tell me when you want check-ins again." if command == "quiet" else "Okay, I may check in with you again.")
+        enabled = command.endswith("on")
+        self.operations.set_deputy_enabled(actor, enabled)
+        return ("Deputy on. I will chase unacknowledged tasks and keep you posted." if enabled else
+                "Paused. I will not check in with anyone; the plain reminders are back. Tell me to resume when you want.")
+
+    def _decide(self, actor, decision: str, approval_id: str, note: str) -> str:
+        """A coordinator's explicit Approve or Reject from Telegram. The model is not involved."""
+        outcome = self.operations.execute(
+            actor, {"type": "decide_approval", "approval_id": approval_id, "decision": decision,
+                    "note": note[:1000] or f"{decision.capitalize()}d in Telegram."},
+            f"telegram-decision:{approval_id}")
+        if decision == "approve":
+            return (f"Approved\nTimeline version {outcome['timeline_version']}. "
+                    "Affected teams are being told, and the reporter knows.")
+        return "Rejected\nThe run sheet is unchanged. The reporter has been told."
+
+    def _announce(self, actor, message: str) -> tuple[str, str | None]:
+        """Draft a coordinator announcement to every team. Nothing is sent until confirmed."""
+        if len(message) < 3:
+            return "What should I tell everyone? For example: tell everyone the ceremony moves to the ballroom.", None
+        team_ids = [team["id"] for team in self.assistant.queries.snapshot(actor)["teams"]]
+        draft = self.operations.draft(actor, {"type": "broadcast", "team_ids": team_ids, "message": message[:1500]},
+                                      f"Send this announcement to everyone on the team:\n{message[:1500]}")
+        reply = render_reply({"kind": "confirmation", "message": "Check this announcement before I send it.",
+                              "draft": draft, "data": []})
+        return reply, draft["id"]
 
     def accept(self, supplied_secret: str | None, update: dict) -> dict:
         expected = self.settings.telegram_webhook_secret
@@ -204,32 +301,36 @@ class TelegramIngress:
                     member_id = enrollment["member_id"]
                 except OpsError:
                     member_id = self.auth.telegram_actor(payload["sender"]).member_id
-                result = "You are enrolled in this wedding. Send /now to see your assignment or open the coordinator's Mini App link."
+                result = "You're in! Ask me \u201cwhat should I do?\u201d any time, or tap My tasks."
             else:
                 actor = self.auth.telegram_actor(payload["sender"])
                 member_id = actor.member_id
                 confirmation = re.fullmatch(r"/confirm\s+([a-zA-Z0-9_-]{1,64})", text)
                 if confirmation:
-                    command_result = self.operations.confirm(actor, confirmation[1])
-                    if command_result.get("replayed"):
-                        result = "Already recorded\nThis report was confirmed earlier. No new change was made."
-                    elif command_result["status"] == "pending":
-                        result = ("Report confirmed\nProposal awaiting approval. A coordinator must review it. "
-                                  "The run sheet is unchanged.")
-                    else:
-                        result = f"Report confirmed\nTimeline version {command_result['timeline_version']}."
+                    result = confirmation_reply(self.operations.confirm(actor, confirmation[1]))
+                elif decision := re.fullmatch(r"/(approve|reject)\s+([A-Za-z0-9_-]{1,64})(?:\s+(.+))?", text, re.S):
+                    result = self._decide(actor, decision[1], decision[2], (decision[3] or "").strip())
+                elif deputy_command := re.fullmatch(r"/(quiet|unquiet|deputy\s+(?:on|off)|taskack\s+[A-Za-z0-9_-]{1,64})", text):
+                    result = self._deputy_command(actor, deputy_command[1])
+                elif text.startswith("/announce"):
+                    result, draft_id = self._announce(actor, text[len("/announce"):].strip())
+                elif re.fullmatch(r"/ack(\s+[A-Za-z0-9_-]{1,64})?", text):
+                    notice = self.operations.acknowledge_latest(actor, text[len("/ack"):].strip() or None)
+                    result = (f"Acknowledged\n{notice[:120]}" if notice else
+                              "Nothing to acknowledge. You have no update waiting for acknowledgement.")
                 elif text in {"/brief", "/brief_more"}:
                     brief = self.assistant.queries.coordinator_brief(actor)
                     result = render_brief(brief, expanded=text == "/brief_more")
                     permission = "timeline:approve"
                 elif text == "/guest":
                     self.assistant.queries.guests(actor, "")
-                    result = "Find a guest\nSend /guest followed by a name. Check similar names before selecting a guest."
+                    result = "Find a guest\nWho are you looking for? Send me their name."
                     permission = "guests:seating"
                 elif text in {"/start", "/help"}:
                     result = HELP
                 else:
-                    response = self.assistant.ask(actor, text)
+                    responder = self.deputy if self.deputy is not None else self.assistant
+                    response = responder.ask(actor, text)
                     result = render_reply(response)
                     if response.get("draft"):
                         draft_id = response["draft"]["id"]
@@ -239,7 +340,7 @@ class TelegramIngress:
         except OpsError as exc:
             failure, retry = exc.code, False
             if member_id:
-                result = exc.message
+                result = self._explain_denial(member_id, exc) if exc.code == "forbidden" else exc.message
         except Exception:
             failure, retry = "processing_error", True
         with self.db.transaction(self.wid, write=True) as (s,w):
