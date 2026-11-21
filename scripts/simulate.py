@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import re
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -300,6 +301,22 @@ def command_metrics(world: World) -> None:
           f" · by topic: {dict(Counter(n.topic for n in to_coordinator))}")
     live = Counter(a.changes[0]["item_id"] for a in approvals if a.status == "pending" and a.changes)
     print(f"Pending proposals per item (max): {max(live.values(), default=0)}")
+    claim_checks(world.directory / "app.log")
+
+
+def claim_checks(log: Path) -> None:
+    """Counts from the deputy's claim check (docs/plans/2026-11-22-deputy-claim-check.md)."""
+    pattern = re.compile(r"Claim check: sentences=(\d+) removed=(\d+) status=(\d+) self_acts=(\d+)")
+    rows = [tuple(map(int, m.groups())) for m in pattern.finditer(log.read_text())] if log.exists() else []
+    if not rows:
+        print("Claim check: no deputy answers logged.")
+        return
+    replies = len(rows)
+    with_removal = sum(1 for _, removed, _, _ in rows if removed)
+    print(f"Claim check over {replies} answers: sentences {sum(r[0] for r in rows)}, removed {sum(r[1] for r in rows)} "
+          f"(in {with_removal} answers, {100 * with_removal / replies:.0f}%), status sentences stated by code instead "
+          f"{sum(r[2] for r in rows)}, first-person acts {sum(r[3] for r in rows)} "
+          f"(in {sum(1 for r in rows if r[3])} answers)")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -328,10 +345,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> None:
     import logging
-    # Simulated users should see only chat output, not the app's internal warnings.
-    logging.disable(logging.WARNING)
     args = parse_args(argv)
     args.dir.mkdir(parents=True, exist_ok=True)
+    # Simulated users see only chat output. The app's warnings, including the claim check's
+    # counts, go to a log file in the world's folder, which `metrics` reads.
+    handler = logging.FileHandler(args.dir / "app.log")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
+    logging.basicConfig(level=logging.WARNING, handlers=[handler])
+    logging.getLogger("httpx").setLevel(logging.ERROR)
+    logging.getLogger("wedding_ops.deputy").setLevel(logging.INFO)  # the claim check counts
     # One lock per world: simulated users act one at a time, like a real queue.
     with open(args.dir / ".lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)

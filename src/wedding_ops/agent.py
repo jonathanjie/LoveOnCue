@@ -549,7 +549,7 @@ class Assistant:
             summary = f"Send {'an URGENT' if urgent else 'a'} problem report to the coordinator and your team: {title}."
         if details != title:
             # The preview shows exactly what the command will send.
-            summary += f"\nDetails: \u201c{details}\u201d"
+            summary += f"\nYour words, as sent: \u201c{details}\u201d"
         if urgent:
             # The bot is never the emergency channel; say so before anything else.
             summary = emergency_line(snapshot) + "\n" + summary

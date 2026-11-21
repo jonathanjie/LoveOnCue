@@ -217,6 +217,11 @@ class Queries:
         return (f"Not acknowledged: latest {label} ({len(group) - len(missing)} of {len(group)} acknowledged)",
                 ", ".join(missing[:12]) + (" and others" if len(missing) > 12 else ""))
 
+    def names(self) -> list[str]:
+        """Every person's name in this wedding. Used only to find names in model-written text; never shown."""
+        with self.db.sessions() as s:
+            return list(s.scalars(select(Person.name).where(Person.wedding_id == self.wid)).all())
+
     def help_contact(self, member_id: str) -> tuple[list[str], list[str]]:
         """A member's roles and the active coordinators' names, for explaining a refusal."""
         with self.db.transaction(self.wid) as (s, _):

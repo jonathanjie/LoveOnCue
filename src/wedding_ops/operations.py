@@ -483,7 +483,7 @@ class Operations:
         s.add(incident)
         words = f"\u201c{one_line(cmd.details, 600)}\u201d"
         message = (f"{cmd.severity.upper()} report from {reporter} ({roles}): {one_line(cmd.title, 160)}\n"
-                   f"Details: {words}")
+                   f"Their words: {words}")
         for member in team_targets:
             notify(s, wid, member.id, "incident", message, f"incident:{incident.id}", now,
                    teams=audience, permission=permission)
