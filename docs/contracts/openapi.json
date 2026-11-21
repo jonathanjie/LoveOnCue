@@ -385,6 +385,23 @@
         }
       }
     },
+    "/api/brief": {
+      "get": {
+        "summary": "Brief",
+        "description": "The coordinator brief for the Mini App. Read-only; coordinator_brief checks timeline:approve.",
+        "operationId": "brief_api_brief_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/audit": {
       "get": {
         "summary": "Audit Log",

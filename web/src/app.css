@@ -198,7 +198,8 @@ main.screen { max-width: 640px; margin: 0 auto; padding: 12px 16px 20px; }
 button.row:active { background: var(--well); }
 .row-main { flex: 1; min-width: 0; }
 .row-title { font-weight: 600; line-height: 1.35; }
-.row-meta { margin-top: 2px; color: var(--ink-faint); font-size: var(--text-meta); }
+.row-meta { margin-top: 2px; color: var(--ink-faint); font-size: var(--text-meta); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-meta.wrap { white-space: normal; }
 .row-end { flex: none; display: flex; align-items: center; gap: 8px; }
 .chevron { width: 20px; height: 20px; color: var(--ink-faint); flex: none; }
 .row.tone-urgent { box-shadow: inset 4px 0 0 var(--clay); }
@@ -400,6 +401,10 @@ dialog.sheet[open] { animation: sheet-in 240ms cubic-bezier(0.23, 1, 0.32, 1); }
 .stat-label { margin-top: 2px; font-size: 12px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat.is-alert .stat-value { color: var(--clay); }
 button.stat { border: 0; background: transparent; text-align: left; }
+.stat.is-action .stat-value { color: var(--evergreen); }
+fieldset.field { margin: 14px 0 0; padding: 0; border: 0; }
+button.cue-body { width: 100%; min-height: 28px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+button.topbar-names { min-height: 44px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; }
 
 /* Switch between lists instead of stacking them. */
 .segmented { display: flex; gap: 4px; padding: 4px; margin-bottom: 10px; border-radius: 999px; background: var(--well); }
@@ -431,7 +436,7 @@ button.stat { border: 0; background: transparent; text-align: left; }
 .alert-bar { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; margin-top: 10px; padding: 8px 14px; border: 0; border-radius: var(--radius-card); background: var(--clay-wash); color: var(--clay); text-align: left; font-weight: 650; }
 .alert-bar svg { width: 22px; height: 22px; flex: none; }
 .alert-bar .row-main { color: var(--ink); font-weight: 600; }
-.alert-bar .row-meta { color: var(--clay); }
+.alert-bar .row-meta { display: block; color: var(--clay); }
 
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
 .tile {

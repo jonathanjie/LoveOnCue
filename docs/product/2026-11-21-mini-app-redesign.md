@@ -107,12 +107,23 @@ segmented chips, bottom sheets over a list, pill buttons.
 and the read status of the latest announcement or timeline update ("4 of 6 read").
 It uses the same `timeline:approve` check as the Telegram brief. Helpers get 403.
 
-## 7. Build plan and resume point
+## 7. Build and verification (21–22 November 2026)
 
-1. Split `web/src/app.ts` into small modules: `api`, `format`, `ui`, one file per screen.
-2. Add `GET /api/brief` test-first. Build Home, the tabs, sheets and screens above.
-   Delete the chat panel and the floor plan.
-3. Update `scripts/ui-smoke.py` for the new labels; add a phone-width pass for each tab.
-4. Checks: `pytest`, `npm run typecheck`, `npm run build`, `scripts/ui-smoke.py --url`
-   against a local demo server, phone screenshots of each main view into `docs/screenshots/mini-app/`.
-5. Open a PR stacked on PR #4. Do not deploy to staging without asking.
+Built on branch `claude/loveoncue-miniapp-redesign`, stacked on PR #4.
+
+- `web/src/app.ts` is now the shell only. Each screen is in `web/src/screens/`. Shared
+  pieces: `api.ts` (same endpoints, cookie and CSRF), `access.ts` (grants decide which
+  buttons show; the server checks again), `format.ts` (plain words), `ui.ts` (sheets, rows, tiles).
+- Removed: the chat panel (chat lives in Telegram), the floor plan, `window.confirm()` and `window.prompt()`.
+- New server code: only `GET /api/brief` (read-only, coordinator-only, tests in `tests/test_integrations.py`).
+- Checks run: `pytest` (172 passed, 1 PostgreSQL skip, 91.6% coverage), `npm run typecheck`,
+  `npm run build`, `scripts/export-contracts.py`, `scripts/http-smoke.py`, and
+  `scripts/ui-smoke.py` both over HTTP against a local demo server and with `--bridge`.
+- Phone screenshots of each view: `docs/screenshots/mini-app/`.
+
+Not verified: inside the real Telegram client (theme, back button, safe areas), and on staging.
+Do not deploy to staging without asking.
+
+**Follow-ups noticed, not in scope:** some server-written notice text still has system words
+(for example "Coordinator-approved timeline v2"), and the assistant check-in switch
+(`set_deputy_enabled`) has no state in the snapshot, so the app cannot show it yet.
