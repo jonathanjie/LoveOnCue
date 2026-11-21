@@ -429,3 +429,11 @@ def test_expired_proposals_are_not_superseded_and_report_details_drop_the_comman
     confirmed_report(chat, "driver", "/report bridal car flat tyre")
     with db.sessions() as s:
         assert s.scalars(select(Incident)).one().details == "bridal car flat tyre"
+
+
+def test_the_couple_does_not_get_operational_incident_notices(chat_factory, ops):
+    ops.execute(Actor(WEDDING, "coordinator"), {"type": "report_incident", "kind": "other",
+                "title": "Six helpers have not acknowledged", "details": "Staff names"}, "couple-incident")
+    chat = chat_factory()
+    chat.worker.tick()
+    assert chat.notices("couple", "incident") == []

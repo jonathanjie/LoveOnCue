@@ -233,3 +233,25 @@ def test_draft_buttons_say_what_they_do():
     markup = reply_markup(coordinator=False, guest_lookup=False, draft_id="d1", app_url="http://x",
                           draft_type="report_incident")
     assert markup["inline_keyboard"][0] == [{"text": "Send report", "callback_data": "confirm:d1"}]
+
+
+def test_context_lists_only_the_actions_this_role_may_use(deputy_chat):
+    planner = StubPlanner()
+    chat = deputy_chat(planner)
+    chat.send("couple", "hi")
+    couple = planner.calls[-1][1]["content"]
+    assert "Actions you may offer" in couple and "draft_announcement" not in couple and "draft_delay" not in couple
+    chat.send("coordinator", "hi")
+    assert "draft_announcement" in planner.calls[-1][1]["content"]
+
+
+def test_context_shows_the_persons_recent_recorded_actions(deputy_chat):
+    planner = StubPlanner()
+    chat = deputy_chat(planner)
+    draft = chat.send("registration-a", "/arrival Grace Tan")
+    chat.tap("registration-a", f"confirm:{draft.telegram_draft_id}")
+    withdraw = chat.send("registration-a", "/withdraw")
+    chat.tap("registration-a", f"confirm:{withdraw.telegram_draft_id}")
+    chat.send("registration-a", "did my withdraw go through")
+    context = planner.calls[-1][1]["content"]
+    assert "Their recorded actions" in context and "withdrew" in context and "Grace Tan" in context

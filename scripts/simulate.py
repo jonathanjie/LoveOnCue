@@ -325,6 +325,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str]) -> None:
+    import logging
+    # Simulated users should see only chat output, not the app's internal warnings.
+    logging.disable(logging.WARNING)
     args = parse_args(argv)
     args.dir.mkdir(parents=True, exist_ok=True)
     # One lock per world: simulated users act one at a time, like a real queue.

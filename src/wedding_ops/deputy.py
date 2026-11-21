@@ -69,7 +69,11 @@ romanised Mandarin, Hokkien or Malay; understand them, and reply in plain Englis
 If you are talking to the coordinator, call them "you", never by name. Answer every
 question in their message. When you draft something, say "tap the button below to send it"
 rather than that you cannot do it. You do check in with helpers about their own tasks
-automatically, but you cannot pass messages between people yet.
+automatically. Reports you draft reach the coordinator and the right team once the person
+taps the button, but you cannot message one specific person on their behalf.
+Never give directions, instructions or venue details that the CONTEXT does not contain:
+if the coordinator has not said where guests should go, say so. Only offer actions listed
+under "Actions you may offer" in the CONTEXT.
 
 Facts: use only the CONTEXT below. If it does not say, say you do not know and name the
 coordinator to ask. Never invent times, names, tables or statuses. Never say something has
@@ -89,7 +93,8 @@ the person must then tap Confirm. Choose "none" for questions and chat.
   thumbs up) and the context shows an update waiting. A question is never an acknowledgement.
 For every draft, put the facts from the whole conversation in details, in one or two
 plain sentences.
-- draft_announcement: coordinator only. text = what the coordinator asked you to tell everyone,
+- draft_announcement: coordinator only, whenever they ask you to tell, inform, broadcast or
+  announce something to everyone or all helpers. text = what they asked you to tell everyone,
   tidied into one or two clear sentences. Add no facts, places or instructions they did not
   give. They tap a button to send it.
 - stop_checkins / resume_checkins: the person wants you to stop or restart checking in on them.
@@ -218,6 +223,10 @@ class Deputy:
                    and not n["acknowledged_at"]]
         if waiting:
             lines += ["", "Update waiting for their acknowledgement:", f"- {waiting[0]['message'][:300]}"]
+        lines += ["", "Actions you may offer this person: " + ", ".join(allowed_actions(me))]
+        recent = self.operations.recent_actions(actor, zone)
+        if recent:
+            lines += ["", "Their recorded actions in the last hour:"] + [f"- {line}" for line in recent]
         if "family:status" in me["grants"]:
             lines += ["", "Family status (as recorded; unknown means nobody has reported them):"]
             lines += [f"- {p['name']} ({p['relationship']}): {p['attendance']}" for p in self.queries.family(actor)]
@@ -265,6 +274,21 @@ class Deputy:
             s.execute(delete(ConversationTurn).where(
                 ConversationTurn.wedding_id == self.queries.wid, ConversationTurn.member_id == member_id,
                 ConversationTurn.id.not_in(keep)))
+
+
+def allowed_actions(me: dict) -> list[str]:
+    """The plan actions this role can actually complete; Operations still enforces them."""
+    grants, coordinator = set(me["grants"]), "coordinator" in me["roles"]
+    actions = ["find_guest"] if "guests:seating" in grants else []
+    actions += ["draft_incident", "draft_urgent_incident", "report_late", "withdraw_last", "acknowledge",
+                "stop_checkins", "resume_checkins"]
+    if "timeline:propose" in grants:
+        actions.append("draft_delay")
+    if "guests:arrival" in grants:
+        actions.append("draft_arrival")
+    if coordinator:
+        actions += ["draft_announcement", "pause_checkins_all", "resume_checkins_all"]
+    return actions
 
 
 def grounded(reply: str, context: str) -> bool:

@@ -222,6 +222,8 @@ class Operations:
                 audience = sorted({mt.team_id for mt in rows_for_edges(s, MemberTeam, wid) if mt.member_id in target_ids})
             else:
                 target_members = recipients(s, wid, teams=audience)
+            # Incidents are operational: the couple is never interrupted with staff problems.
+            target_members = [m for m in target_members if "couple" not in m.roles]
             incident = Incident(id=new_id(), wedding_id=wid, kind=cmd.kind, severity=cmd.severity,
                                 title=cmd.title, details=cmd.details, subject_person_id=cmd.subject_person_id,
                                 task_id=cmd.task_id, reported_by=a.member.id, audience_team_ids=audience,
@@ -532,6 +534,29 @@ class Operations:
             notice_id, message = waiting[-1].id, waiting[-1].message
         self.execute(actor, {"type": "acknowledge_notification", "notification_id": notice_id}, f"ack:{notice_id}")
         return message
+
+    def recent_actions(self, actor: Actor, zone: ZoneInfo, hours: int = 1) -> list[str]:
+        """What this person recorded recently, in plain words, for the deputy's context."""
+        with self.db.transaction(self.wid) as (s, _):
+            cutoff = self.clock.now() - timedelta(hours=hours)
+            events = sorted((e for e in rows(s, AuditEvent, self.wid)
+                             if e.actor_id == actor.member_id and e.created_at >= cutoff
+                             and e.event_type in {"arrival", "report_incident", "propose_delay", "report_withdrawn"}),
+                            key=lambda e: e.created_at)
+            lines = []
+            for event in events[-8:]:
+                at = event.created_at.astimezone(zone).strftime("%H:%M")
+                result = event.detail.get("result", {})
+                if event.event_type == "arrival":
+                    names = [row(s, Person, self.wid, i).name for i in result.get("changed", [])]
+                    lines.append(f"{at} recorded arrival of {', '.join(names) or 'nobody new'}")
+                elif event.event_type == "report_withdrawn":
+                    lines.append(f"{at} withdrew a report ({event.detail.get('kind', 'report')})")
+                elif event.event_type == "propose_delay":
+                    lines.append(f"{at} sent a delay request")
+                else:
+                    lines.append(f"{at} sent a problem report")
+            return lines
 
     def latest_report(self, actor: Actor) -> dict | None:
         """The sender's most recent confirmed report that can still be withdrawn."""
