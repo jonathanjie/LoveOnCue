@@ -340,8 +340,11 @@ class Assistant:
             found = self._family(actor, intent.query)
             if intent.kind == "arrival" and not found:
                 found = self._guests_for_arrival(actor, intent.query, snapshot)
-            plural = "parents" in intent.query.lower() and ("bride" in intent.query.lower() or "groom" in intent.query.lower())
-            if not found or (len(found) != 1 and not (intent.kind == "arrival" and plural and len(found) == 2)):
+            several = self._several_arrivals(actor, intent.query, snapshot) if intent.kind == "arrival" and len(found) != 1 else []
+            found = several or found
+            plural = bool(several) or ("parents" in intent.query.lower()
+                                       and ("bride" in intent.query.lower() or "groom" in intent.query.lower()))
+            if not found or (len(found) != 1 and not (intent.kind == "arrival" and plural and (several or len(found) == 2))):
                 who = "guest or family member" if intent.kind == "arrival" else "family member"
                 return {"kind": "clarification", "message": f"I could not tell which {who} you mean. Send me their full name.", "data": []}
             if intent.kind == "arrival":
@@ -460,6 +463,8 @@ class Assistant:
         lines = ["\u2022 " + describe_change(change, zone, places) for change in preview["changes"]]
         head = "Change the run sheet:" if coordinator else "Ask the coordinator to approve this run-sheet change:"
         parts = [head, *lines]
+        if len(preview["changes"]) > 1:
+            parts.append("Later items move too, so that nothing overlaps.")
         if preview["blockers"]:
             parts.append("Blocked: " + "; ".join(preview["blockers"]) + ". This cannot be approved as it is.")
         if preview["replaces"]:
@@ -484,6 +489,19 @@ class Assistant:
         command = {"type": "task_action", "task_id": task["id"], "action": "complete", "expected_version": task["version"]}
         draft = self.operations.draft(actor, command, f"Mark your task done: {task['title']}. The coordinator will see it.")
         return {"kind": "confirmation", "message": "Check this before I mark it done.", "draft": draft}
+
+    def _several_arrivals(self, actor: Actor, query: str, snapshot: dict) -> list[dict]:
+        """"Robert Tan and Grace Tan": each name must match exactly one person, or nothing is drafted."""
+        names = [part.strip() for part in re.split(r",|&|\band\b", query) if part.strip()]
+        if len(names) < 2:
+            return []
+        people = []
+        for name in names:
+            matches = self._family(actor, name) or self._guests_for_arrival(actor, name, snapshot)
+            if len(matches) != 1:
+                return []
+            people.append(matches[0])
+        return list({person["id"]: person for person in people}.values())
 
     def _guests_for_arrival(self, actor: Actor, query: str, snapshot: dict) -> list[dict]:
         """Regular guests, for roles that may record any guest's arrival (registration and coordinators)."""

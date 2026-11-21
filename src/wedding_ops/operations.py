@@ -657,7 +657,7 @@ class Operations:
         zone, places = ZoneInfo(w.timezone), self._place_names(s)
         moved_place = any(c.get("new_location_id") for c in approval.changes)
         # A place change moves guests, which every helper handles; a time change concerns the affected teams.
-        audience = ([m for m in rows(s, Member, self.wid) if m.active and "couple" not in m.roles] if moved_place
+        audience = ([m for m in rows(s, Member, self.wid) if m.active] if moved_place
                     else recipients(s, self.wid, teams=approval.affected_team_ids))
         for member in audience:
             if member.id == a.member.id:
@@ -667,6 +667,12 @@ class Operations:
             if not relevant:
                 continue
             lines = "\n".join("• " + describe_change(c, zone, places) for c in relevant)
+            if "couple" in member.roles:
+                # The couple are told what changed, but have no tasks to check and nothing to acknowledge.
+                notify(s, self.wid, member.id, "schedule_info",
+                       f"Your coordinator updated the run sheet (version {w.timeline_version}):\n{lines}",
+                       f"timeline:{w.timeline_version}", now, timeline_version=w.timeline_version)
+                continue
             notify(s, self.wid, member.id, "timeline_updated",
                    f"Run sheet updated by the coordinator (version {w.timeline_version}):\n{lines}\n"
                    f"Check your tasks. {ACK_PROMPT}",

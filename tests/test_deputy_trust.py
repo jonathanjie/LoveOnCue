@@ -355,7 +355,7 @@ def test_the_couple_are_not_told_to_check_tasks_or_chased_after_a_place_change(d
     chat = deputy_chat(planner)
     draft = chat.send("coordinator", "move speeches to ballroom")
     chat.tap("coordinator", f"confirm:{draft.telegram_draft_id}")
-    assert chat.notices("couple", "timeline_updated") == []
+    assert chat.notices("couple", "timeline_updated") == []  # Told in plain words instead (schedule_info).
     assert chat.notices("usher", "timeline_updated")
 
 
@@ -394,3 +394,57 @@ def test_the_coordinator_can_state_team_task_times(deputy_chat):
     reply = deputy_chat(planner).send("coordinator", "wat needs my attention now").message
     assert reply == "Ryan hasn't acknowledged Desk B signage, due 17:40."
     assert "17:40 Confirm Desk B signage (Ryan Goh" in context_of(planner)
+
+
+# Gate v4 findings ----------------------------------------------------------------------------------
+
+def test_two_names_make_one_arrival_draft(deputy_chat, db):
+    planner = StubPlanner({"robert and grace reach": DeputyPlan(reply="Drafted.", action="draft_arrival",
+                                                                text="Robert Tan and Grace Tan")})
+    chat = deputy_chat(planner)
+    draft = chat.send("family-liaison", "robert and grace reach")
+    assert "Record confirmed arrival for Robert Tan, Grace Tan." in draft.message
+    chat.tap("family-liaison", f"confirm:{draft.telegram_draft_id}")
+    with db.sessions() as s:
+        assert {p.attendance for p in s.scalars(select(Person).where(Person.name.in_(["Robert Tan", "Grace Tan"])))} == {"onsite"}
+
+
+def test_a_live_older_button_says_what_it_sends(deputy_chat):
+    planner = StubPlanner({"car spoil": DeputyPlan(reply="Drafted.", action="tell_coordinator", text="Car flat tyre"),
+                           "what time dinner": DeputyPlan(reply="Dinner is at 19:00.")})
+    chat = deputy_chat(planner)
+    chat.send("driver", "car spoil")
+    reply = chat.send("driver", "what time dinner").message
+    assert "Your earlier draft is still unsent. Its button sends only this: Send a problem report" in reply
+
+
+def test_a_message_action_without_a_message_keeps_the_answer(deputy_chat):
+    planner = StubPlanner({"who never ack": DeputyPlan(reply="Jamie and Jordan have not acknowledged yet.",
+                                                       action="send_message", to="Jamie")})
+    assert deputy_chat(planner).send("coordinator", "who never ack").message == "Jamie and Jordan have not acknowledged yet."
+
+
+def test_the_coordinator_sees_who_has_not_acknowledged_as_a_record(deputy_chat, ops):
+    ops.execute(Actor(WEDDING, "coordinator"), {"type": "broadcast", "team_ids": ["ushers", "transport"],
+                "message": "Ceremony moves inside"}, "ack-record")
+    planner = StubPlanner()
+    chat = deputy_chat(planner)
+    chat.worker.tick()
+    chat.send("coordinator", "who never ack yet")
+    trusted_part = context_of(planner).split("Coordinator brief")[0]
+    assert "[record] Not acknowledged: latest announcement (0 of 2 acknowledged). Not yet: Jamie Lim, Jordan Tay" in trusted_part
+
+
+def test_lookups_a_role_may_not_run_are_explained(deputy_chat):
+    planner = StubPlanner({"where sarah sit": DeputyPlan(reply="Let me check.", find_guests=["Sarah Tan"])})
+    assert "Guest seating is for the registration team and ushers." in deputy_chat(planner).send("mc", "where sarah sit").message
+
+
+def test_the_couple_hear_about_a_venue_change_without_task_language(deputy_chat):
+    planner = StubPlanner({"move ceremony to ballroom": DeputyPlan(
+        reply="Here it is.", action="run_sheet_change", text="ceremony", place="Cedar Ballroom")})
+    chat = deputy_chat(planner)
+    draft = chat.send("coordinator", "move ceremony to ballroom")
+    chat.tap("coordinator", f"confirm:{draft.telegram_draft_id}")
+    notice = chat.last("couple", "schedule_info")
+    assert "now at Cedar Ballroom" in notice.message and "tasks" not in notice.message and "Acknowledge" not in notice.message
