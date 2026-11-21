@@ -84,7 +84,8 @@ def private_callback(update: dict, token: str) -> tuple[str, str | None, str] | 
 
 
 HELP = ("Tap a button or type a question. Use /now for your tasks, /location for directions, "
-        "or /knowledge followed by a question. Photo reviews are read-only when enabled. "
+        "or /knowledge followed by a question. To report a problem, describe it in your own words "
+        "or send /report followed by what happened. Photo reviews are read-only when enabled. "
         "Reports need confirmation. "
         "Schedule changes need human approval in LoveOnCue.")
 
@@ -95,7 +96,10 @@ def render_reply(result: dict) -> str:
         message = "Model unavailable; using deterministic commands.\n" + message
     if result.get("draft"):
         draft = result["draft"]
-        return f"{message}\n\n{draft['summary']}\n\nTap Confirm report or send:\n/confirm {draft['id']}\n\nExpires in five minutes. Timeline proposals still need coordinator approval in the application."
+        note = ("\nTimeline changes still need the coordinator's approval."
+                if draft.get("command_type") == "propose_delay" else "")
+        return (f"{message}\n\n{draft['summary']}\n\nTap Confirm report or send:\n/confirm {draft['id']}"
+                f"\n\nExpires in five minutes.{note}")
     for item in result.get("data", [])[:8]:
         if result["kind"] == "tasks":
             message += f"\n• {item['title']} · due {item['due_at']} · {item['state']}"
@@ -112,6 +116,21 @@ def render_reply(result: dict) -> str:
         else:
             message += "\n• " + str(item.get("name") or f"Table {item.get('label', '')}") + ": " + str(item.get("directions") or item.get("location_id", ""))
     return message[:3900]
+
+
+def confirmation_reply(result: dict) -> str:
+    """Tell the reporter what their confirmed report did, in plain words."""
+    if result.get("replayed"):
+        return "Already recorded\nThis report was confirmed earlier. No new change was made."
+    kind = result.get("command_type")
+    if kind == "propose_delay":
+        return ("Report confirmed\nProposal awaiting the coordinator's approval. The run sheet does not change until "
+                "they approve it. I will tell you their decision.")
+    if kind == "report_incident":
+        return "Report sent\nThe coordinator and your team have been told."
+    if kind == "arrival":
+        return "Arrival recorded\nThe family liaison and photographer have been told."
+    return "Report confirmed."
 
 
 class TelegramIngress:
@@ -210,14 +229,7 @@ class TelegramIngress:
                 member_id = actor.member_id
                 confirmation = re.fullmatch(r"/confirm\s+([a-zA-Z0-9_-]{1,64})", text)
                 if confirmation:
-                    command_result = self.operations.confirm(actor, confirmation[1])
-                    if command_result.get("replayed"):
-                        result = "Already recorded\nThis report was confirmed earlier. No new change was made."
-                    elif command_result["status"] == "pending":
-                        result = ("Report confirmed\nProposal awaiting approval. A coordinator must review it. "
-                                  "The run sheet is unchanged.")
-                    else:
-                        result = f"Report confirmed\nTimeline version {command_result['timeline_version']}."
+                    result = confirmation_reply(self.operations.confirm(actor, confirmation[1]))
                 elif text in {"/brief", "/brief_more"}:
                     brief = self.assistant.queries.coordinator_brief(actor)
                     result = render_brief(brief, expanded=text == "/brief_more")

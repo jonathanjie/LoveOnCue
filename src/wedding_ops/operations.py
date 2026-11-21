@@ -192,8 +192,10 @@ class Operations:
                                 task_id=cmd.task_id, reported_by=a.member.id, audience_team_ids=audience,
                                 status="open", created_at=now)
             s.add(incident)
+            reporter = row(s, Person, wid, a.member.person_id).name
             for member in target_members:
-                notify(s, wid, member.id, "incident", f"{cmd.severity.upper()}: {cmd.title}. {cmd.details}",
+                notify(s, wid, member.id, "incident",
+                       f"{cmd.severity.upper()} report from {reporter} ({', '.join(a.member.roles)}): {cmd.title}\n{cmd.details}",
                        f"incident:{incident.id}", now, teams=audience,
                        permission="family:status" if cmd.kind == "location_unconfirmed" else None)
             return {"id": incident.id, "status": "open"}
@@ -447,7 +449,7 @@ class Operations:
             draft = ActionDraft(id=new_id(), wedding_id=self.wid, member_id=a.member.id, command=cmd.model_dump(mode="json"),
                                 summary=summary, created_at=now, expires_at=now + timedelta(minutes=5))
             s.add(draft)
-            return {"id": draft.id, "summary": summary, "expires_at": iso(draft.expires_at)}
+            return {"id": draft.id, "summary": summary, "expires_at": iso(draft.expires_at), "command_type": cmd.type}
 
     def confirm(self, actor: Actor, draft_id: str) -> dict:
         require_human(actor)
@@ -460,9 +462,9 @@ class Operations:
             self.authorize(s, a, cmd)
             receipt = s.get(CommandReceipt, (self.wid, actor.member_id, f"draft:{draft.id}"))
             if receipt:
-                return receipt.result | {"replayed": True}
+                return receipt.result | {"replayed": True, "command_type": cmd.type}
             if draft.expires_at <= utcnow():
                 raise conflict("This interpretation expired. Report it again")
             result = self._execute_in_tx(s, w, actor, a, cmd, draft.command, f"draft:{draft.id}")
             draft.consumed_at = utcnow()
-            return result
+            return result | {"command_type": cmd.type}

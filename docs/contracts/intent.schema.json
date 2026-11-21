@@ -13,6 +13,8 @@
         "arrival",
         "missing_family",
         "delay",
+        "incident",
+        "urgent_incident",
         "unknown"
       ],
       "title": "Kind",

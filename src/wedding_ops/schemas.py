@@ -239,7 +239,7 @@ class ConfirmRequest(Strict):
 
 class Intent(Strict):
     """Untrusted model output. No approval, broadcast, admin, IDs or arbitrary tools."""
-    kind: Literal["now", "guest", "location", "vendor", "knowledge", "family_status", "arrival", "missing_family", "delay", "unknown"]
+    kind: Literal["now", "guest", "location", "vendor", "knowledge", "family_status", "arrival", "missing_family", "delay", "incident", "urgent_incident", "unknown"]
     query: Annotated[str, Field(max_length=160)] = ""
     minutes: int | None = Field(default=None, ge=1, le=180)
 
