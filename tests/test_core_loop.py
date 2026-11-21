@@ -406,3 +406,11 @@ def test_withdrawn_missing_person_notice_requires_family_permission(chat_factory
     with db.sessions() as s:
         notices = s.scalars(select(Notification).where(Notification.topic == "report_withdrawn")).all()
     assert notices and all(n.required_permission == "family:status" for n in notices)
+
+
+def test_coordinator_fallback_help_lists_coordinator_commands(chat_factory):
+    chat = chat_factory()
+    reply = chat.send("coordinator", "tell everyone the ceremony is moving inside").message
+    assert "/announce" in reply and "/approve" in reply and "/brief" in reply
+    helper = chat.send("usher", "tell everyone the ceremony is moving inside").message
+    assert "/announce" not in helper

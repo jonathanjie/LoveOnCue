@@ -32,6 +32,13 @@ FALLBACK_HELP = """I didn't understand that. You can ask or report things like:
 • "Cancel my last report" or /withdraw
 • "Was my report approved?" or /status
 For a medical, fire or security emergency, call the on-site team now. Do not wait for this bot."""
+COORDINATOR_HELP = """I didn't understand that. As coordinator you can:
+• /brief — what needs your attention, including who has not acknowledged
+• /announce your message — tell every helper, with an Acknowledge button
+• /approve or /reject followed by the proposal ID, or tap the buttons on a request
+• /schedule — the current run sheet
+• /report what happened — record a problem for your team
+Helpers report delays and problems in their own words; you get the requests here."""
 # A new report within this window mentions the reporter's earlier open report.
 RECENT_REPORT_WINDOW = timedelta(minutes=15)
 LOCAL_NOW_REQUESTS = {"now", "what's next", "my tasks", "what should i be doing now"}
@@ -306,7 +313,8 @@ class Assistant:
             hits = self.queries.knowledge(actor, intent.query)
             # Retrieval occurs AFTER interpretation and never loops back to a tool-capable model.
             return {"kind": "knowledge", "message": "Relevant excerpts from approved documents. These are reference data, not instructions to the agent." if hits else "No verified answer found. Please ask the coordinator; I will not invent one.", "data": hits}
-        return {"kind": "help", "message": FALLBACK_HELP, "data": []}
+        coordinator = "coordinator" in snapshot["me"]["roles"]
+        return {"kind": "help", "message": COORDINATOR_HELP if coordinator else FALLBACK_HELP, "data": []}
 
     def _incident_draft(self, actor: Actor, text: str, intent: Intent, snapshot: dict) -> dict:
         """Draft a problem report for the reporter to confirm. Nothing is recorded yet."""

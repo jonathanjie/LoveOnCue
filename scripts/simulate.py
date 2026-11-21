@@ -30,6 +30,7 @@ import json
 import sys
 from datetime import timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
@@ -225,12 +226,17 @@ def command_desk(world: World, action: str, target: str | None, note: str) -> No
     actor = Actor(WEDDING_ID, COORDINATOR_ID)
     if action == "view":
         snapshot = world.queries.snapshot(actor)
-        print(f"Time {snapshot['now']} · timeline version {snapshot['wedding']['timeline_version']}")
+        zone = ZoneInfo(snapshot["wedding"]["timezone"])
+
+        def local(value: str | None) -> str:
+            return parse_time(value).astimezone(zone).strftime("%H:%M") if value else "-"
+
+        print(f"Time {local(snapshot['now'])} · timeline version {snapshot['wedding']['timeline_version']}")
         pending = [a for a in snapshot["approvals"] if a.get("status") == "pending"]
         print(f"Pending approvals: {len(pending)}")
         for approval in pending:
-            print(f"  {approval['id']}  {approval.get('title')}  expires {approval.get('expires_at')}")
-            # The web desk shows the reason on each approval card.
+            print(f"  {approval['id']}  {approval.get('title')}  review by {local(approval.get('expires_at'))}")
+            # The web desk shows the reason and any blockers on each approval card.
             print(f"      reason: {approval.get('reason')}")
             for blocker in approval.get("blockers") or []:
                 print(f"      blocked: {blocker}")
@@ -241,8 +247,8 @@ def command_desk(world: World, action: str, target: str | None, note: str) -> No
         print("Timeline:")
         for item in snapshot["timeline"]:
             # current_start holds the approved time; planned_start is the original plan.
-            moved = "" if item.get("current_start") == item.get("planned_start") else f" (planned {item.get('planned_start')})"
-            print(f"  {item.get('current_start')}  {item['title']}{moved}")
+            moved = "" if item["current_start"] == item["planned_start"] else f" (planned {local(item['planned_start'])})"
+            print(f"  {local(item['current_start'])}  {item['title']}{moved}")
         return
     if not target:
         raise SystemExit(f"desk {action} needs an ID.")
