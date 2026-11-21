@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import (
+    false, true,
     JSON, Boolean, CheckConstraint, DateTime, ForeignKey, ForeignKeyConstraint,
     Index, Integer, MetaData, String, Text, UniqueConstraint,
 )
@@ -60,6 +61,9 @@ class Wedding(Base):
     state_version: Mapped[int] = mapped_column(Integer, default=1)
     timeline_version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    # The coordinator's standing orders for the deputy, and its on/off switch.
+    deputy_orders: Mapped[str] = mapped_column(Text, default="", server_default="")
+    deputy_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     __table_args__ = (CheckConstraint("status IN ('draft','live','archived')", name="status"),)
 
 
@@ -118,6 +122,8 @@ class Member(TenantRecord, Base):
     roles: Mapped[list] = mapped_column(JSON, default=list)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     telegram_user_id: Mapped[str | None] = mapped_column(String(32))
+    # Set when the member says "stop pinging me": the deputy sends them nothing unprompted except urgent items.
+    deputy_quiet: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     __table_args__ = (
         UniqueConstraint("wedding_id", "id"), UniqueConstraint("wedding_id", "person_id"),
         UniqueConstraint("wedding_id", "telegram_user_id"),
@@ -416,3 +422,37 @@ class AuthReplay(Base):
     digest: Mapped[str] = mapped_column(String(64), primary_key=True)
     wedding_id: Mapped[str] = mapped_column(String(64), ForeignKey("weddings.id"))
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+class ConversationTurn(TenantRecord, Base):
+    """Short-lived chat memory for the deputy: the last few turns per person, deleted after 12 hours."""
+    __tablename__ = "conversation_turns"
+    member_id: Mapped[str] = mapped_column(String(64))
+    role: Mapped[str] = mapped_column(String(16))
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    __table_args__ = (
+        UniqueConstraint("wedding_id", "id"),
+        ForeignKeyConstraint(["wedding_id", "member_id"], ["members.wedding_id", "members.id"]),
+        CheckConstraint("role IN ('user','assistant')", name="role"),
+        Index("ix_conversation_turns_member", "wedding_id", "member_id", "created_at"),
+    )
+
+
+class DeputyPing(TenantRecord, Base):
+    """A question the deputy sent on its own, paired with the answer or its expiry."""
+    __tablename__ = "deputy_pings"
+    recipient_id: Mapped[str] = mapped_column(String(64))
+    task_id: Mapped[str | None] = mapped_column(String(64))
+    reason: Mapped[str] = mapped_column(String(80))
+    message: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    answered_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    answer: Mapped[str | None] = mapped_column(Text)
+    __table_args__ = (
+        UniqueConstraint("wedding_id", "id"),
+        ForeignKeyConstraint(["wedding_id", "recipient_id"], ["members.wedding_id", "members.id"]),
+        Index("ix_deputy_pings_recipient", "wedding_id", "recipient_id", "created_at"),
+    )
+

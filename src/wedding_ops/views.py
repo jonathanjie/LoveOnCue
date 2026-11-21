@@ -11,7 +11,7 @@ from .clock import Clock, iso
 from .db import Database
 from .errors import missing
 from .models import (
-    Approval, AuditEvent, Incident, KnowledgeDocument, Location, Member, MemberTeam,
+    Approval, AuditEvent, DeputyPing, Incident, KnowledgeDocument, Location, Member, MemberTeam,
     Notification, Person, SeatingTable, Task, TaskDependency, Team, TimelineItem, Vendor, Wedding,
 )
 from .policy import Access, Actor, load_access, require_human
@@ -184,6 +184,12 @@ class Queries:
             if failures:
                 title = "1 delivery problem" if failures == 1 else f"{failures} delivery problems"
                 followups.append((title, "Check recipient enrollment and review failed notices."))
+            pings = [p for p in rows(session, DeputyPing, self.wid)]
+            if pings:
+                answered = sum(p.answered_at is not None for p in pings)
+                waiting = sum(p.answered_at is None and p.expires_at > now for p in pings)
+                notes.append((f"Assistant activity: {len(pings)} check-ins sent",
+                              f"{answered} answered, {waiting} waiting. Replies reach you as they come in."))
             pending_ack = self._latest_unacknowledged(session, owners)
             if pending_ack:
                 followups.insert(0, pending_ack)  # First, so the short brief always shows it.

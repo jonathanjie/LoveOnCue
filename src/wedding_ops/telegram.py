@@ -79,7 +79,7 @@ def private_callback(update: dict, token: str) -> tuple[str, str | None, str] | 
         return None
     command = None
     if isinstance(data, str) and len(data) <= 64:
-        confirmation = re.fullmatch(r"(confirm|ack|approve|reject):([A-Za-z0-9_-]{1,56})", data)
+        confirmation = re.fullmatch(r"(confirm|ack|approve|reject|taskack):([A-Za-z0-9_-]{1,56})", data)
         command = f"/{confirmation[1]} {confirmation[2]}" if confirmation else NAVIGATION.get(data)
     return sender, command, callback_id
 
@@ -164,6 +164,8 @@ class TelegramIngress:
                  photo_reviewer: Callable[[bytes, str], PhotoReview] | None = None,
                  photo_transport: httpx.BaseTransport | None = None):
         self.db, self.settings, self.clock, self.auth = db, settings, clock, auth
+        # Set to a Deputy to answer free-form messages conversationally (ADR 0003).
+        self.deputy = None
         self.assistant, self.operations, self.wid = assistant, operations, settings.wedding_id
         self.photo_reviewer = photo_reviewer
         self.photo_transport = photo_transport
@@ -188,6 +190,25 @@ class TelegramIngress:
         if error.message == "Your role does not permit this action":
             return f"Your role ({', '.join(roles)}) does not permit this action. Ask {contact} if you need it."
         return f"{error.message}. Ask {contact} if you need help."
+
+    def _deputy_command(self, actor, command: str) -> str:
+        """Opt-out, the coordinator's on/off switch, and the On it button on a deputy ping."""
+        if command.startswith("taskack"):
+            task_id = command.split()[1]
+            version = next(t["version"] for t in self.assistant.queries.snapshot(actor)["tasks"] if t["id"] == task_id)
+            self.operations.execute(actor, {"type": "task_action", "task_id": task_id, "action": "acknowledge",
+                                            "expected_version": version}, f"taskack:{task_id}:{version}")
+            from .deputy import Heartbeat
+            Heartbeat(self.db, self.wid, self.clock).record_answer(actor.member_id, "On it", acknowledged=True)
+            return "Thanks, marked as acknowledged. The coordinator can see it."
+        if command in {"quiet", "unquiet"}:
+            self.operations.set_deputy_quiet(actor, command == "quiet")
+            return ("Okay, I won't message you unprompted for the rest of the event, except urgent items. "
+                    "Send /unquiet to undo." if command == "quiet" else "Okay, I may check in with you again.")
+        enabled = command.endswith("on")
+        self.operations.set_deputy_enabled(actor, enabled)
+        return ("Deputy on. I will chase unacknowledged tasks and keep you posted." if enabled else
+                "Deputy off. I will not ping anyone; the plain reminders are back. Send /deputy on to resume.")
 
     def _decide(self, actor, decision: str, approval_id: str, note: str) -> str:
         """A coordinator's explicit Approve or Reject from Telegram. The model is not involved."""
@@ -287,6 +308,8 @@ class TelegramIngress:
                     result = confirmation_reply(self.operations.confirm(actor, confirmation[1]))
                 elif decision := re.fullmatch(r"/(approve|reject)\s+([A-Za-z0-9_-]{1,64})(?:\s+(.+))?", text, re.S):
                     result = self._decide(actor, decision[1], decision[2], (decision[3] or "").strip())
+                elif deputy_command := re.fullmatch(r"/(quiet|unquiet|deputy\s+(?:on|off)|taskack\s+[A-Za-z0-9_-]{1,64})", text):
+                    result = self._deputy_command(actor, deputy_command[1])
                 elif text.startswith("/announce"):
                     result, draft_id = self._announce(actor, text[len("/announce"):].strip())
                 elif re.fullmatch(r"/ack(\s+[A-Za-z0-9_-]{1,64})?", text):
@@ -304,7 +327,8 @@ class TelegramIngress:
                 elif text in {"/start", "/help"}:
                     result = HELP
                 else:
-                    response = self.assistant.ask(actor, text)
+                    responder = self.deputy if self.deputy is not None else self.assistant
+                    response = responder.ask(actor, text)
                     result = render_reply(response)
                     if response.get("draft"):
                         draft_id = response["draft"]["id"]

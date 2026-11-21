@@ -496,6 +496,23 @@ class Operations:
             return {"id": vendor.id, "status": vendor.status}
         raise OpsError("unsupported_command", "This command is not supported")
 
+    def set_deputy_quiet(self, actor: Actor, quiet: bool) -> None:
+        """A member's own choice to stop unprompted deputy messages."""
+        require_human(actor)
+        with self.db.transaction(self.wid, write=True) as (s, w):
+            member = row(s, Member, self.wid, actor.member_id)
+            member.deputy_quiet = quiet
+            audit(s, w, actor.member_id, "deputy_quiet", member.id, {"quiet": quiet}, self.clock.now())
+
+    def set_deputy_enabled(self, actor: Actor, enabled: bool) -> None:
+        """The coordinator's switch for the deputy's unprompted messages."""
+        require_human(actor)
+        with self.db.transaction(self.wid, write=True) as (s, w):
+            load_access(s, actor, self.wid).require("timeline:approve")
+            w.deputy_enabled = enabled
+            w.state_version += 1
+            audit(s, w, actor.member_id, "deputy_enabled", self.wid, {"enabled": enabled}, self.clock.now())
+
     def acknowledge_latest(self, actor: Actor, notification_id: str | None = None) -> str | None:
         """Acknowledge one update that asks for it: the given one, or the newest waiting one."""
         with self.db.transaction(self.wid) as (s, _):

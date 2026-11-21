@@ -116,13 +116,16 @@ def main() -> None:
         auth = Auth(db, settings)
         queries = Queries(db, settings.wedding_id, clock)
         operations = Operations(db, settings.wedding_id, clock)
-        uses_model = settings.agent_mode == "mistral" or bool(settings.telegram_vision_model)
+        uses_model = settings.agent_mode == "mistral" or bool(settings.telegram_vision_model) or settings.deputy
         model = MistralParser(settings) if uses_model else None
         assistant = Assistant(queries, operations, model if settings.agent_mode == "mistral" else None)
         telegram = TelegramIngress(
             db, settings, clock, auth, assistant, operations,
             photo_reviewer=model.review_photo if model and settings.telegram_vision_model else None,
         )
+        if settings.deputy and model is not None:
+            from .deputy import Deputy
+            telegram.deputy = Deputy(queries, operations, assistant, model, db, clock)
         worker = Worker(db, settings, clock)
         try:
             while True:

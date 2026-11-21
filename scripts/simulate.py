@@ -13,6 +13,7 @@ calls to the model provider when a key file is present.
     simulate.py --dir D tap --as usher "My tasks"
     simulate.py --dir D inbox --as usher     Show messages not yet read.
     simulate.py --dir D clock                Show the simulated time.
+    simulate.py --dir D metrics              Fallback rate, pings, coordinator load (for the gate).
     simulate.py --dir D advance 10           Move the clock and run reminders.
     simulate.py --dir D desk view            Coordinator web desk: approvals, incidents.
     simulate.py --dir D desk approve ID [--note TEXT]
@@ -40,6 +41,7 @@ from wedding_ops.auth import Auth
 from wedding_ops.clock import DemoClock, iso, parse_time
 from wedding_ops.config import DEFAULT_MISTRAL_MODEL, Settings
 from wedding_ops.db import Database
+from wedding_ops.deputy import Deputy
 from wedding_ops.models import Approval, Member, Notification, Person
 from wedding_ops.operations import Operations
 from wedding_ops.policy import Actor, load_access
@@ -47,7 +49,7 @@ from wedding_ops.seed import DEMO_TIME, seed_demo
 from wedding_ops.telegram import TelegramIngress
 from wedding_ops.telegram_ui import approval_markup, notice_markup, reply_markup
 from wedding_ops.views import Queries
-from wedding_ops.worker import Worker
+from wedding_ops.worker import Worker, deputy_ping_markup
 
 WEDDING_ID = "demo-wedding"
 COORDINATOR_ID = "coordinator"
@@ -72,7 +74,7 @@ class World:
             mode="test", database_url=f"sqlite:///{directory / 'wedding.db'}", wedding_id=WEDDING_ID,
             telegram_bot_token=SIMULATED_BOT_TOKEN, telegram_webhook_secret=WEBHOOK_SECRET,
             agent_mode="mistral" if key else "deterministic", mistral_api_key=key,
-            mistral_model=DEFAULT_MISTRAL_MODEL,
+            mistral_model=DEFAULT_MISTRAL_MODEL, deputy=bool(self.state.get("deputy")) and bool(key),
         )
         self.db = Database(self.settings.database_url)
         self.clock = DemoClock(parse_time(self.state["now"]) if "now" in self.state else DEMO_TIME)
@@ -92,7 +94,10 @@ class World:
 
     def ingress(self) -> TelegramIngress:
         assistant = Assistant(self.queries, self.operations, self.parser)
-        return TelegramIngress(self.db, self.settings, self.clock, self.auth, assistant, self.operations)
+        ingress = TelegramIngress(self.db, self.settings, self.clock, self.auth, assistant, self.operations)
+        if self.parser is not None and self.state.get("deputy"):
+            ingress.deputy = Deputy(self.queries, self.operations, assistant, self.parser, self.db, self.clock)
+        return ingress
 
     def next_update_id(self) -> int:
         self.state["update_id"] = self.state.get("update_id", 0) + 1
@@ -135,6 +140,9 @@ class World:
             if approval is None or approval.status != "pending":
                 return []
             markup = approval_markup(approval.id, blocked=bool(approval.blockers))
+        elif notification.topic == "deputy_ping":
+            with self.db.sessions() as s:
+                markup = deputy_ping_markup(s, WEDDING_ID, notification)
         else:
             markup = notice_markup(notification.topic, notification.id)
         if markup is None:
@@ -157,7 +165,7 @@ class World:
                 print("    buttons: " + " | ".join(f"[{label}]" for label in labels))
 
 
-def command_init(world: World) -> None:
+def command_init(world: World, deputy: bool = False) -> None:
     if world.state:
         raise SystemExit(f"{world.directory} already holds a wedding. Use a new --dir.")
     world.db.create_schema()
@@ -170,9 +178,9 @@ def command_init(world: World) -> None:
         invitation = world.auth.issue_invite(coordinator, member_id)
         senders[member_id] = FIRST_SENDER_ID + offset
         world.auth.redeem(invitation["token"], str(senders[member_id]))
-    world.state = {"senders": senders, "seen": {}, "update_id": 0}
+    world.state = {"senders": senders, "seen": {}, "update_id": 0, "deputy": deputy}
     print(f"Created a fictional wedding with {len(senders)} enrolled members at {iso(world.clock.now())}.")
-    print("Model parsing: " + ("on" if world.parser else "off (commands only)"))
+    print("Model parsing: " + ("on" if world.parser else "off (commands only)") + ("; deputy on" if deputy else ""))
 
 
 def command_members(world: World) -> None:
@@ -262,13 +270,44 @@ def command_desk(world: World, action: str, target: str | None, note: str) -> No
     print(json.dumps(result, default=str)[:1500])
 
 
+def command_metrics(world: World) -> None:
+    """Objective measures for the gate, computed from the database."""
+    from collections import Counter
+
+    from wedding_ops.models import Approval, DeputyPing, InboundUpdate
+
+    with world.db.sessions() as s:
+        replies = s.scalars(select(Notification).where(Notification.topic == "bot_reply")).all()
+        notices = s.scalars(select(Notification).where(Notification.topic != "bot_reply")).all()
+        pings = s.scalars(select(DeputyPing)).all()
+        inbound = s.scalars(select(InboundUpdate)).all()
+        approvals = s.scalars(select(Approval)).all()
+    if not inbound:
+        print("No messages yet.")
+        return
+    started = min(u.created_at for u in inbound)
+    hours = max((world.clock.now() - started).total_seconds() / 3600, 0.25)
+    fallback = sum(r.message.startswith("I didn't understand") for r in replies)
+    print(f"Messages from users: {len(inbound)} · bot replies: {len(replies)} · "
+          f"fallback replies: {fallback} ({100 * fallback / max(len(replies), 1):.0f}%)")
+    per_person = Counter(p.recipient_id for p in pings)
+    print(f"Deputy pings: {len(pings)} · answered: {sum(p.answered_at is not None for p in pings)} · "
+          f"most to one person: {max(per_person.values(), default=0)} over {hours:.2f} simulated hours")
+    to_coordinator = [n for n in notices if n.recipient_id == COORDINATOR_ID]
+    print(f"Unprompted notices to the coordinator: {len(to_coordinator)} ({len(to_coordinator) / hours:.1f} per hour)")
+    live = Counter(a.changes[0]["item_id"] for a in approvals if a.status == "pending" and a.changes)
+    print(f"Pending proposals per item (max): {max(live.values(), default=0)}")
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Shared fictional wedding for simulated users.")
     parser.add_argument("--dir", type=Path, required=True)
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("init")
+    init = sub.add_parser("init")
+    init.add_argument("--deputy", action="store_true", help="Answer free-form chat with the deputy (ADR 0003)")
     sub.add_parser("members")
     sub.add_parser("clock")
+    sub.add_parser("metrics")
     for name in ("send", "tap"):
         action = sub.add_parser(name)
         action.add_argument("--as", dest="member", required=True)
@@ -293,9 +332,11 @@ def main(argv: list[str]) -> None:
         world = World(args.dir)
         try:
             if args.command == "init":
-                command_init(world)
+                command_init(world, args.deputy)
             elif args.command == "members":
                 command_members(world)
+            elif args.command == "metrics":
+                command_metrics(world)
             elif args.command == "clock":
                 print(iso(world.clock.now()))
             elif args.command == "send":

@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 MISTRAL_CHAT_URL = "https://api.mistral.ai/v1/chat/completions"
 MAX_INTENT_TOKENS = 256
 MAX_PHOTO_REVIEW_TOKENS = 768
+MAX_DEPUTY_TOKENS = 600
 MAX_RESPONSE_BYTES = 32 * 1024
 FALLBACK_HELP = """I didn't understand that. You can ask or report things like:
 • "What are my tasks?" or /now
@@ -212,6 +213,12 @@ class MistralParser:
         messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": text}]
         content = self._structured_completion(self.model, messages, Intent, "wedding_intent", MAX_INTENT_TOKENS)
         return Intent.model_validate_json(content, strict=True)
+
+    def plan(self, messages: list[dict]):
+        """One deputy turn: a reply and at most one allow-listed action (see deputy.py)."""
+        from .deputy import DeputyPlan  # Imported here: deputy.py imports this module.
+        content = self._structured_completion(self.model, messages, DeputyPlan, "deputy_plan", MAX_DEPUTY_TOKENS)
+        return DeputyPlan.model_validate_json(content, strict=True)
 
     def review_photo(self, jpeg: bytes, caption: str) -> PhotoReview:
         if not self.vision_model:

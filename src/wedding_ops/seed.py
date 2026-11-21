@@ -99,7 +99,7 @@ def seed_demo(db: Database, wid: str = "demo-wedding") -> None:
             ("signage", "Confirm Desk B signage", "registration-b", "registration", "foyer", "17:40", None, 0, "Check the table-zone signs. Acknowledge when you have seen this assignment."),
             ("desk-a", "Open registration Desk A", "registration-a", "registration", "foyer", "17:55", "registration-open", -5, "Have the guest search open. Refer unlisted guests to Alex."),
             ("desk-b", "Open registration Desk B", "registration-b", "registration", "foyer", "17:55", "registration-open", -5, "Set up the second registration queue once signage is ready."),
-            ("usher-ready", "Take position at Ballroom Entrance B", "usher", "ushers", "foyer", "17:50", None, 0, "Direct guests to the garden terrace until seating is announced."),
+            ("usher-ready", "Take position at Ballroom Entrance B", "usher", "ushers", "entrance-b", "17:50", None, 0, "Direct guests to the garden terrace until seating is announced."),
             ("family-check", "Confirm parents' arrival", "family-liaison", "family", "foyer", "18:15", None, 0, "Confirm reported arrival; unknown does not mean absent."),
             ("photo-family", "Assemble family portrait group A", "photographer", "photography", "portraits", "18:45", "portraits", -5, "Coordinate with Priya. The bride's parents are needed."),
             ("banquet-ready", "Confirm dinner readiness", "banquet", "banquet", "service", "18:50", "dinner", -10, "Confirm service staff and dietary meals. Report delays, do not change the master timeline."),

@@ -12,7 +12,7 @@ from wedding_ops.schemas import Intent
 
 def test_my_tasks_say_where_to_go_and_what_to_do(chat_factory):
     reply = chat_factory().send("usher", "/now").message
-    assert "Registration foyer" in reply and "Direct guests to the garden terrace" in reply
+    assert "Ballroom Entrance B" in reply and "Direct guests to the garden terrace" in reply
 
 
 def test_lateness_reaches_the_coordinator(chat_factory, db):

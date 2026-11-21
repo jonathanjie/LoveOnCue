@@ -66,6 +66,16 @@ class TelegramTransport:
             raise DeliveryError("network_error", retryable=True) from exc
 
 
+def deputy_ping_markup(s, wedding_id: str, notice: Notification) -> dict | None:
+    """An On it button for the task a deputy ping asks about. Keys look like "deputy-ping:<id>:<member>"."""
+    from .models import DeputyPing
+    ping = s.scalar(select(DeputyPing).where(DeputyPing.wedding_id == wedding_id,
+                                             DeputyPing.id == notice.dedupe_key.split(":")[1]))
+    if ping is None or ping.task_id is None:
+        return None
+    return {"inline_keyboard": [[{"text": "On it", "callback_data": f"taskack:{ping.task_id}"}]]}
+
+
 class Worker:
     def __init__(self, db: Database, settings: Settings, clock: Clock, transport: Transport | None = None):
         self.db, self.settings, self.wid, self.clock = db, settings, settings.wedding_id, clock
@@ -79,6 +89,7 @@ class Worker:
             before_count = s.scalar(select(func.count()).select_from(Notification).where(Notification.wedding_id == self.wid))
             expired = 0
             expired_ids = []
+            deputy_chases = self.settings.deputy and w.deputy_enabled
             for task in rows(s, Task, self.wid):
                 if task.state in {"done", "cancelled"} or task.acknowledged_at:
                     continue
@@ -89,6 +100,8 @@ class Worker:
                 if task.due_at - timedelta(minutes=10) <= now <= task.due_at:
                     notify(s, self.wid, owner.id, "task_reminder", f"Due {due}: {task.title}. Open My tasks, review prerequisites and acknowledge the assignment.",
                            f"reminder:{task.id}:{task.version}", now, task=task)
+                elif now > task.due_at and deputy_chases:
+                    continue  # The deputy heartbeat pings the owner and tells the coordinator instead.
                 elif now > task.due_at:
                     notify(s, self.wid, owner.id, "task_overdue", f"Unacknowledged task due {due}: {task.title}. Confirm your status in My tasks.",
                            f"overdue:{task.id}:{task.version}", now, task=task)
@@ -156,6 +169,8 @@ class Worker:
                                                            Approval.id == n.dedupe_key.split(":")[1]))
                 if approval is not None and approval.status == "pending":
                     markup = approval_markup(approval.id, blocked=bool(approval.blockers))
+            elif n.topic == "deputy_ping" and isinstance(self.transport, TelegramTransport):
+                markup = deputy_ping_markup(s, self.wid, n)
             elif isinstance(self.transport, TelegramTransport):
                 markup = notice_markup(n.topic, n.id)
         # Never hold the wedding lock across a network call.
@@ -190,6 +205,9 @@ class Worker:
 
     def tick(self, max_deliveries: int = 30) -> dict:
         result = self.schedule()
+        if self.settings.deputy:
+            from .deputy import Heartbeat
+            result["deputy"] = Heartbeat(self.db, self.wid, self.clock).run()
         dispatched = 0
         for _ in range(max_deliveries):
             if not self.dispatch_one():
