@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 MEMORY_TURNS = 10  # five user messages and five replies
 MEMORY_TTL = timedelta(hours=12)
 DECISION_WINDOW = timedelta(hours=1)  # how far back the coordinator's context lists decisions
+TEAM_TASK_WINDOW = timedelta(hours=1)  # how far ahead the coordinator's context lists team tasks
 MAX_LOOKUPS = 5
 MAX_SHIFT_MINUTES = 180  # the command's own limit on one change
 TIME_PATTERN = re.compile(r"\b([01]?\d|2[0-3]):[0-5]\d\b")
@@ -394,6 +395,7 @@ class Deputy:
                 refs[f"R{number}"] = (kind, ident)
                 quoted.append(f"- R{number} {line}")
         if coordinator:
+            lines += self._team_tasks(snapshot, local, names, places)
             lines += self._decisions(snapshot, local, names)
             quoted += self._open_questions(snapshot, local, names, refs)
         recent = self.operations.recent_actions(actor, zone)
@@ -443,6 +445,24 @@ class Deputy:
                             f"{local(incident['created_at'])} {kind} “{incident['title']}”: {status}"))
         reports.sort(key=lambda report: report[0])
         return [(kind, ident, line) for _, kind, ident, line in reports[-8:]]
+
+    @staticmethod
+    def _team_tasks(snapshot: dict, local, names: dict, places: dict) -> list[str]:
+        """Open team tasks due within the hour or overdue. Titles and times come from the coordinator's records."""
+        now = parse_time(snapshot["now"])
+        soon = [t for t in snapshot["tasks"] if t["state"] not in {"done", "cancelled"}
+                and parse_time(t["due_at"]) - now <= TEAM_TASK_WINDOW]
+        if not soon:
+            return []
+        lines = ["", "[record] Team tasks overdue or due within the hour:"]
+        for task in soon[:15]:
+            owner = names.get(task["owner_id"], "unassigned")
+            acknowledged = "acknowledged" if task["acknowledged_at"] else "not acknowledged"
+            overdue = ", overdue" if task["overdue"] else ""
+            place = places.get(task["location_id"], {}).get("name", "")
+            lines.append(f"- {local(task['due_at'])} {task['title']} ({owner}, at {place}, {task['state']}, "
+                         f"{acknowledged}{overdue})")
+        return lines
 
     @staticmethod
     def _decisions(snapshot: dict, local, names: dict) -> list[str]:

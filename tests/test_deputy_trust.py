@@ -386,3 +386,11 @@ def test_an_answered_but_unacknowledged_task_still_escalates(db, settings, clock
     chat.worker.tick()
     news = coordinator_news(db)
     assert "Not acknowledged: \u201cTake position at Ballroom Entrance B\u201d" in news or "not acknowledged yet" in news
+
+
+def test_the_coordinator_can_state_team_task_times(deputy_chat):
+    planner = StubPlanner({"wat needs my attention now": DeputyPlan(
+        reply="Ryan hasn't acknowledged Desk B signage, due 17:40.")})
+    reply = deputy_chat(planner).send("coordinator", "wat needs my attention now").message
+    assert reply == "Ryan hasn't acknowledged Desk B signage, due 17:40."
+    assert "17:40 Confirm Desk B signage (Ryan Goh" in context_of(planner)
