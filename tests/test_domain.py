@@ -61,7 +61,9 @@ def test_delay_needs_human_approval_and_preserves_slack(ops, queries, db):
         assert s.get(Task,"banquet-ready").due_at.minute == 2
         notices = [n for n in rows(s,Notification,WID) if n.topic == "timeline_updated"]
         assert "registration-a" not in [n.recipient_id for n in notices]
-        assert {"coordinator","banquet","usher","mc","photographer"}.issubset({n.recipient_id for n in notices})
+        recipients = {n.recipient_id for n in notices}
+        assert {"banquet","usher","mc","photographer"}.issubset(recipients)
+        assert "coordinator" not in recipients  # The approving coordinator is not notified of their own decision.
         banquet_text = next(n.message for n in notices if n.recipient_id == "banquet")
         assert "19:12" in banquet_text
         assert any(e.event_type == "decide_approval" for e in rows(s,AuditEvent,WID))

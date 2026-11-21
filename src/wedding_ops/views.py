@@ -186,7 +186,7 @@ class Queries:
                 followups.append((title, "Check recipient enrollment and review failed notices."))
             pending_ack = self._latest_unacknowledged(session, owners)
             if pending_ack:
-                followups.append(pending_ack)
+                followups.insert(0, pending_ack)  # First, so the short brief always shows it.
             return {"urgent": urgent, "followups": followups, "notes": notes}
 
     def _latest_unacknowledged(self, session, owners: dict[str, str]) -> tuple[str, str] | None:

@@ -290,6 +290,8 @@ class Operations:
                             task.version += 1
                 w.timeline_version += 1
                 for member in recipients(s, wid, teams=approval.affected_team_ids):
+                    if member.id == a.member.id:
+                        continue  # The coordinator who approved it already knows.
                     access = load_access(s, Actor(wid, member.id), wid)
                     relevant = [c for c in approval.changes if access.sees_teams(c["team_ids"])]
                     times = "; ".join(f"{c['title']} {parse_time(c['new_start']).astimezone(ZoneInfo(w.timezone)):%H:%M}" for c in relevant)

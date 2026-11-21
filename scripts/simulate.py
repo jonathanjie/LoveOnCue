@@ -39,12 +39,12 @@ from wedding_ops.auth import Auth
 from wedding_ops.clock import DemoClock, iso, parse_time
 from wedding_ops.config import DEFAULT_MISTRAL_MODEL, Settings
 from wedding_ops.db import Database
-from wedding_ops.models import Member, Notification, Person
+from wedding_ops.models import Approval, Member, Notification, Person
 from wedding_ops.operations import Operations
 from wedding_ops.policy import Actor, load_access
 from wedding_ops.seed import DEMO_TIME, seed_demo
 from wedding_ops.telegram import TelegramIngress
-from wedding_ops.telegram_ui import reply_markup
+from wedding_ops.telegram_ui import approval_markup, notice_markup, reply_markup
 from wedding_ops.views import Queries
 from wedding_ops.worker import Worker
 
@@ -122,16 +122,26 @@ class World:
         return fresh
 
     def buttons(self, member_id: str, notification: Notification) -> list[str]:
-        if notification.topic != "bot_reply":
+        """The buttons Telegram would show under this message, chosen as the worker does."""
+        if notification.topic == "bot_reply":
+            with self.db.transaction(WEDDING_ID) as (s, _):
+                access = load_access(s, Actor(WEDDING_ID, member_id), WEDDING_ID)
+                markup = reply_markup(coordinator=access.coordinator, guest_lookup=access.permits("guests:seating"),
+                                      draft_id=notification.telegram_draft_id, app_url=self.settings.public_url)
+        elif notification.topic == "approval_requested":
+            with self.db.sessions() as s:
+                approval = s.scalar(select(Approval).where(Approval.id == notification.dedupe_key.split(":")[1]))
+            if approval is None or approval.status != "pending":
+                return []
+            markup = approval_markup(approval.id, blocked=bool(approval.blockers))
+        else:
+            markup = notice_markup(notification.topic, notification.id)
+        if markup is None:
             return []
-        with self.db.transaction(WEDDING_ID) as (s, _):
-            access = load_access(s, Actor(WEDDING_ID, member_id), WEDDING_ID)
-            markup = reply_markup(coordinator=access.coordinator, guest_lookup=access.permits("guests:seating"),
-                                  draft_id=notification.telegram_draft_id, app_url=self.settings.public_url)
-        # Store the callback data so `tap` can press a button from the latest message.
         callbacks = {b["text"]: b["callback_data"] for row in markup["inline_keyboard"] for b in row
                      if "callback_data" in b}
-        self.state.setdefault("buttons", {})[member_id] = callbacks
+        # Remember them so `tap` can press a button from the newest message that has it.
+        self.state.setdefault("buttons", {}).setdefault(member_id, {}).update(callbacks)
         return list(callbacks)
 
     def print_unread(self, member_id: str) -> None:
