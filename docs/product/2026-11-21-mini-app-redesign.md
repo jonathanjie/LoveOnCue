@@ -1,6 +1,7 @@
 # Mini App redesign — 21 November 2026
 
-Status: **proposed, waiting for approval.** Branch `claude/loveoncue-miniapp-redesign`,
+Status: **approved 21 November 2026**, with `GET /api/brief` (section 6) and two founder
+changes: every main view must fit one phone screen, and a Home hub tab (section 3a). Branch `claude/loveoncue-miniapp-redesign`,
 stacked on PR #4. Resume point: section 7.
 
 ## 1. The people and the job
@@ -34,23 +35,36 @@ Current screenshots: `work/audit/current/` (not committed). Proposed design mock
 
 ## 3. Information architecture
 
-A bottom tab bar (thumb reach), at most five tabs, chosen by role. No sidebar.
+A bottom tab bar (thumb reach), chosen by role. No sidebar, no hidden menu.
 
-**Coordinator:** `Now` · `Schedule` · `Review (n)` · `Crew` · `Guests`, and a `More` menu
-in the top bar: Places & vendors, Venue notes, Set up, Activity log, rehearsal tools.
+**Coordinator:** `Home` · `Schedule` · `Review (n)` · `Crew` · `Guests`.
+**Helper:** `Home` · `My jobs (n)` · `Schedule` · `Guests` (only with a guest permission).
 
-- **Now:** the current and next cue on the timeline, then "Needs you": schedule changes
-  to decide, urgent problems, jobs not seen 5 minutes before they are due, late jobs.
-  Each row opens the right item.
-- **Review:** schedule changes first (waiting, then decided), then problems (open, then sorted).
-- **Crew:** each person, their next job, and "Seen 17:41" or "Not seen yet".
-  Button "Send an update" uses the existing `broadcast` command (team picker plus message).
+### 3a. Home is a hub
 
-**Helper:** `My jobs` · `Schedule` · `Guests` (only with a guest permission) · `Help`.
+Like the base screen of a strategy game such as Call of War: one screen shows the state
+of the day, and large tiles take you anywhere. Each tile shows a live count.
 
-- **My jobs:** unread updates first ("I've read this"), then the next job as a large
-  card with one main button ("Got it", then "Done"), then later jobs.
-- **Help:** report a problem, places and directions, my vendors (if permitted), venue notes search.
+- **Status strip:** Now and Next on the schedule, with a moved time struck through.
+- **Alert bar:** the most urgent open problem, if there is one.
+- **Coordinator tiles:** Review, Crew, Schedule, Guests (each with a count), then small
+  tiles for Send an update, Places & vendors, Venue notes, Problems, Set up, Activity log.
+- **Helper:** an unread update with a "Read" button, the next job with one main button,
+  then tiles for Find a guest, Report a problem, Places, Venue notes.
+- A section opened from a tile has a "‹ Home" back button.
+
+### 3b. Fit one phone screen (390 × 844)
+
+- Switch between lists with segmented chips instead of stacking sections
+  (Review: Changes | Problems; Crew: Not seen | Got it | Everyone).
+- One line per schedule cue: time, dot, title, place, and a flag ("+12 min").
+  Finished cues fold into one "2 finished" row.
+- Details open in a bottom sheet: eyebrow, title, the requester's words, the
+  before-and-after times, and two pill buttons side by side.
+- A row of two or three key numbers replaces stacked metric cards.
+
+References studied: recent.design and designeer.xyz (interface category): stat rows,
+segmented chips, bottom sheets over a list, pill buttons.
 
 ## 4. Visual direction
 
@@ -66,7 +80,8 @@ in the top bar: Places & vendors, Venue notes, Set up, Activity log, rehearsal t
   line crosses it at the current time. A moved cue shows the old time struck through
   and a brass "+12 min" chip. The same line appears in Now, Schedule, the approval
   before-and-after, and the helper's job card.
-- **Touch:** every control is at least 48 px high. Confirmations use an in-app sheet,
+- **Density:** 15 px body text, 52 px list rows, 4 px grid.
+- **Touch:** every button is at least 48 px high, every row at least 52 px. Confirmations use an in-app sheet,
   not the browser's `confirm()`.
 
 ## 5. Plain words
@@ -88,16 +103,15 @@ in the top bar: Places & vendors, Venue notes, Set up, Activity log, rehearsal t
   allow them, and the server checks again. No new admin shortcuts.
 - Demo sign-in stays loopback-only. The rehearsal role picker stays visible in demo mode.
 
-**Open question for approval:** the per-person read status of the latest *announcement*
-("4 of 6 read the rain update") is computed in `Queries.coordinator_brief`, but no web
-endpoint returns it. Option A: show only job acknowledgements (data that exists now).
-Option B: add one read-only endpoint `GET /api/brief` that returns `coordinator_brief`,
-with its existing `timeline:approve` check. I recommend B.
+**One new read-only endpoint (approved):** `GET /api/brief` returns the coordinator brief
+and the read status of the latest announcement or timeline update ("4 of 6 read").
+It uses the same `timeline:approve` check as the Telegram brief. Helpers get 403.
 
 ## 7. Build plan and resume point
 
 1. Split `web/src/app.ts` into small modules: `api`, `format`, `ui`, one file per screen.
-2. Build the tabs, sheets and screens above. Delete the chat panel and the floor plan.
+2. Add `GET /api/brief` test-first. Build Home, the tabs, sheets and screens above.
+   Delete the chat panel and the floor plan.
 3. Update `scripts/ui-smoke.py` for the new labels; add a phone-width pass for each tab.
 4. Checks: `pytest`, `npm run typecheck`, `npm run build`, `scripts/ui-smoke.py --url`
    against a local demo server, phone screenshots of each main view into `docs/screenshots/mini-app/`.
