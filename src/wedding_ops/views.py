@@ -41,6 +41,7 @@ def task_view(task: Task, access: Access, blockers: list[str], now) -> dict:
 
 def approval_view(item: Approval) -> dict:
     return {"id": item.id, "title": item.title, "reason": item.reason, "status": item.status,
+            "proposed_by": item.proposed_by,
             "base_timeline_version": item.base_timeline_version, "changes": item.changes,
             "blockers": item.blockers, "affected_team_ids": item.affected_team_ids,
             "created_at": iso(item.created_at), "expires_at": iso(item.expires_at),

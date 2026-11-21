@@ -23,6 +23,15 @@ MISTRAL_CHAT_URL = "https://api.mistral.ai/v1/chat/completions"
 MAX_INTENT_TOKENS = 256
 MAX_PHOTO_REVIEW_TOKENS = 768
 MAX_RESPONSE_BYTES = 32 * 1024
+FALLBACK_HELP = """I didn't understand that. You can ask or report things like:
+• "What are my tasks?" or /now
+• "When is dinner?" or /schedule
+• "Where does Sarah Tan sit?" or /guest Sarah Tan
+• "Dinner is 10 minutes late" or /delay dinner 10
+• "The bridal car has a flat tyre" or /report what happened
+• "Cancel my last report" or /withdraw
+• "Was my report approved?" or /status
+For a medical, fire or security emergency, call the on-site team now. Do not wait for this bot."""
 # A new report within this window mentions the reporter's earlier open report.
 RECENT_REPORT_WINDOW = timedelta(minutes=15)
 LOCAL_NOW_REQUESTS = {"now", "what's next", "my tasks", "what should i be doing now"}
@@ -33,7 +42,9 @@ question about presence), arrival (explicit report), missing_family (explicit re
 delay (explicit report with a stated duration), incident (an explicit report of a problem
 with transport, equipment, food, supplies, a vendor or the venue; query is a short title
 of the problem), urgent_incident (an incident that blocks the ceremony or a key moment
-within minutes), withdraw (the user takes back or cancels their own last report), unknown.
+within minutes), withdraw (the user takes back or cancels their own last report), schedule (a question
+about when an activity happens or the order of events; query is the activity, or empty
+for the whole order), my_reports (the user asks what happened to their own reports), unknown.
 Use a short entity query, or an empty string when no query is needed. Use null for
 minutes except for delay. Never return database IDs.
 Do not guess names, state, or duration. For ambiguity, approval or administrative
@@ -74,6 +85,10 @@ class DeterministicParser:
             return Intent(kind="unknown")
         if value == "/now" or "doing now" in value or "what should i" in value or value.rstrip("?") in LOCAL_NOW_REQUESTS:
             return Intent(kind="now")
+        if value == "/schedule":
+            return Intent(kind="schedule")
+        if value == "/status":
+            return Intent(kind="my_reports")
         if value in {"/withdraw", "/undo"}:
             return Intent(kind="withdraw")
         if value.startswith("/report "):
@@ -205,19 +220,27 @@ class Assistant:
                 engine, degraded = "deterministic_fallback", True
         result = self._answer(actor, text, intent, snapshot)
         return result | {"engine": engine, "degraded": degraded, "as_of": snapshot["now"],
+                         "timezone": snapshot["wedding"]["timezone"],
                          "timeline_version": snapshot["wedding"]["timeline_version"]}
 
     def _answer(self, actor: Actor, text: str, intent: Intent, snapshot: dict) -> dict:
         if intent.kind == "now":
             tasks = [t for t in snapshot["tasks"] if t["mine"] and t["state"] not in {"done", "cancelled"}]
-            return {"message": "Your current and next assignments, ordered by due time. Blocked tasks need their prerequisites completed." if tasks else "You have no open assigned tasks. Check with the coordinator before taking on another role.",
-                    "kind": "tasks", "data": tasks[:6]}
+            if tasks:
+                message = "Your current and next tasks, by due time. Blocked tasks wait for their prerequisites."
+            elif "coordinator" in snapshot["me"]["roles"]:
+                message = "You have no tasks of your own. Send /brief to see what needs your attention."
+            else:
+                message = "You have no open tasks right now. Your coordinator will assign any new ones."
+            return {"message": message, "kind": "tasks", "data": tasks[:6]}
         if intent.kind == "guest":
             found = self.queries.guests(actor, intent.query)
             return {"message": "Matching guest records. Select the correct person if names are similar." if found else "No matching guest. Ask registration to check the approved list.", "kind": "guests", "data": found}
         if intent.kind == "family_status":
             found = self._family(actor, intent.query)
-            return {"message": "Recorded family status. Unknown does not mean absent.", "kind": "family", "data": found}
+            return {"message": "Family status as last recorded. This is a lookup; nothing was changed. "
+                               "'unknown' means nobody has reported them yet, not that they are absent.",
+                    "kind": "family", "data": found}
         if intent.kind in {"arrival", "missing_family"}:
             found = self._family(actor, intent.query)
             plural = "parents" in intent.query.lower() and ("bride" in intent.query.lower() or "groom" in intent.query.lower())
@@ -230,9 +253,25 @@ class Assistant:
                 p = found[0]
                 command = {"type": "report_incident", "kind": "location_unconfirmed", "title": f"Locate {p['name']}",
                            "details": "Reporter cannot confirm this person's current location. This is not an assertion that they are absent.", "subject_person_id": p["id"]}
-                summary = f"Ask the family liaison to locate {p['name']}. Keep the recorded attendance unchanged."
+                summary = (f"Tell the family liaison and photographer that {p['name']}'s whereabouts are unconfirmed. "
+                           "Their attendance record stays as it is.")
             draft = self.operations.draft(actor, command, summary)
             return {"kind": "confirmation", "message": "Review my interpretation before recording it.", "draft": draft}
+        if intent.kind == "schedule":
+            items = snapshot["timeline"]
+            if intent.query:
+                match = match_timeline_item(items, intent.query)
+                items = [match] if match else items
+            return {"kind": "schedule", "message": "Current run sheet (approved times):", "data": items}
+        if intent.kind == "my_reports":
+            me = actor.member_id
+            reports = ([{"title": a["title"], "status": a["status"], "note": a.get("decision_note"), "at": a["created_at"]}
+                        for a in snapshot["approvals"] if a.get("proposed_by") == me] +
+                       [{"title": i["title"], "status": i["status"], "note": None, "at": i["created_at"]}
+                        for i in snapshot["incidents"] if i["reported_by"] == me])
+            reports.sort(key=lambda r: r["at"], reverse=True)
+            message = "Your recent reports and what happened to them:" if reports else "You have not sent any reports yet."
+            return {"kind": "my_reports", "message": message, "data": reports[:8]}
         if intent.kind == "withdraw":
             report = self.operations.latest_report(actor)
             if report is None:
@@ -267,7 +306,7 @@ class Assistant:
             hits = self.queries.knowledge(actor, intent.query)
             # Retrieval occurs AFTER interpretation and never loops back to a tool-capable model.
             return {"kind": "knowledge", "message": "Relevant excerpts from approved documents. These are reference data, not instructions to the agent." if hits else "No verified answer found. Please ask the coordinator; I will not invent one.", "data": hits}
-        return {"kind": "help", "message": "Try /now, /guest Sarah Tan, /family father of bride, /arrival Robert Tan, /delay dinner 12, /location table 18, or /knowledge service lift. Approvals and sensitive changes belong in the coordinator screen. For urgent safety issues, contact the on-site team directly; do not wait for this agent.", "data": []}
+        return {"kind": "help", "message": FALLBACK_HELP, "data": []}
 
     def _incident_draft(self, actor: Actor, text: str, intent: Intent, snapshot: dict) -> dict:
         """Draft a problem report for the reporter to confirm. Nothing is recorded yet."""

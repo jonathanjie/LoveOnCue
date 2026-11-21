@@ -5,13 +5,14 @@ import hmac
 import re
 from collections.abc import Callable
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 from sqlalchemy import or_, select
 
 from .agent import Assistant
 from .auth import Auth
-from .clock import Clock
+from .clock import Clock, parse_time
 from .config import Settings
 from .db import Database
 from .errors import OpsError, denied
@@ -90,8 +91,16 @@ HELP = ("Tap a button or type a question. Use /now for your tasks, /location for
         "Schedule changes need human approval in LoveOnCue.")
 
 
+def local_time(value: str | None, zone_name: str | None) -> str:
+    """Show a stored UTC time as the wedding's local HH:MM."""
+    if not value:
+        return "no time set"
+    return parse_time(value).astimezone(ZoneInfo(zone_name or "UTC")).strftime("%H:%M")
+
+
 def render_reply(result: dict) -> str:
     message = result["message"]
+    zone = result.get("timezone")
     if result.get("degraded"):
         message = "Model unavailable; using deterministic commands.\n" + message
     if result.get("draft"):
@@ -102,9 +111,16 @@ def render_reply(result: dict) -> str:
                 f"\n\nExpires in five minutes.{note}")
     for item in result.get("data", [])[:8]:
         if result["kind"] == "tasks":
-            message += f"\n• {item['title']} · due {item['due_at']} · {item['state']}"
+            message += f"\n• {item['title']} · due {local_time(item['due_at'], zone)} · {item['state']}"
             if item.get("blocked_by"):
                 message += " · blocked by " + ", ".join(item["blocked_by"])
+        elif result["kind"] == "schedule":
+            moved = "" if item["current_start"] == item["planned_start"] else \
+                f" (moved from {local_time(item['planned_start'], zone)})"
+            message += f"\n• {item['title']} · {local_time(item['current_start'], zone)}{moved}"
+        elif result["kind"] == "my_reports":
+            note = f" — {item['note']}" if item.get("note") else ""
+            message += f"\n• {item['title']}: {item['status']}{note}"
         elif result["kind"] == "guests":
             message += f"\n• {item['name']}: Table {item['table'] or 'unassigned'}; {item['attendance']}"
         elif result["kind"] == "family":

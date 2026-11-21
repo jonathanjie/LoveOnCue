@@ -16,7 +16,8 @@ from wedding_ops.worker import Worker
 WEDDING = "demo-wedding"
 WEBHOOK_SECRET = "fictional-webhook-secret-for-core-loop"
 BOT_ID = 12345
-SENDERS = {"coordinator": 201, "driver": 202, "banquet": 203, "usher": 204, "registration-a": 205}
+SENDERS = {"coordinator": 201, "driver": 202, "banquet": 203, "usher": 204, "registration-a": 205,
+           "mc": 206, "family-liaison": 207}
 
 
 class StubParser:
@@ -330,3 +331,45 @@ def test_worker_sends_approval_and_acknowledge_buttons_to_telegram(db, settings,
               [b["text"] for row in p.get("reply_markup", {}).get("inline_keyboard", []) for b in row] for p in sent}
     assert labels[("coordinator", "Approval needed: Dinner service: +5 minutes")] == ["Approve", "Reject"]
     assert labels[("usher", "Announcement from Alex Morgan:")] == ["Acknowledge"]
+
+
+# 5. Local times, clearer wording, schedule and status questions
+
+
+def test_tasks_show_local_times(chat_factory):
+    chat = chat_factory()
+    reply = chat.send("banquet", "/now")
+    assert "due 18:50" in reply.message and "T10:50" not in reply.message
+
+
+def test_schedule_question_lists_current_local_times(chat_factory, ops):
+    chat = chat_factory({"when is dinner?": Intent(kind="schedule", query="dinner"),
+                         "what's the order tonight": Intent(kind="schedule")})
+    assert "Dinner service · 19:00" in chat.send("mc", "when is dinner?").message
+    full = chat.send("mc", "what's the order tonight").message
+    assert full.index("Garden ceremony") < full.index("Dinner service") < full.index("Family speeches")
+    assert "Dinner service · 19:00" in chat.send("mc", "/schedule").message
+
+
+def test_status_question_shows_my_reports_and_their_outcome(chat_factory, db):
+    chat = chat_factory({"was my delay approved": Intent(kind="my_reports")})
+    confirmed_report(chat, "banquet", "/delay dinner 15")
+    chat.send("coordinator", f"/reject {pending_approvals(db)[0].id} kitchen says on time")
+    reply = chat.send("banquet", "was my delay approved").message
+    assert "Dinner service: +15 minutes" in reply and "rejected" in reply
+    assert "rejected" in chat.send("banquet", "/status").message
+
+
+def test_family_lookup_and_missing_report_wording_is_not_misleading(chat_factory):
+    chat = chat_factory({"is mei lee here": Intent(kind="family_status", query="Mei Lee"),
+                         "cant find mei lee": Intent(kind="missing_family", query="Mei Lee")})
+    lookup = chat.send("family-liaison", "is mei lee here").message
+    assert "Recorded family status" not in lookup and "nothing was changed" in lookup
+    missing = chat.send("family-liaison", "cant find mei lee").message
+    assert "Ask the family liaison" not in missing
+
+
+def test_coordinator_without_tasks_is_pointed_to_the_brief(chat_factory):
+    chat = chat_factory()
+    reply = chat.send("coordinator", "/now").message
+    assert "Check with the coordinator" not in reply and "brief" in reply.lower()

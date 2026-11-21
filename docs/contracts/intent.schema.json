@@ -16,6 +16,8 @@
         "incident",
         "urgent_incident",
         "withdraw",
+        "schedule",
+        "my_reports",
         "unknown"
       ],
       "title": "Kind",
