@@ -229,7 +229,7 @@ class Operations:
             for member in target_members:
                 notify(s, wid, member.id, "incident",
                        f"{cmd.severity.upper()} report from {reporter} ({', '.join(a.member.roles)}): "
-                       f"{one_line(cmd.title, 160)}\nDetails: {one_line(cmd.details, 600)}",
+                       f"{one_line(cmd.title, 160)}\nDetails: \u201c{one_line(cmd.details, 600)}\u201d",
                        f"incident:{incident.id}", now, teams=audience,
                        permission="family:status" if cmd.kind == "location_unconfirmed" else None)
             return {"id": incident.id, "status": "open"}
@@ -585,7 +585,7 @@ class Operations:
             if member.id != a.member.id and title:
                 # Same restrictions as the original notice, so nobody learns more than before.
                 notify(s, self.wid, member.id, "report_withdrawn",
-                       f"Withdrawn by {reporter}: {title}. Ignore the earlier report.",
+                       f"Withdrawn by {reporter}: {one_line(title, 160)}. Ignore the earlier report.",
                        f"withdrawn:{request_id}", now, teams=teams, permission=permission)
         return {"id": request_id, "status": "withdrawn", "title": target["title"]}
 
