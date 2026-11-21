@@ -202,9 +202,30 @@ def test_check_ins_are_controlled_by_asking(deputy_chat, db):
     })
     chat = deputy_chat(planner)
     chat.send("usher", "stop pinging me pls")
-    chat.send("coordinator", "pause the check-ins")
+    draft = chat.send("coordinator", "pause the check-ins")
     with db.sessions() as s:
-        assert s.get(Member, "usher").deputy_quiet and not s.get(Wedding, "demo-wedding").deputy_enabled
+        # A wedding-wide switch waits for the coordinator's tap.
+        assert s.get(Member, "usher").deputy_quiet and s.get(Wedding, "demo-wedding").deputy_enabled
+    assert draft.telegram_draft_id
+    chat.tap("coordinator", f"confirm:{draft.telegram_draft_id}")
+    with db.sessions() as s:
+        assert not s.get(Wedding, "demo-wedding").deputy_enabled
+
+
+def test_a_question_is_never_taken_as_an_acknowledgement(deputy_chat, ops):
+    from wedding_ops.policy import Actor
+    ops.execute(Actor("demo-wedding", "coordinator"), {"type": "broadcast", "team_ids": ["ushers"],
+                "message": "Ceremony moves to the ballroom"}, "ack-guard-broadcast")
+    chat = deputy_chat(StubPlanner({"guests go ballroom now right?": DeputyPlan(reply="Acknowledged.", action="acknowledge")}))
+    chat.worker.tick()
+    chat.send("usher", "guests go ballroom now right?")
+    assert all(n.acknowledged_at is None for n in chat.notices("usher", "coordinator_message"))
+
+
+def test_a_reply_that_claims_a_button_without_a_draft_falls_back(deputy_chat):
+    chat = deputy_chat(StubPlanner({"dinner 10 late": DeputyPlan(reply="Tap the button below to send it.")}))
+    reply = chat.send("banquet", "dinner 10 late")
+    assert "Tap the button below to send it." != reply.message
 
 
 def test_draft_buttons_say_what_they_do():

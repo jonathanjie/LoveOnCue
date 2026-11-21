@@ -123,10 +123,18 @@ class Deputy:
         except (httpx.HTTPError, ValidationError, ValueError, KeyError, TypeError) as error:
             logger.warning("Deputy model call failed (%s); using the intent path", type(error).__name__)
             return self.assistant.ask(actor, text)
+        if plan.action == "acknowledge" and ("?" in text or len(text.split()) > 6):
+            # A question or a long message is never an acknowledgement.
+            logger.warning("Deputy chose acknowledge for a question; using the intent path")
+            return self.assistant.ask(actor, text)
         if not grounded(plan.reply, trusted):
             logger.warning("Deputy reply stated a time not in the context; using the intent path")
             return self.assistant.ask(actor, text)
         result = self._act(actor, text, plan, snapshot, trusted)
+        if not result.get("draft") and re.search(r"\bbutton\b", plan.reply, re.IGNORECASE) and result["kind"] == "chat":
+            # The reply promised a button but no draft exists; answer plainly instead.
+            logger.warning("Deputy reply mentioned a button without a draft; using the intent path")
+            return self.assistant.ask(actor, text)
         from .telegram import render_reply  # Imported here: telegram.py uses this module.
         # Remember exactly what the person saw, including any table numbers or lists.
         self._remember(actor.member_id, text, render_reply(result | {"timezone": snapshot["wedding"]["timezone"]}))
@@ -167,10 +175,18 @@ class Deputy:
                                           f"Announcement to everyone:\n\u201c{plan.text}\u201d")
             return {"kind": "confirmation", "message": plan.reply, "draft": draft, "data": []}
         if plan.action in {"stop_checkins", "resume_checkins"}:
-            self.operations.set_deputy_quiet(actor, plan.action == "stop_checkins")
-        else:
-            self.operations.set_deputy_enabled(actor, plan.action == "resume_checkins_all")
-        return {"kind": "chat", "message": plan.reply, "data": []}
+            # The person's own choice takes effect at once; the reply is system-written.
+            quiet = plan.action == "stop_checkins"
+            self.operations.set_deputy_quiet(actor, quiet)
+            message = ("Okay, I won't check in with you unprompted for the rest of the event, except urgent items."
+                       if quiet else "Okay, I may check in with you again.")
+            return {"kind": "chat", "message": message, "data": []}
+        # A wedding-wide switch is a draft the coordinator must tap, like any other change.
+        enabled = plan.action == "resume_checkins_all"
+        summary = ("Resume check-ins for everyone? I will chase unacknowledged tasks again." if enabled else
+                   "Pause check-ins for everyone? Helpers will get the plain reminders instead.")
+        draft = self.operations.draft(actor, {"type": "set_deputy_enabled", "enabled": enabled}, summary)
+        return {"kind": "confirmation", "message": "Please confirm.", "draft": draft, "data": []}
 
     def _context(self, actor: Actor, snapshot: dict) -> tuple[str, str]:
         """The full context for the model, and the trusted part used to check its times."""

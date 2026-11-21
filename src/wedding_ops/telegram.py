@@ -149,6 +149,9 @@ def confirmation_reply(result: dict) -> str:
         return "Report sent\nThe coordinator and your team have been told."
     if kind == "arrival":
         return "Arrival recorded\nThe family liaison and photographer have been told."
+    if kind == "set_deputy_enabled":
+        return ("Check-ins are on. I will chase unacknowledged tasks again." if result["status"] == "on" else
+                "Check-ins are paused for everyone. Helpers get the plain reminders instead.")
     if kind == "broadcast":
         return ("Announcement sent\nEveryone gets an Acknowledge button. "
                 "Ask me who has not acknowledged yet.")

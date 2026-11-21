@@ -214,6 +214,12 @@ class VendorStatus(Strict):
     status: Literal["expected", "onsite", "late", "complete"]
 
 
+class SetDeputyEnabled(Strict):
+    """The coordinator's switch for the deputy's check-ins, confirmed with a tap."""
+    type: Literal["set_deputy_enabled"]
+    enabled: bool
+
+
 class WithdrawReport(Strict):
     """Withdraw the sender's own confirmed report, identified by its draft request ID."""
     type: Literal["withdraw_report"]
@@ -221,7 +227,7 @@ class WithdrawReport(Strict):
 
 
 Command = Annotated[
-    TaskAction | Arrival | ReportIncident | WithdrawReport | ResolveIncident | ProposeDelay | DecideApproval |
+    TaskAction | Arrival | ReportIncident | WithdrawReport | SetDeputyEnabled | ResolveIncident | ProposeDelay | DecideApproval |
     AcknowledgeNotification | AddKnowledge | ReviewKnowledge | RevokeMember | Broadcast |
     SetWeddingStatus | ApplyGuestImport | CreateTeam | CreateMember | CreateTask |
     CreateLocation | CreateTable | CreateTimelineItem | TimelineAction | CreateVendor | VendorStatus | EditGuest,

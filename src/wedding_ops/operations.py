@@ -90,7 +90,8 @@ def assert_teams(s: Session, wid: str, ids: list[str]) -> None:
 CAPABILITY = {
     "arrival": "guests:arrival", "report_incident": "incidents:report", "resolve_incident": "incidents:resolve",
     "propose_delay": "timeline:propose", "decide_approval": "timeline:approve",
-    "acknowledge_notification": "notifications:own", "withdraw_report": "notifications:own", "add_knowledge": "knowledge:manage",
+    "acknowledge_notification": "notifications:own", "withdraw_report": "notifications:own",
+    "set_deputy_enabled": "timeline:approve", "add_knowledge": "knowledge:manage",
     "review_knowledge": "knowledge:manage", "revoke_member": "members:manage", "broadcast": "messages:broadcast",
     "set_wedding_status": "wedding:manage", "apply_guest_import": "guests:manage",
     "edit_guest": "guests:manage", "create_team": "members:manage", "create_member": "members:manage", "create_task": "tasks:manage",
@@ -237,6 +238,10 @@ class Operations:
 
         if cmd.type == "withdraw_report":
             return self._withdraw(s, w, a, cmd.request_id, now)
+
+        if cmd.type == "set_deputy_enabled":
+            w.deputy_enabled = cmd.enabled
+            return {"id": wid, "status": "on" if cmd.enabled else "off"}
 
         if cmd.type == "resolve_incident":
             incident = row(s, Incident, wid, cmd.incident_id)
@@ -611,7 +616,7 @@ class Operations:
     def draft(self, actor: Actor, command: dict, summary: str) -> dict:
         """The model may propose only an already-authorized command; no mutation occurs."""
         cmd = COMMAND.validate_python(command)
-        if cmd.type not in {"arrival", "report_incident", "propose_delay", "withdraw_report", "broadcast"}:
+        if cmd.type not in {"arrival", "report_incident", "propose_delay", "withdraw_report", "broadcast", "set_deputy_enabled"}:
             raise denied("This action cannot be initiated from AI chat")
         with self.db.transaction(self.wid, write=True) as (s, w):
             a = load_access(s, actor, self.wid)

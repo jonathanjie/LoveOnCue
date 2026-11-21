@@ -899,6 +899,27 @@
       "title": "RevokeMember",
       "type": "object"
     },
+    "SetDeputyEnabled": {
+      "additionalProperties": false,
+      "description": "The coordinator's switch for the deputy's check-ins, confirmed with a tap.",
+      "properties": {
+        "type": {
+          "const": "set_deputy_enabled",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "enabled"
+      ],
+      "title": "SetDeputyEnabled",
+      "type": "object"
+    },
     "SetWeddingStatus": {
       "additionalProperties": false,
       "properties": {
@@ -1084,6 +1105,7 @@
           "resolve_incident": "#/$defs/ResolveIncident",
           "review_knowledge": "#/$defs/ReviewKnowledge",
           "revoke_member": "#/$defs/RevokeMember",
+          "set_deputy_enabled": "#/$defs/SetDeputyEnabled",
           "set_wedding_status": "#/$defs/SetWeddingStatus",
           "task_action": "#/$defs/TaskAction",
           "timeline_action": "#/$defs/TimelineAction",
@@ -1104,6 +1126,9 @@
         },
         {
           "$ref": "#/$defs/WithdrawReport"
+        },
+        {
+          "$ref": "#/$defs/SetDeputyEnabled"
         },
         {
           "$ref": "#/$defs/ResolveIncident"
