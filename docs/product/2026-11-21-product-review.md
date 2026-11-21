@@ -188,11 +188,70 @@ far away.
 A pre-fix withdrawal notice reached the couple in the gate run. It was created
 before the restriction fix, and the round-2 notices were correctly restricted.
 
-## 7. Resume point
+## 7. Direction change: the deputy (ADR 0003)
 
-- Code: `main`, plus PR #3 (rename, harness, this review) and PR #4 (core loop), which is stacked on #3.
-- Staging: `loveoncue.jonathanjie.com` runs release `08a6fd0` (migration 0003), with
+The founder redirected the product from "a rigid system with AI bolted on to
+parse text" to an agent that partners with the coordinator: it sees the
+schedule, chases people for updates, and keeps the coordinator informed.
+
+Inputs to the design:
+- the Fable advisor
+- prior art: the OpenClaw heartbeat, OpenAI Dots, and the Grok Bot check-in failures
+- a plan review
+
+The decision is in `docs/adr/0003-deputy-agent.md`. The model reads and
+drafts; only a human tap or deterministic code commits a change.
+
+**Built (PR #4), behind `WEDDINGOPS_DEPUTY=true`, live on staging:**
+- Conversational replies. Each turn sees a role-scoped context and the last
+  five exchanges, and can choose one action from an allow-list.
+- A deterministic heartbeat that pings task owners, with these limits:
+  - at most one ping per task, and one per person every 10 minutes
+  - a silence note to the coordinator after 5 minutes without an answer
+  - replies reach the coordinator in a rolling "Update from the floor" digest
+- Opt-outs: "stop pinging me" for anyone; pausing all check-ins for the
+  coordinator, confirmed with a tap.
+- No slash commands are shown to users, and buttons say what they do.
+- A Singlish intent evaluation: 40 cases, with accuracy rising from 88% to 98%.
+
+**Measured with the anchored rubric** (same personas as before; Singlish personas in the deputy runs):
+
+| Run | Ease | Clarity | Trust | Fallback replies |
+|---|---|---|---|---|
+| Intent bot, normal day | 2.2 | 2.0 | 2.0 | 22% (both rounds) |
+| Intent bot, confounders | 2.1 | 2.1 | 2.4 | |
+| Deputy, normal day | 3.2 | 3.0 | 2.3 | 0% |
+| Deputy, confounders | 2.9 | 2.9 | 2.3 | 0% |
+
+- **Median reply time** on staging was about 2.5 seconds, from message arrival to delivery.
+- **The gate (3.5) is not met.** Trust is held back by contradictions that
+  came from gaps in the deputy's context, not from made-up facts. Examples:
+  - a guest's table was later denied, because memory dropped the table lines
+  - an approval was unseen, because pushed updates were not in the context
+  - a withdrawal was unseen, because recorded actions were not in the context
+  - a question was taken as an acknowledgement
+
+  All of these, plus noise from coordinator notices, are fixed after the
+  runs. The fixes are not yet re-measured.
+- **The security review flagged nine issues in the deputy work, and all nine are fixed with tests.**
+  They covered escalation gaps, model text recorded as the user's words,
+  untrusted text reaching the model's trusted context, forged
+  acknowledgements, dropped replies, and the wedding-wide pause.
+
+**Next:**
+1. Rerun both gate rounds on staging's current code.
+2. Lower coordinator interruptions toward the target of at most 6 per hour.
+3. Let the coordinator approve conversationally ("approve the dinner one"),
+   as a draft confirmed with a tap.
+4. Redesign the Mini App (a separate task).
+5. Customer discovery, from section 5, is still the gate on the product
+   itself. The deputy goes into the interview script.
+
+## 8. Resume point
+
+- Code: `main`, plus PR #3 (rename, harness, this review) and PR #4 (core loop and deputy), which is stacked on #3.
+- Staging: `loveoncue.jonathanjie.com` runs release `bbf1080` (migration 0004) with the deputy on, plus
   DeepSeek V4.1 Flash for chat and photos, and `WEDDINGOPS_REHEARSAL=true`.
 - Simulation: create a world with `scripts/simulate.py --dir <dir> init`. Put a model key in
   `<dir>/model.key` (mode 600) to turn on free-form parsing.
-- Next to build: the understanding fixes in section 6, item 1. Then rerun the gate.
+- Next to build: the items under "Next" in section 7. Rerun the gate first.
