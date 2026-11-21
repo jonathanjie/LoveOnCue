@@ -144,7 +144,7 @@ def create_app(settings: Settings | None = None, db: Database | None = None, clo
             if model_parser is not None:
                 model_parser.close()
 
-    app = FastAPI(title="WeddingOps",version="0.1.0",lifespan=lifespan,docs_url="/docs" if settings.mode != "production" else None,
+    app = FastAPI(title="LoveOnCue",version="0.1.0",lifespan=lifespan,docs_url="/docs" if settings.mode != "production" else None,
                   redoc_url=None,openapi_url="/openapi.json" if settings.mode != "production" else None)
     app.state.services = {"db":db,"auth":auth,"queries":queries,"operations":operations,"assistant":assistant,
                           "worker":worker,"telegram":telegram,"imports":imports,"clock":clock,"settings":settings}
@@ -177,7 +177,7 @@ def create_app(settings: Settings | None = None, db: Database | None = None, clo
 
     def same_origin(request: Request):
         if request.headers.get("origin") != settings.public_url:
-            raise denied("This action must originate from the WeddingOps application")
+            raise denied("This action must originate from the LoveOnCue application")
 
     def reader(request: Request) -> Actor:
         return auth.authenticate(request.cookies.get(COOKIE))

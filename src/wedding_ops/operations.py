@@ -216,7 +216,7 @@ class Operations:
                                 status="pending", created_at=now, expires_at=now + timedelta(minutes=10))
             s.add(approval)
             for member in recipients(s, wid):
-                notify(s, wid, member.id, "approval_requested", f"Approval requested: {approval.title}. Review the proposed schedule and constraints in WeddingOps. No times have changed.",
+                notify(s, wid, member.id, "approval_requested", f"Approval requested: {approval.title}. Review the proposed schedule and constraints in LoveOnCue. No times have changed.",
                        f"approval:{approval.id}", now, permission="timeline:approve")
             return {"id": approval.id, "status": "pending", "changed_items": len(approval.changes), "blocked": bool(approval.blockers)}
 
