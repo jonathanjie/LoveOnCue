@@ -119,11 +119,11 @@ async function boot() {
         renderLogin();
     }
     catch (e) {
-        app.replaceChildren(group('loading', el('h1', '', 'WeddingOps'), text(errorText(e), 'error-text'), button('Try again', boot)));
+        app.replaceChildren(group('loading', el('h1', '', 'LoveOnCue'), text(errorText(e), 'error-text'), button('Try again', boot)));
     }
 }
 function renderLogin() {
-    const card = group('login-card', el('div', 'wordmark', 'WeddingOps'), el('h1', '', 'A clear next step.\nFor everyone.'), text('Role-aware coordination for the people making the day happen.', 'muted'));
+    const card = group('login-card', el('div', 'wordmark', 'LoveOnCue'), el('h1', '', 'A clear next step.\nFor everyone.'), text('Role-aware coordination for the people making the day happen.', 'muted'));
     if (config.demo) {
         card.append(badge('Fictional rehearsal', 'warning'), text('Choose a demo role. No real guests, Telegram messages or model credentials are used.', 'muted'));
         for (const m of config.demo_members)
@@ -138,7 +138,7 @@ async function load() { const epoch = sessionEpoch; const next = await api('/api
     return; snapshot = next; lastRefresh = Date.now(); healthy = true; buildLayout(); render(); }
 function buildLayout() {
     const sidebar = el('aside', 'sidebar');
-    sidebar.append(el('div', 'wordmark', 'WeddingOps'), el('div', 'eyebrow', 'THE OPERATIONS DESK'));
+    sidebar.append(el('div', 'wordmark', 'LoveOnCue'), el('div', 'eyebrow', 'THE OPERATIONS DESK'));
     nav = el('nav', 'navigation');
     nav.setAttribute('aria-label', 'Main navigation');
     sidebar.append(nav);

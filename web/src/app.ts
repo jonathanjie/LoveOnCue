@@ -89,17 +89,17 @@ async function boot():Promise<void>{
   const telegram=window.Telegram?.WebApp;
   if(telegram?.initData){telegram.ready();const data=await api<{csrf:string}>('/api/auth/telegram',{init_data:telegram.initData});csrf=data.csrf;telegram.expand();await load();return;}
   renderLogin();
- }catch(e){app.replaceChildren(group('loading',el('h1','','WeddingOps'),text(errorText(e),'error-text'),button('Try again',boot)));}
+ }catch(e){app.replaceChildren(group('loading',el('h1','','LoveOnCue'),text(errorText(e),'error-text'),button('Try again',boot)));}
 }
 function renderLogin():void{
- const card=group('login-card',el('div','wordmark','WeddingOps'),el('h1','','A clear next step.\nFor everyone.'),text('Role-aware coordination for the people making the day happen.','muted'));
+ const card=group('login-card',el('div','wordmark','LoveOnCue'),el('h1','','A clear next step.\nFor everyone.'),text('Role-aware coordination for the people making the day happen.','muted'));
  if(config.demo){card.append(badge('Fictional rehearsal','warning'),text('Choose a demo role. No real guests, Telegram messages or model credentials are used.','muted'));for(const m of config.demo_members)card.append(button(`${m.name} · ${m.roles.join(', ')}`,()=>signIn(m.id),'login-role'));}
  else{card.append(text('Open your personal invitation from the coordinator, or sign in through the enrolled Telegram bot. Roles cannot be selected here.'));}
  app.replaceChildren(group('login',card));
 }
 async function load():Promise<void>{const epoch=sessionEpoch;const next=await api<Snapshot>('/api/snapshot');if(epoch!==sessionEpoch)return;snapshot=next;lastRefresh=Date.now();healthy=true;buildLayout();render();}
 function buildLayout():void{
- const sidebar=el('aside','sidebar');sidebar.append(el('div','wordmark','WeddingOps'),el('div','eyebrow','THE OPERATIONS DESK'));nav=el('nav','navigation');nav.setAttribute('aria-label','Main navigation');sidebar.append(nav);
+ const sidebar=el('aside','sidebar');sidebar.append(el('div','wordmark','LoveOnCue'),el('div','eyebrow','THE OPERATIONS DESK'));nav=el('nav','navigation');nav.setAttribute('aria-label','Main navigation');sidebar.append(nav);
  sidebar.append(group('sidebar-footer',text('Human-led. State-backed.'),text('The agent proposes.\nYour coordinator decides.','muted small')));
  const work=el('div','work');header=el('header','header');main=el('main','main');main.id='main-content';work.append(header,main);
  const skip=el('a','skip','Skip to content');skip.href='#main-content';app.replaceChildren(skip,sidebar,work);
