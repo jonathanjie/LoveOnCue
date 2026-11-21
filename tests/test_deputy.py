@@ -98,3 +98,42 @@ def test_context_respects_the_role(deputy_chat):
     chat.send("coordinator", "what needs attention")
     coordinator_context = " ".join(m["content"] for m in planner.calls[1])
     assert "Coordinator brief" in coordinator_context
+
+
+def test_memory_keeps_what_the_person_actually_saw(deputy_chat):
+    planner = StubPlanner({"where amelia tan sit": DeputyPlan(reply="Let me check.", action="find_guest", text="Amelia Tan")})
+    chat = deputy_chat(planner)
+    chat.send("usher", "where amelia tan sit")
+    chat.send("usher", "you sure?")
+    remembered = " ".join(m["content"] for m in planner.calls[1] if m["role"] == "assistant")
+    assert "Amelia Tan: Table" in remembered
+
+
+def test_context_has_family_status_counts_and_recent_updates_for_the_right_roles(deputy_chat, ops):
+    planner = StubPlanner()
+    chat = deputy_chat(planner)
+    chat.send("family-liaison", "parents all here?")
+    liaison = planner.calls[-1][1]["content"]
+    assert "Family status" in liaison and "Mei Lee" in liaison
+    chat.send("mc", "hi")
+    mc = planner.calls[-1][1]["content"]  # The MC may see neither family status nor guest numbers.
+    assert "Family status" not in mc and "guests are recorded as onsite" not in mc
+    chat.send("registration-a", "how many reach")
+    assert "guests are recorded as onsite" in planner.calls[-1][1]["content"]
+    confirmed = chat.send("banquet", "/delay dinner 10")
+    chat.tap("banquet", f"confirm:{confirmed.telegram_draft_id}")
+    chat.send("coordinator", "/reject " + __import__("test_core_loop").pending_approvals(chat.db)[0].id + " not needed")
+    chat.send("banquet", "approved or not")
+    assert "rejected" in planner.calls[-1][1]["content"]
+
+
+def test_draft_details_come_from_the_model_not_the_confirming_message(deputy_chat, db):
+    from wedding_ops.models import Incident
+    planner = StubPlanner({"yes draft it": DeputyPlan(
+        reply="Drafted.", action="draft_incident", text="Two vegetarian meals missing",
+        details="Two vegetarian meals are missing for table 12.")})
+    chat = deputy_chat(planner)
+    draft = chat.send("coordinator", "yes draft it")
+    chat.tap("coordinator", f"confirm:{draft.telegram_draft_id}")
+    with db.sessions() as s:
+        assert s.scalars(select(Incident)).one().details == "Two vegetarian meals are missing for table 12."
