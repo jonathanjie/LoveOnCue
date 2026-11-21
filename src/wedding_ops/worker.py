@@ -66,6 +66,15 @@ class TelegramTransport:
             raise DeliveryError("network_error", retryable=True) from exc
 
 
+def draft_type(s, wedding_id: str, draft_id: str | None) -> str | None:
+    """The command type of a draft, so its button can say what it does."""
+    from .models import ActionDraft
+    if not draft_id:
+        return None
+    draft = s.scalar(select(ActionDraft).where(ActionDraft.wedding_id == wedding_id, ActionDraft.id == draft_id))
+    return draft.command["type"] if draft else None
+
+
 def deputy_ping_markup(s, wedding_id: str, notice: Notification) -> dict | None:
     """An On it button for the task a deputy ping asks about. Keys look like "deputy-ping:<id>:<member>"."""
     from .models import DeputyPing
@@ -171,7 +180,8 @@ class Worker:
             markup = None
             if n.topic == "bot_reply" and isinstance(self.transport, TelegramTransport):
                 markup = reply_markup(coordinator=a.coordinator, guest_lookup=a.permits("guests:seating"),
-                                      draft_id=n.telegram_draft_id, app_url=self.settings.public_url)
+                                      draft_id=n.telegram_draft_id, app_url=self.settings.public_url,
+                                      draft_type=draft_type(s, self.wid, n.telegram_draft_id))
             elif n.topic == "approval_requested" and isinstance(self.transport, TelegramTransport):
                 # notify() keys approval notices as "approval:<approval id>:<recipient>".
                 approval = s.scalar(select(Approval).where(Approval.wedding_id == self.wid,

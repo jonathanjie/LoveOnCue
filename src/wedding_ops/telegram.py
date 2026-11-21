@@ -84,9 +84,9 @@ def private_callback(update: dict, token: str) -> tuple[str, str | None, str] | 
     return sender, command, callback_id
 
 
-HELP = ("Tap a button or type a question. Use /now for your tasks, /location for directions, "
-        "or /knowledge followed by a question. To report a problem, describe it in your own words "
-        "or send /report followed by what happened. Photo reviews are read-only when enabled. "
+HELP = ("Just message me like you would a teammate. Ask what you should be doing, where something "
+        "is, or when something happens. Tell me about delays or problems in your own words and I will "
+        "pass them on once you confirm. Photo reviews are read-only when enabled. "
         "Reports need confirmation. "
         "Schedule changes need human approval in LoveOnCue.")
 
@@ -107,8 +107,7 @@ def render_reply(result: dict) -> str:
         draft = result["draft"]
         note = ("\nTimeline changes still need the coordinator's approval."
                 if draft.get("command_type") == "propose_delay" else "")
-        return (f"{message}\n\n{draft['summary']}\n\nTap Confirm report or send:\n/confirm {draft['id']}"
-                f"\n\nExpires in five minutes.{note}")
+        return f"{message}\n\n{draft['summary']}\n\nTap the button below within five minutes to send it.{note}"
     for item in result.get("data", [])[:8]:
         if result["kind"] == "tasks":
             message += f"\n• {item['title']} · due {local_time(item['due_at'], zone)} · {item['state']}"
@@ -152,7 +151,7 @@ def confirmation_reply(result: dict) -> str:
         return "Arrival recorded\nThe family liaison and photographer have been told."
     if kind == "broadcast":
         return ("Announcement sent\nEveryone gets an Acknowledge button. "
-                "Send /brief to see who has not acknowledged yet.")
+                "Ask me who has not acknowledged yet.")
     if kind == "withdraw_report":
         return f"Withdrawn\nYour report ({result['title']}) is cancelled. Everyone who was told has been told to ignore it."
     return "Report confirmed."
@@ -204,11 +203,11 @@ class TelegramIngress:
         if command in {"quiet", "unquiet"}:
             self.operations.set_deputy_quiet(actor, command == "quiet")
             return ("Okay, I won't message you unprompted for the rest of the event, except urgent items. "
-                    "Send /unquiet to undo." if command == "quiet" else "Okay, I may check in with you again.")
+                    "Tell me when you want check-ins again." if command == "quiet" else "Okay, I may check in with you again.")
         enabled = command.endswith("on")
         self.operations.set_deputy_enabled(actor, enabled)
         return ("Deputy on. I will chase unacknowledged tasks and keep you posted." if enabled else
-                "Deputy off. I will not ping anyone; the plain reminders are back. Send /deputy on to resume.")
+                "Paused. I will not check in with anyone; the plain reminders are back. Tell me to resume when you want.")
 
     def _decide(self, actor, decision: str, approval_id: str, note: str) -> str:
         """A coordinator's explicit Approve or Reject from Telegram. The model is not involved."""
@@ -224,7 +223,7 @@ class TelegramIngress:
     def _announce(self, actor, message: str) -> tuple[str, str | None]:
         """Draft a coordinator announcement to every team. Nothing is sent until confirmed."""
         if len(message) < 3:
-            return "Write the announcement after the command, e.g. /announce Ceremony moves to the ballroom.", None
+            return "What should I tell everyone? For example: tell everyone the ceremony moves to the ballroom.", None
         team_ids = [team["id"] for team in self.assistant.queries.snapshot(actor)["teams"]]
         draft = self.operations.draft(actor, {"type": "broadcast", "team_ids": team_ids, "message": message[:1500]},
                                       f"Send this announcement to everyone on the team:\n{message[:1500]}")
@@ -299,7 +298,7 @@ class TelegramIngress:
                     member_id = enrollment["member_id"]
                 except OpsError:
                     member_id = self.auth.telegram_actor(payload["sender"]).member_id
-                result = "You are enrolled in this wedding. Send /now to see your assignment or open the coordinator's Mini App link."
+                result = "You're in! Ask me \u201cwhat should I do?\u201d any time, or tap My tasks."
             else:
                 actor = self.auth.telegram_actor(payload["sender"])
                 member_id = actor.member_id
@@ -322,7 +321,7 @@ class TelegramIngress:
                     permission = "timeline:approve"
                 elif text == "/guest":
                     self.assistant.queries.guests(actor, "")
-                    result = "Find a guest\nSend /guest followed by a name. Check similar names before selecting a guest."
+                    result = "Find a guest\nWho are you looking for? Send me their name."
                     permission = "guests:seating"
                 elif text in {"/start", "/help"}:
                     result = HELP

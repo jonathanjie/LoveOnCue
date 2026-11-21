@@ -96,7 +96,7 @@ def test_at_most_one_unprompted_ping_per_person_per_ten_minutes(heartbeat_chat, 
 
 def test_coordinator_can_switch_the_deputy_off(heartbeat_chat):
     chat = heartbeat_chat()
-    assert "off" in chat.send("coordinator", "/deputy off").message.lower()
+    assert "paused" in chat.send("coordinator", "/deputy off").message.lower()
     tick(chat, 6)
     assert chat.notices("usher", "deputy_ping") == []
     assert chat.notices("usher", "task_overdue")  # The plain reminders come back.

@@ -24,22 +24,21 @@ MAX_INTENT_TOKENS = 256
 MAX_PHOTO_REVIEW_TOKENS = 768
 MAX_DEPUTY_TOKENS = 600
 MAX_RESPONSE_BYTES = 32 * 1024
-FALLBACK_HELP = """I didn't understand that. You can ask or report things like:
-• "What are my tasks?" or /now
-• "When is dinner?" or /schedule
-• "Where does Sarah Tan sit?" or /guest Sarah Tan
-• "Dinner is 10 minutes late" or /delay dinner 10
-• "The bridal car has a flat tyre" or /report what happened
-• "Cancel my last report" or /withdraw
-• "Was my report approved?" or /status
+FALLBACK_HELP = """Sorry, I didn't catch that. You can ask me things like:
+• "What should I be doing now?"
+• "When is dinner?"
+• "Where does Sarah Tan sit?"
+• "Dinner is running 10 minutes late"
+• "The bridal car has a flat tyre"
+• "Cancel my last report" or "Was my report approved?"
 For a medical, fire or security emergency, call the on-site team now. Do not wait for this bot."""
-COORDINATOR_HELP = """I didn't understand that. As coordinator you can:
-• /brief — what needs your attention, including who has not acknowledged
-• /announce your message — tell every helper, with an Acknowledge button
-• /approve or /reject followed by the proposal ID, or tap the buttons on a request
-• /schedule — the current run sheet
-• /report what happened — record a problem for your team
-Helpers report delays and problems in their own words; you get the requests here."""
+COORDINATOR_HELP = """Sorry, I didn't catch that. As coordinator you can ask me things like:
+• "What needs my attention?" or "Who hasn't confirmed?"
+• "Tell everyone the ceremony moves to the ballroom" (I'll draft it for you to send)
+• "Approve the dinner delay", or tap Approve or Reject on a request
+• "What's the run sheet now?"
+• "Pause the check-ins" or "Resume the check-ins"
+Helpers report delays and problems in their own words; their requests come to you here."""
 # A new report within this window mentions the reporter's earlier open report.
 RECENT_REPORT_WINDOW = timedelta(minutes=15)
 LOCAL_NOW_REQUESTS = {"now", "what's next", "my tasks", "what should i be doing now"}
@@ -299,7 +298,7 @@ class Assistant:
             if tasks:
                 message = "Your current and next tasks, by due time. Blocked tasks wait for their prerequisites."
             elif "coordinator" in snapshot["me"]["roles"]:
-                message = "You have no tasks of your own. Send /brief to see what needs your attention."
+                message = "You have no tasks of your own. Ask me what needs your attention."
             else:
                 message = "You have no open tasks right now. Your coordinator will assign any new ones."
             return {"message": message, "kind": "tasks", "data": tasks[:6]}
@@ -310,7 +309,7 @@ class Assistant:
                 message = ("No matching guest. Check the spelling or try the last name only. If they are not on "
                            f"the list, ask {coordinator_contact(snapshot)}.")
             elif len(found) > 1:
-                message = f"{len(found)} guests match. Send /guest followed by the full name to pick one."
+                message = f"{len(found)} guests match. Which one? Send me their full name."
             else:
                 message = "Matching guest record."
             return {"message": message, "kind": "guests", "data": found}
@@ -323,7 +322,7 @@ class Assistant:
             found = self._family(actor, intent.query)
             plural = "parents" in intent.query.lower() and ("bride" in intent.query.lower() or "groom" in intent.query.lower())
             if not found or (len(found) != 1 and not (intent.kind == "arrival" and plural and len(found) == 2)):
-                return {"kind": "clarification", "message": "I could not uniquely identify the family member. Use /arrival followed by their exact name or use the registration screen.", "data": []}
+                return {"kind": "clarification", "message": "I could not tell which family member you mean. Send me their full name.", "data": []}
             if intent.kind == "arrival":
                 command = {"type": "arrival", "person_ids": [p["id"] for p in found], "status": "onsite"}
                 summary = "Record confirmed arrival for " + ", ".join(p["name"] for p in found) + ". Notify the family liaison and photography team."
@@ -379,7 +378,7 @@ class Assistant:
         if intent.kind == "delay":
             item = match_timeline_item(snapshot["timeline"], intent.query) or self._my_last_delay_item(actor, snapshot)
             if item is None or intent.minutes is None:
-                return {"kind": "clarification", "message": "Specify one activity and the additional delay, e.g. /delay dinner 12.", "data": []}
+                return {"kind": "clarification", "message": "Which activity is running late, and by how many minutes? For example: dinner is 12 minutes late.", "data": []}
             # A bare command says nothing the coordinator can weigh, so say that plainly.
             reason = ("Sent as a /delay command, with no further detail." if text.strip().startswith("/")
                       else text[:2000])
@@ -396,7 +395,7 @@ class Assistant:
                 return {"kind": "locations", "message": "Places at this venue:", "data": snapshot["locations"]}
             found = match_locations(snapshot["locations"], query)
             message = ("Matching places." if found else
-                       f"No matching place. Send /location to list them all, or ask {coordinator_contact(snapshot)}.")
+                       f"I don't know that place. Ask me \u201cwhat places are there?\u201d, or ask {coordinator_contact(snapshot)}.")
             return {"kind": "locations", "message": message, "data": found}
         if intent.kind == "vendor":
             found = [v for v in snapshot["vendors"] if intent.query.casefold() in (v["name"] + " " + v["category"]).casefold()]
@@ -421,7 +420,7 @@ class Assistant:
         """Draft a problem report for the reporter to confirm. Nothing is recorded yet."""
         title = (intent.query or text).strip()[:160]
         if len(title) < 3:
-            return {"kind": "clarification", "message": "Describe the problem in a few words, e.g. /report bridal car has a flat tyre.", "data": []}
+            return {"kind": "clarification", "message": "What's the problem? Describe it in a few words, for example: the bridal car has a flat tyre.", "data": []}
         urgent = intent.kind == "urgent_incident"
         # Keep the reporter's words, without the /report command itself.
         details = re.sub(r"^/report\s+", "", text.strip(), flags=re.I)[:2000] or title

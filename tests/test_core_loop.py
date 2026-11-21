@@ -372,7 +372,7 @@ def test_family_lookup_and_missing_report_wording_is_not_misleading(chat_factory
 def test_coordinator_without_tasks_is_pointed_to_the_brief(chat_factory):
     chat = chat_factory()
     reply = chat.send("coordinator", "/now").message
-    assert "Check with the coordinator" not in reply and "brief" in reply.lower()
+    assert "Check with the coordinator" not in reply and "needs your attention" in reply
 
 
 def test_reporter_text_cannot_fake_sections_of_the_approval_request(chat_factory):
@@ -411,9 +411,9 @@ def test_withdrawn_missing_person_notice_requires_family_permission(chat_factory
 def test_coordinator_fallback_help_lists_coordinator_commands(chat_factory):
     chat = chat_factory()
     reply = chat.send("coordinator", "tell everyone the ceremony is moving inside").message
-    assert "/announce" in reply and "/approve" in reply and "/brief" in reply
+    assert "Tell everyone" in reply and "Approve" in reply and "/" not in reply
     helper = chat.send("usher", "tell everyone the ceremony is moving inside").message
-    assert "/announce" not in helper
+    assert "Tell everyone" not in helper and "/" not in helper
 
 
 def test_expired_proposals_are_not_superseded_and_report_details_drop_the_command(chat_factory, db, clock):

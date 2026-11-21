@@ -11,7 +11,7 @@ NAVIGATION = {
 
 # Notices the coordinator needs to see acknowledged. Each gets an Acknowledge button.
 ACK_TOPICS = {"coordinator_message", "timeline_updated"}
-ACK_PROMPT = "Tap Acknowledge or send /ack so the coordinator knows you saw this."
+ACK_PROMPT = "Tap Acknowledge, or reply \u201cok\u201d, so the coordinator knows you saw this."
 
 
 def notice_markup(topic: str, notification_id: str) -> dict | None:
@@ -27,14 +27,19 @@ def approval_markup(approval_id: str, *, blocked: bool) -> dict:
     return {"inline_keyboard": [buttons]}
 
 
+# What the button under a draft does, in plain words.
+DRAFT_BUTTONS = {"propose_delay": "Send to coordinator", "report_incident": "Send report",
+                 "arrival": "Record arrival", "withdraw_report": "Withdraw it", "broadcast": "Send to everyone"}
+
+
 def reply_markup(*, coordinator: bool, guest_lookup: bool, draft_id: str | None,
-                 app_url: str) -> dict:
+                 app_url: str, draft_type: str | None = None) -> dict:
     def button(label: str, action: str) -> dict:
         return {"text": label, "callback_data": action}
 
     keyboard = []
     if draft_id:
-        keyboard.append([button("Confirm report", f"confirm:{draft_id}")])
+        keyboard.append([button(DRAFT_BUTTONS.get(draft_type, "Confirm"), f"confirm:{draft_id}")])
     operations = [button("My tasks", "nav:now")]
     if guest_lookup:
         operations.append(button("Find a guest", "nav:guest"))
@@ -69,6 +74,6 @@ def render_brief(brief: dict, *, expanded: bool) -> str:
         shown += 1
     if expanded and len(items) > shown:
         lines.extend(["", f"{len(items) - shown} more items. Open LoveOnCue to review them."])
-    lines.extend(["", "Latest summary: /brief" if expanded else "More details: /brief_more",
+    lines.extend(["", "Tap Coordinator brief for the summary." if expanded else "Tap More details for the full list.",
                   "", "Coordinator availability is not recorded. Use an enrolled backup for major decisions."])
     return "\n".join(lines)

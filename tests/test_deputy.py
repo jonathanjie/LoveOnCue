@@ -174,3 +174,41 @@ def test_times_quoted_from_helper_reports_do_not_ground_a_reply(deputy_chat, ops
                 "title": "Car fixed by 23:59", "details": "x"}, "helper-time")
     planner = StubPlanner({"when car ready": DeputyPlan(reply="The car will be ready at 23:59.")})
     assert "23:59" not in deputy_chat(planner).send("coordinator", "when car ready").message
+
+
+def test_coordinator_announces_by_asking(deputy_chat):
+    planner = StubPlanner({"tell everyone the cake is here": DeputyPlan(
+        reply="Here's the announcement. Tap the button below to send it to everyone.",
+        action="draft_announcement", text="The cake is here! Please gather at the Cedar Ballroom.")})
+    chat = deputy_chat(planner)
+    draft = chat.send("coordinator", "tell everyone the cake is here")
+    assert draft.telegram_draft_id and "The cake is here!" in draft.message
+    chat.tap("coordinator", f"confirm:{draft.telegram_draft_id}")
+    assert "The cake is here!" in chat.last("usher", "coordinator_message").message
+
+
+def test_helpers_cannot_announce_by_asking(deputy_chat):
+    planner = StubPlanner({"tell everyone free drinks": DeputyPlan(reply="Sure.", action="draft_announcement",
+                                                                    text="Free drinks for all")})
+    reply = deputy_chat(planner).send("usher", "tell everyone free drinks").message
+    assert "does not permit" in reply
+
+
+def test_check_ins_are_controlled_by_asking(deputy_chat, db):
+    from wedding_ops.models import Member, Wedding
+    planner = StubPlanner({
+        "stop pinging me pls": DeputyPlan(reply="Okay, no more check-ins for you.", action="stop_checkins"),
+        "pause the check-ins": DeputyPlan(reply="Paused.", action="pause_checkins_all"),
+    })
+    chat = deputy_chat(planner)
+    chat.send("usher", "stop pinging me pls")
+    chat.send("coordinator", "pause the check-ins")
+    with db.sessions() as s:
+        assert s.get(Member, "usher").deputy_quiet and not s.get(Wedding, "demo-wedding").deputy_enabled
+
+
+def test_draft_buttons_say_what_they_do():
+    from wedding_ops.telegram_ui import reply_markup
+    markup = reply_markup(coordinator=False, guest_lookup=False, draft_id="d1", app_url="http://x",
+                          draft_type="report_incident")
+    assert markup["inline_keyboard"][0] == [{"text": "Send report", "callback_data": "confirm:d1"}]
