@@ -322,7 +322,9 @@ class Assistant:
         if len(title) < 3:
             return {"kind": "clarification", "message": "Describe the problem in a few words, e.g. /report bridal car has a flat tyre.", "data": []}
         urgent = intent.kind == "urgent_incident"
-        command = {"type": "report_incident", "kind": "other", "title": title, "details": text[:2000],
+        # Keep the reporter's words, without the /report command itself.
+        details = re.sub(r"^/report\s+", "", text.strip(), flags=re.I)[:2000] or title
+        command = {"type": "report_incident", "kind": "other", "title": title, "details": details,
                    "severity": "urgent" if urgent else "normal"}
         summary = f"Send {'an URGENT' if urgent else 'a'} problem report to the coordinator and your team: {title}."
         recent = [i for i in snapshot["incidents"] if i["reported_by"] == actor.member_id and i["status"] == "open"

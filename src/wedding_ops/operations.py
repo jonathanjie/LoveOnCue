@@ -251,7 +251,8 @@ class Operations:
             reason = cmd.reason
             # One live proposal per item: a newer report replaces older pending ones.
             for older in rows(s, Approval, wid):
-                if older.status == "pending" and older.changes and older.changes[0]["item_id"] == item.id:
+                live = older.status == "pending" and older.expires_at > now
+                if live and older.changes and older.changes[0]["item_id"] == item.id:
                     older.status, older.decided_at = "superseded", now
                     older.decision_note = "Replaced by a newer report."
                     reason = f"{reason}\nReplaces the earlier proposal: {older.title.split(': ', 1)[-1]}."

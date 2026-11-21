@@ -414,3 +414,18 @@ def test_coordinator_fallback_help_lists_coordinator_commands(chat_factory):
     assert "/announce" in reply and "/approve" in reply and "/brief" in reply
     helper = chat.send("usher", "tell everyone the ceremony is moving inside").message
     assert "/announce" not in helper
+
+
+def test_expired_proposals_are_not_superseded_and_report_details_drop_the_command(chat_factory, db, clock):
+    chat = chat_factory()
+    confirmed_report(chat, "banquet", "/delay dinner 5")
+    clock.advance(15)  # The first proposal expires after ten minutes.
+    confirmed_report(chat, "banquet", "/delay dinner 8")
+    with db.sessions() as s:
+        statuses = {a.title: (a.status, a.reason) for a in s.scalars(select(Approval))}
+    assert statuses["Dinner service: +5 minutes"][0] != "superseded"  # Expired, so not replaced.
+    assert "Replaces" not in statuses["Dinner service: +8 minutes"][1]
+
+    confirmed_report(chat, "driver", "/report bridal car flat tyre")
+    with db.sessions() as s:
+        assert s.scalars(select(Incident)).one().details == "bridal car flat tyre"
