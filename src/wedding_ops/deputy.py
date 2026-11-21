@@ -43,6 +43,7 @@ MEMORY_TURNS = 10  # five user messages and five replies
 MEMORY_TTL = timedelta(hours=12)
 DECISION_WINDOW = timedelta(hours=1)  # how far back the coordinator's context lists decisions
 MAX_LOOKUPS = 5
+MAX_SHIFT_MINUTES = 180  # the command's own limit on one change
 TIME_PATTERN = re.compile(r"\b([01]?\d|2[0-3]):[0-5]\d\b")
 
 DeputyAction = Literal["none", "tell_coordinator", "report_late", "run_sheet_change", "complete_task",
@@ -179,8 +180,10 @@ class Deputy:
         if plan.action == "acknowledge" and ("?" in text or len(text.split()) > 6):
             logger.warning("Deputy chose acknowledge for a question; answering without it")
             plan = plan.model_copy(update={"action": "none"})
-        # Times may come from the records or from what the person just said (for example a new start time).
-        if not grounded(plan.reply, trusted + "\n" + text):
+        # A reply that only answers must take its times from the records. A reply that introduces a
+        # draft may repeat a time the person just gave, because code renders what the draft will do.
+        drafting = plan.action not in {"none", "acknowledge"}
+        if not grounded(plan.reply, trusted + ("\n" + text if drafting else "")):
             logger.warning("Deputy reply stated a time not in the context; using the intent path")
             return self.assistant.ask(actor, text)
         result = self._act(actor, text, plan, snapshot, trusted, refs)
@@ -201,10 +204,19 @@ class Deputy:
     # Actions -----------------------------------------------------------------------------
 
     def _act(self, actor: Actor, text: str, plan: DeputyPlan, snapshot: dict, trusted: str, refs: dict) -> dict:
+        try:
+            return self._draft_action(actor, text, plan, snapshot, trusted, refs)
+        except ValidationError:
+            # A value the model derived does not fit the command (for example a shift beyond three hours).
+            logger.warning("Deputy plan produced an invalid command; asking the person instead")
+            return {"kind": "clarification", "data": [],
+                    "message": "I couldn't turn that into a valid draft. Tell me again with the details, for example the activity and the new time."}
+
+    def _draft_action(self, actor: Actor, text: str, plan: DeputyPlan, snapshot: dict, trusted: str, refs: dict) -> dict:
         if plan.action in CONTROL_ACTIONS:
             return self._control(actor, plan)
         if plan.action == "send_message":
-            return self._send_message(actor, plan, snapshot, refs)
+            return self._send_message(actor, plan, snapshot, refs, trusted + "\n" + text)
         if plan.action == "run_sheet_change":
             return self._change_item(actor, text, plan, snapshot)
         if plan.action == "complete_task":
@@ -252,6 +264,12 @@ class Deputy:
             if shift < 0:
                 return {"kind": "clarification", "data": [],
                         "message": "I can only move run-sheet items later. Change the order in LoveOnCue."}
+        if shift > MAX_SHIFT_MINUTES:
+            return {"kind": "clarification", "data": [],
+                    "message": "That moves it more than three hours. Check the time, or change it in LoveOnCue."}
+        if not (shift or plan.place or plan.note):
+            return {"kind": "clarification", "data": [],
+                    "message": f"{item['title']} is already at that time. What should change: the time, the place or a note?"}
         place = None
         if plan.place:
             found = match_locations(snapshot["locations"], plan.place)
@@ -262,9 +280,13 @@ class Deputy:
         result = self.assistant.change_draft(actor, item, shift, place, plan.note, plan.details or text, snapshot)
         return self._with_reply(plan, result)
 
-    def _send_message(self, actor: Actor, plan: DeputyPlan, snapshot: dict, refs: dict) -> dict:
+    def _send_message(self, actor: Actor, plan: DeputyPlan, snapshot: dict, refs: dict, grounding: str) -> dict:
         if len(plan.text) < 3:
             return {"kind": "chat", "message": "What should the message say?", "data": []}
+        if not grounded(plan.text, grounding):
+            # A message goes to other people, so it may not carry a time the coordinator never gave.
+            return {"kind": "clarification", "data": [],
+                    "message": "I'm not sure of the time to put in that message. Tell me the exact wording or time."}
         question = refs.get(plan.about.upper().strip())
         answers = question[1] if question and question[0] == "question" else None
         team_ids, member_ids, unknown = resolve_recipients(plan.to, snapshot)
@@ -274,22 +296,20 @@ class Deputy:
                     "message": f"Who should get it? Say everyone, a person's name, or a team ({known})."}
         names = {m["id"]: m["name"] for m in snapshot["members"]}
         teams = {t["id"]: t["name"] for t in snapshot["teams"]}
+        question_record = next((i for i in snapshot["incidents"] if i["id"] == answers), None) if answers else None
+        if question_record and question_record["reported_by"] not in member_ids:
+            # The person who asked always gets the answer, so the preview must name them.
+            member_ids.append(question_record["reported_by"])
         audience = ("everyone" if team_ids and len(team_ids) == len(teams) else
-                    ", ".join([teams[t] for t in team_ids] + [names[m] for m in member_ids]) or "the person who asked")
+                    ", ".join([teams[t] for t in team_ids] + [names.get(m, "a team member") for m in member_ids]))
         command = {"type": "broadcast", "team_ids": team_ids, "member_ids": member_ids, "message": plan.text,
                    "answers_incident_id": answers}
-        if not (team_ids or member_ids):
-            # Answering a question with no other recipient: the asker gets it (Operations adds them).
-            command["member_ids"] = [self._asker(snapshot, answers)]
         summary = f"Message to {audience}:\n“{plan.text}”"
-        if answers:
-            summary += "\nThis answers their question and closes it."
+        if question_record:
+            asker = names.get(question_record["reported_by"], "the helper")
+            summary += f"\nThis answers {asker}'s question “{question_record['title']}” and closes it."
         draft = self.operations.draft(actor, command, summary)
         return {"kind": "confirmation", "message": plan.reply, "draft": draft, "data": []}
-
-    @staticmethod
-    def _asker(snapshot: dict, incident_id: str) -> str:
-        return next(i["reported_by"] for i in snapshot["incidents"] if i["id"] == incident_id)
 
     def _control(self, actor: Actor, plan: DeputyPlan) -> dict:
         """Check-in switches. Each still runs through Operations' permission checks."""
@@ -411,7 +431,7 @@ class Deputy:
             if approval.get("decided_by") and status in {"approved", "rejected"}:
                 status += f" by {names.get(approval['decided_by'], 'the coordinator')} at {local(approval['decided_at'])}"
             elif status == "superseded":
-                status = "replaced by their newer request"
+                status = (approval.get("decision_note") or "replaced by a newer request").rstrip(".").lower()
             reports.append((approval["created_at"], "approval", approval["id"],
                             f"{local(approval['created_at'])} run-sheet request “{approval['title']}”: {status}"))
         for incident in snapshot["incidents"]:
@@ -624,7 +644,9 @@ class Heartbeat:
             places = {location.id: location.name for location in rows(s, Location, self.wid)}
 
             def may_ping(member: Member | None) -> bool:
-                if member is None or not member.active or member.deputy_quiet or "coordinator" in member.roles:
+                # The couple are guests at their own wedding: the deputy never chases them.
+                if (member is None or not member.active or member.deputy_quiet
+                        or "coordinator" in member.roles or "couple" in member.roles):
                     return False
                 return not any(p.recipient_id == member.id and now - p.created_at < PING_GAP for p in pings)
 

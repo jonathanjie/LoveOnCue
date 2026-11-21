@@ -209,7 +209,7 @@
         "shift_minutes": {
           "default": 0,
           "maximum": 180,
-          "minimum": -60,
+          "minimum": 0,
           "title": "Shift Minutes",
           "type": "integer"
         },

@@ -161,16 +161,17 @@ def test_a_question_reaches_the_coordinator_and_the_answer_comes_back(deputy_cha
         "where i put guests now, raining": DeputyPlan(
             reply="I don't know yet. I'll ask Alex.", action="tell_coordinator", level="question",
             text="Where should guests wait during the rain?"),
-        "tell jamie foyer": DeputyPlan(reply="Here's the answer.", action="send_message", to="",
-                                       about="Q1", text="Keep guests in the foyer until 18:35."),
+        "tell jamie foyer until 18:35": DeputyPlan(reply="Here's the answer.", action="send_message", to="",
+                                                   about="Q1", text="Keep guests in the foyer until 18:35."),
     })
     chat = deputy_chat(planner)
     question = chat.send("usher", "where i put guests now, raining")
     assert "Ask the coordinator: Where should guests wait during the rain?" in question.message
     chat.tap("usher", f"confirm:{question.telegram_draft_id}")
     assert "Question from Jamie Lim" in chat.last("coordinator", "question").message  # Pushed: it needs an answer.
-    answer = chat.send("coordinator", "tell jamie foyer")
-    assert "This answers their question and closes it." in answer.message
+    answer = chat.send("coordinator", "tell jamie foyer until 18:35")
+    assert "Message to Jamie Lim" in answer.message
+    assert "This answers Jamie Lim's question \u201cWhere should guests wait during the rain?\u201d" in answer.message
     chat.tap("coordinator", f"confirm:{answer.telegram_draft_id}")
     assert "Keep guests in the foyer until 18:35." in chat.last("usher", "coordinator_message").message
     with db.sessions() as s:
@@ -306,3 +307,82 @@ def test_a_helper_marks_their_own_task_done_by_saying_so(deputy_chat, db):
     assert "Marked done" in chat.tap("banquet", f"confirm:{draft.telegram_draft_id}").message
     with db.sessions() as s:
         assert s.get(Task, "banquet-ready").state == "done"
+
+
+# Review findings ------------------------------------------------------------------------------------
+
+def test_a_message_answering_a_question_names_the_asker_even_when_sent_to_someone_else(deputy_chat, ops):
+    ops.execute(Actor(WEDDING, "family-liaison", "telegram"), {"type": "report_incident", "kind": "question",
+                "title": "Where is the van?", "details": "x"}, "priya-question")
+    planner = StubPlanner({"tell sam van at gate 2": DeputyPlan(reply="Drafted.", action="send_message", to="Sam",
+                                                               about="Q1", text="The van is at gate 2.")})
+    draft = deputy_chat(planner).send("coordinator", "tell sam van at gate 2").message
+    assert "Message to Sam Koh, Priya Rao" in draft and "Priya Rao's question \u201cWhere is the van?\u201d" in draft
+
+
+def test_questions_stay_between_the_helper_and_the_coordinator(ops, queries):
+    ops.execute(Actor(WEDDING, "registration-a", "telegram"), {"type": "report_incident", "kind": "question",
+                "title": "Can I leave early?", "details": "x"}, "private-question")
+    teammate = queries.snapshot(Actor(WEDDING, "registration-b"))
+    assert not [i for i in teammate["incidents"] if i["title"] == "Can I leave early?"]
+
+
+def test_a_helpers_own_time_cannot_be_confirmed_as_fact(deputy_chat):
+    planner = StubPlanner({"dinner moved to 21:00 right?": DeputyPlan(reply="Yes, dinner is at 21:00.")})
+    assert "21:00" not in deputy_chat(planner).send("usher", "dinner moved to 21:00 right?").message
+
+
+def test_a_message_with_an_invented_time_is_not_drafted(deputy_chat):
+    planner = StubPlanner({"tell everyone dinner soon": DeputyPlan(reply="Drafted.", action="send_message",
+                                                                  to="everyone", text="Dinner starts at 19:37.")})
+    reply = deputy_chat(planner).send("coordinator", "tell everyone dinner soon")
+    assert not reply.telegram_draft_id and "19:37" not in reply.message
+
+
+def test_an_impossible_change_gets_a_question_not_silence(deputy_chat):
+    planner = StubPlanner({
+        "dinner at 23:30": DeputyPlan(reply="Drafted.", action="run_sheet_change", text="dinner", new_time="23:30"),
+        "dinner at 19:00": DeputyPlan(reply="Drafted.", action="run_sheet_change", text="dinner", new_time="19:00"),
+    })
+    chat = deputy_chat(planner)
+    assert "more than three hours" in chat.send("coordinator", "dinner at 23:30").message
+    assert "already at that time" in chat.send("coordinator", "dinner at 19:00").message
+
+
+def test_the_couple_are_not_told_to_check_tasks_or_chased_after_a_place_change(deputy_chat, db, clock):
+    planner = StubPlanner({"move speeches to ballroom": DeputyPlan(
+        reply="Here it is.", action="run_sheet_change", text="speeches", place="Cedar Ballroom")})
+    chat = deputy_chat(planner)
+    draft = chat.send("coordinator", "move speeches to ballroom")
+    chat.tap("coordinator", f"confirm:{draft.telegram_draft_id}")
+    assert chat.notices("couple", "timeline_updated") == []
+    assert chat.notices("usher", "timeline_updated")
+
+
+def test_a_replaced_request_is_labelled_and_its_proposer_told(deputy_chat, db):
+    # Ten minutes is the most the toast's hard end time allows.
+    planner = StubPlanner({"dinner 25 later": DeputyPlan(reply="Drafted.", action="run_sheet_change", text="dinner",
+                                                        minutes=10, note="Kitchen delay")})
+    chat = deputy_chat(planner)
+    helper = chat.send("banquet", "/delay dinner 10")
+    chat.tap("banquet", f"confirm:{helper.telegram_draft_id}")
+    change = chat.send("coordinator", "dinner 25 later")
+    chat.tap("coordinator", f"confirm:{change.telegram_draft_id}")
+    assert "replaced by the coordinator's change (Alex Morgan)" in chat.last("banquet", "report_decision").message
+
+
+def test_an_answered_but_unacknowledged_task_still_escalates(db, settings, clock, queries, ops):
+    from dataclasses import replace
+
+    from test_core_loop import Chat
+
+    from wedding_ops.deputy import Deputy
+    chat = Chat(db, replace(settings, deputy=True), clock, queries, ops)
+    chat.ingress.deputy = Deputy(queries, ops, chat.ingress.assistant, StubPlanner(), db, clock)
+    clock.advance(6)
+    chat.worker.tick()          # 17:51: the usher is pinged about the 17:50 task.
+    chat.send("usher", "ok")    # A reply, not an acknowledgement.
+    clock.advance(6)
+    chat.worker.tick()
+    news = coordinator_news(db)
+    assert "Not acknowledged: \u201cTake position at Ballroom Entrance B\u201d" in news or "not acknowledged yet" in news

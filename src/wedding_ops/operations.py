@@ -471,7 +471,7 @@ class Operations:
             audience = sorted({mt.team_id for mt in rows_for_edges(s, MemberTeam, wid) if mt.member_id in target_ids})
             permission = "family:status"
         elif cmd.kind in {"question", "note"}:
-            team_targets = []  # Questions and notes are for the coordinator only.
+            team_targets, audience = [], []  # Questions and notes are for the coordinator only, also in views.
         else:
             team_targets = recipients(s, wid, teams=audience, coordinators=False)
         # Incidents are operational: the couple is never interrupted with staff problems.
@@ -576,8 +576,16 @@ class Operations:
         for older in rows(s, Approval, wid):
             live = older.status == "pending" and older.expires_at > now
             if live and older.changes and older.changes[0]["item_id"] == item.id:
+                replacer = row(s, Person, wid, a.member.person_id).name
                 older.status, older.decided_at = "superseded", now
-                older.decision_note = "Replaced by a newer report."
+                if older.proposed_by == a.member.id:
+                    older.decision_note = "Replaced by their newer request."
+                else:
+                    older.decision_note = (f"Replaced by the coordinator's change ({replacer})." if applies_now
+                                           else f"Replaced by {replacer}'s newer request.")
+                    notify(s, wid, older.proposed_by, "report_decision",
+                           f"Your request ({older.title}) was {older.decision_note[0].lower() + older.decision_note[1:]}",
+                           f"superseded:{older.id}", now)
                 reason_text = f"{reason_text}\nReplaces the earlier proposal: {older.title.split(': ', 1)[-1]}."
         approval = Approval(id=new_id(), wedding_id=wid, kind="timeline_change", proposed_by=a.member.id,
                             title=title, reason=reason_text[:2000], base_timeline_version=w.timeline_version,
@@ -649,7 +657,7 @@ class Operations:
         zone, places = ZoneInfo(w.timezone), self._place_names(s)
         moved_place = any(c.get("new_location_id") for c in approval.changes)
         # A place change moves guests, which every helper handles; a time change concerns the affected teams.
-        audience = ([m for m in rows(s, Member, self.wid) if m.active and "coordinator" not in m.roles] if moved_place
+        audience = ([m for m in rows(s, Member, self.wid) if m.active and "couple" not in m.roles] if moved_place
                     else recipients(s, self.wid, teams=approval.affected_team_ids))
         for member in audience:
             if member.id == a.member.id:
@@ -729,7 +737,8 @@ class Operations:
             cutoff = self.clock.now() - timedelta(hours=hours)
             events = sorted((e for e in rows(s, AuditEvent, self.wid)
                              if e.actor_id == actor.member_id and e.created_at >= cutoff
-                             and e.event_type in {"arrival", "report_incident", "propose_delay", "report_withdrawn"}),
+                             and e.event_type in {"arrival", "report_incident", "propose_delay", "change_item",
+                                                  "report_withdrawn"}),
                             key=lambda e: e.created_at)
             lines = []
             for event in events[-8:]:
@@ -740,11 +749,19 @@ class Operations:
                     lines.append(f"{at} recorded arrival of {', '.join(names) or 'nobody new'}")
                 elif event.event_type == "report_withdrawn":
                     lines.append(f"{at} withdrew a report ({event.detail.get('kind', 'report')})")
-                elif event.event_type == "propose_delay":
-                    lines.append(f"{at} sent a delay request")
+                elif event.event_type in {"propose_delay", "change_item"}:
+                    applied = result.get("status") == "approved"
+                    lines.append(f"{at} {'changed the run sheet' if applied else 'sent a run-sheet change request'}")
+                elif result.get("status") == "updated":
+                    lines.append(f"{at} added an update to an open report")
                 else:
-                    lines.append(f"{at} sent a problem report")
+                    kind = self._incident_kind(s, result.get("id"))
+                    lines.append(f"{at} sent {'a question' if kind == 'question' else 'a note' if kind == 'note' else 'a problem report'}")
             return lines
+
+    def _incident_kind(self, s: Session, incident_id: str | None) -> str | None:
+        incident = s.scalar(select(Incident).where(Incident.wedding_id == self.wid, Incident.id == incident_id))
+        return incident.kind if incident else None
 
     def latest_report(self, actor: Actor) -> dict | None:
         """The sender's most recent confirmed report that can still be withdrawn."""
@@ -790,7 +807,8 @@ class Operations:
         if target is None or already or too_old or not target["withdrawable"]:
             raise conflict("This report can no longer be withdrawn. Ask the coordinator to correct it")
         # The reporter must still hold the permission the original report needed.
-        a.require(WITHDRAW_CAPABILITY[target["kind"]])
+        private = target["kind"] == "incident" and target["record"].kind in {"question", "note"}
+        a.require("coordinator:ask" if private else WITHDRAW_CAPABILITY[target["kind"]])
         reporter = row(s, Person, self.wid, a.member.person_id).name
         if target["kind"] == "arrival":
             people = {ident: row(s, Person, self.wid, ident) for ident in receipt.result["previous"]}

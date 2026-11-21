@@ -40,8 +40,9 @@ def tell_coordinators(s: Session, w: Wedding, subject: str, text: str, now, *, p
 
 def already_told(s: Session, wedding_id: str, subject: str, since) -> bool:
     """Whether the coordinator has had an item about this subject since a moment, sent or waiting."""
+    # updated_at, not created_at: an unreported item rewritten in place still counts as telling them.
     return s.scalar(select(DigestItem.id).where(DigestItem.wedding_id == wedding_id, DigestItem.subject == subject,
-                                                DigestItem.created_at >= since).limit(1)) is not None
+                                                DigestItem.updated_at >= since).limit(1)) is not None
 
 
 def age(created_at, now) -> str:

@@ -58,7 +58,7 @@ class ChangeItem(Strict):
     """Change one run-sheet item's time, place or note. A shift moves dependent items too."""
     type: Literal["change_item"]
     item_id: ID
-    shift_minutes: int = Field(default=0, ge=-60, le=180)
+    shift_minutes: int = Field(default=0, ge=0, le=180)  # later only: earlier would need predecessor checks
     location_id: ID | None = None
     note: Annotated[str, Field(max_length=300)] = ""
     reason: Text

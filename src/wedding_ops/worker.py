@@ -15,7 +15,7 @@ from .db import Database
 from .errors import OpsError
 from .models import Approval, Member, Notification, Task, new_id
 from .attention import already_told, send_digest, tell_coordinators
-from .operations import audit, notify
+from .operations import audit, notify, one_line
 from .policy import Actor, load_access
 from .telegram_ui import approval_markup, notice_markup, reply_markup
 from .views import row, rows
@@ -121,17 +121,18 @@ class Worker:
                 elif now > task.due_at:
                     # The deputy covers a task only once it has pinged the owner about it.
                     ping = pinged.get(task.id) if deputy_chases else None
-                    if ping is not None:
-                        # The deputy covers this task: its answer, or its silence note, is the coordinator's news.
-                        continue
+                    if ping is not None and ping.answered_at is None:
+                        continue  # The heartbeat's silence note tells the coordinator instead.
                     if ping is None:
                         notify(s, self.wid, owner.id, "task_overdue",
                                f"Unacknowledged task due {due}: {task.title}. Confirm your status in My tasks.",
                                f"overdue:{task.id}:{task.version}", now, task=task)
-                    if now >= task.due_at + timedelta(minutes=5) and not already_told(s, self.wid, f"task:{task.id}", task.due_at):
-                        # Once per due time. A silence note about the same task replaces this line in the digest.
+                    since = max(task.due_at, ping.answered_at) if ping is not None else task.due_at
+                    if now >= task.due_at + timedelta(minutes=5) and not already_told(s, self.wid, f"task:{task.id}", since):
+                        # Once per due time. A reply after the due time already told them its status.
+                        said = f" Their last reply: \u201c{one_line(ping.answer or '', 120)}\u201d." if ping is not None else ""
                         tell_coordinators(s, w, f"task:{task.id}",
-                                          f"Not acknowledged: \u201c{task.title}\u201d (due {due}). Contact the assigned helper.", now)
+                                          f"Not acknowledged: \u201c{task.title}\u201d (due {due}). Contact the assigned helper.{said}", now)
             for proposal in rows(s, Approval, self.wid):
                 if proposal.status == "pending" and proposal.expires_at <= now:
                     proposal.status = "expired"

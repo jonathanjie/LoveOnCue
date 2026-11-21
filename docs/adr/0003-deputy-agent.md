@@ -161,3 +161,49 @@ No blocking findings. These mitigations are part of the design:
 - **Indexes:** `deputy_pings` is indexed on (wedding, recipient, created_at)
   for the rate-limit checks.
 - **Evals still to write:** grounded-answer cases and injection cases.
+
+## Amendment 1 (22 November 2026): fix the root causes of low trust
+
+Gate v3 scored trust at 2.4–2.7. The causes and the design are in
+`docs/plans/2026-11-21-deputy-trust-root-causes.md` (reviewed by the Fable
+advisor). These decisions change or add to the sections above:
+
+- **Code writes outcomes.** A draft preview is rendered only from the command
+  payload. Memory stores the model's words and links the draft; when history is
+  read back, code adds whether that draft was sent, expired or is still waiting.
+  A person has at most one pending draft: a newer draft replaces it.
+- **Sourced context.** Every context line is tagged `[run sheet]`, `[record]`,
+  `[coordinator said]` or `[helper reported/asked]`. Text in people's own words
+  (report titles, questions, draft titles, the brief) is outside the part used
+  to check the reply's times. A time the person just typed may be repeated.
+- **Run-sheet changes.** `change_item` changes time, place and note. A helper's
+  change is a proposal. A coordinator's own change from a confirmed draft applies
+  at once: the preview is the code-rendered diff with the full cascade, the same
+  checks as an approval run, and the approval and decision are written in one
+  transaction. `propose_delay` stays a proposal for everyone (the Mini App flow).
+  The notice is generated from the change; a place change goes to every helper.
+- **Actions from policy.** Plan actions map to command capabilities. The JSON
+  schema sent to the model lists only this person's actions, and code refuses
+  any other. Guest lookups are a `find_guests` list that code runs and renders;
+  the model still has no callable tools.
+- **One path to the coordinator.** `tell_coordinator` has levels (question,
+  fyi, problem, urgent). Questions and notes need the new grant `coordinator:ask`
+  (given to every role, including the couple); problem reports still need
+  `incidents:report`. The coordinator answers with `send_message` (to people,
+  teams or everyone); answering a question closes it and always reaches the
+  person who asked. This replaces "routing requests between people: out of scope".
+- **Coordinator attention.** Only items that need a decision before the next
+  digest push: approval requests, urgent problems, questions, and urgent
+  follow-ups. Everything else is a digest item keyed by subject (a newer item
+  about the same task replaces the older one), sent at most every 15 minutes.
+  This replaces "at most 3 items" in section 4.
+- **Eager, not noisy.** The heartbeat also chases each person's newest
+  unacknowledged announcement or run-sheet update once, inside the same ping
+  budget, with an Acknowledge button. Helpers can mark their own task done by
+  saying so (a `task_action` draft, then a tap).
+- **Viewer-aware text.** The coordinator is never told to ask themself. The
+  urgent safety line names `weddings.emergency_contact`; the brief says when it
+  is not set.
+
+Deferred: a second-model claim verifier, multi-round tools, and a repair loop.
+Measure after this change first.
