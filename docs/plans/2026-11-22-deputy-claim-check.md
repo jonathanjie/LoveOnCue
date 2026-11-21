@@ -110,6 +110,37 @@ answer trace to records; report content is the person's own words.**
 check Noah Lim" when asked about Benjamin Wu) and a few replay artifacts. 9
 first-person acts.
 
+## Gate v6 (22 November, 26 raters: 2 runs per persona)
+
+| Round | Ease / Clarity / Trust | Answers | Fact removals | Status sentences | First-person acts |
+|---|---|---|---|---|---|
+| R1 normal (12) | 3.08 / 2.75 / 2.75 | 99 | 4 (4%) | 1 | 8 |
+| R2 rain (14) | 3.50 / 3.00 / 2.71 | 97 | 5 (5%) | 4 | 21 |
+
+Fallback replies 0%. Trust is level with v4 and v5. What the raters found, and the
+fix (commit 7858501):
+- **"Okay." replies** (my regression): an empty answer with no action gave "Okay.".
+  Now code says nothing was done.
+- **Every unanswered question became a draft** (my prompt line). Now a coordinator
+  question is drafted only when they need the answer to act.
+- **First-person promises stayed at 15% of answers** with the prompt alone, so they
+  are removed: the deputy has no future and no effect of its own. Any first-person
+  future ("I'll", "let me") counts, whatever the verb.
+- **The coordinator's messages came out empty.** Cause: one flat set of 16 optional
+  fields shared by 13 actions. The model skipped a message's text and filled fields
+  that did not apply. Now the model fills one object per action (only its fields,
+  essentials required), and the parser flattens it. A probe of 9 messages × 2 runs
+  scored flat 10/18, flat with core fields required 6/18, per action 10–11/18, and
+  only per action reliably fills the message.
+- **Acknowledge was chosen for questions after a check-in ping** in every schema.
+  Acknowledging changes a record without a tap, so code now decides that a message
+  is a confirmation (short, no question word or mark).
+
+Residual (model judgment, all behind a tap): eager drafts (a coordinator question
+for a seat lookup, a nudge when asked "who never ack"), and an occasional malformed
+recipient, which code turns into a clarification. URGENT plus the emergency line on
+non-emergencies (the model chooses the level) is unchanged.
+
 ## Checks
 - Unit: extractor (each token type, Singlish time forms); `unsupported` with
   cited and uncited lines; quoted spans do not ground; self-acts with and without
@@ -125,6 +156,9 @@ Success: fact removals in under 5% of answers; first-person acts well below v5's
 in 71; trust ≥ 3.5 with no fall in ease or clarity.
 
 ## Resume point
-Read this file, then `git log` on the branch. Built: K1–K5 with tests
-(`tests/test_claims.py`). Next: the gate (2 runs per persona), then decide on a
-repair call only if fact removals exceed 5%.
+Read this file, then `git log` on the branch. Built: K1–K5 (f1ac2bf) and the gate
+v6 fixes (7858501), with tests in `tests/test_claims.py`. Not yet measured: the
+gate v6 fixes. Next: gate v7 with the same 26 raters (prompts in the session
+scratchpad `gate-v6/`; worlds by `simulate.py init --deputy`, `advance 40` for
+round 2, a clock loop of `advance 1` every 15 s). Then decide on a repair call only
+if fact removals exceed 5%.

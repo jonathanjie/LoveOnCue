@@ -261,6 +261,7 @@ Fable review are in `docs/plans/2026-11-21-deputy-trust-root-causes.md`. ADR
 | v3, main before this work | 3.33 / 3.33 / 2.67 | 3.43 / 3.29 / 2.43 | 1/71 and 3/76 | 6 and 16 |
 | v4, root-cause fixes | 3.17 / 3.17 / 2.83 | 3.29 / 3.43 / 2.86 | 0/69 and 0/67 | 2 and 5 |
 | v5, plus v4 findings | 3.17 / 3.17 / 2.17 | 3.57 / 3.29 / 2.71 | 0/70 and 0/73 | 3 and 7 |
+| v6, claim check (26 raters) | 3.08 / 2.75 / 2.75 | 3.50 / 3.00 / 2.71 | 0/141 and 0/150 | 5–8 and 9–11 |
 
 What the numbers say:
 - **The structural measures moved a lot.** No reply fell back to the help menu.
@@ -291,7 +292,14 @@ What the numbers say:
 - guest status reads "not checked in yet"
 - the coordinator line says nobody is above them
 
-**Next (recommended):**
+**Claim check built (22 November):** see
+`docs/plans/2026-11-22-deputy-claim-check.md`. The model writes the answer; code
+writes outcomes, status, time and next steps; facts must trace to records; reports
+carry the person's own words. Gate v6 (26 raters) did not move trust (2.75 and
+2.71), and found two regressions of mine and a schema cause, all fixed in 7858501
+and not yet measured.
+
+**Next (as of 21 November):**
 1. **Check the model's claims in code.** This is now justified, because claims
    are the main trust gap. Use the cheap form Fable suggested: the plan cites the
    context lines it relies on (`sources`), and code checks that each cited line
@@ -309,4 +317,4 @@ What the numbers say:
 - Simulation: `scripts/simulate.py --dir <dir> init --deputy`, with a model key in
   `<dir>/model.key` (mode 600). Persona prompts for the gate are in the session
   scratchpad (`gate-v5/`); copy them into `evals/` if the gate becomes routine.
-- Next to build: item 1 under "Next" in section 8.
+- Next: gate v7 to measure 7858501 (see the claim-check plan's resume point).
