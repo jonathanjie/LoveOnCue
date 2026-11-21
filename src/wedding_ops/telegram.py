@@ -78,8 +78,8 @@ def private_callback(update: dict, token: str) -> tuple[str, str | None, str] | 
         return None
     command = None
     if isinstance(data, str) and len(data) <= 64:
-        confirmation = re.fullmatch(r"confirm:([A-Za-z0-9_-]{1,56})", data)
-        command = f"/confirm {confirmation[1]}" if confirmation else NAVIGATION.get(data)
+        confirmation = re.fullmatch(r"(confirm|ack):([A-Za-z0-9_-]{1,56})", data)
+        command = f"/{confirmation[1]} {confirmation[2]}" if confirmation else NAVIGATION.get(data)
     return sender, command, callback_id
 
 
@@ -130,6 +130,9 @@ def confirmation_reply(result: dict) -> str:
         return "Report sent\nThe coordinator and your team have been told."
     if kind == "arrival":
         return "Arrival recorded\nThe family liaison and photographer have been told."
+    if kind == "broadcast":
+        return ("Announcement sent\nEveryone gets an Acknowledge button. "
+                "Send /brief to see who has not acknowledged yet.")
     if kind == "withdraw_report":
         return f"Withdrawn\nYour report ({result['title']}) is cancelled. Everyone who was told has been told to ignore it."
     return "Report confirmed."
@@ -157,6 +160,17 @@ class TelegramIngress:
         except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError, IndexError):
             # Exceptions from Telegram may include the bot token in a request URL.
             return "I couldn't review this photo. Send a text report for any issue or arrival."
+
+    def _announce(self, actor, message: str) -> tuple[str, str | None]:
+        """Draft a coordinator announcement to every team. Nothing is sent until confirmed."""
+        if len(message) < 3:
+            return "Write the announcement after the command, e.g. /announce Ceremony moves to the ballroom.", None
+        team_ids = [team["id"] for team in self.assistant.queries.snapshot(actor)["teams"]]
+        draft = self.operations.draft(actor, {"type": "broadcast", "team_ids": team_ids, "message": message[:1500]},
+                                      f"Send this announcement to everyone on the team:\n{message[:1500]}")
+        reply = render_reply({"kind": "confirmation", "message": "Check this announcement before I send it.",
+                              "draft": draft, "data": []})
+        return reply, draft["id"]
 
     def accept(self, supplied_secret: str | None, update: dict) -> dict:
         expected = self.settings.telegram_webhook_secret
@@ -232,6 +246,12 @@ class TelegramIngress:
                 confirmation = re.fullmatch(r"/confirm\s+([a-zA-Z0-9_-]{1,64})", text)
                 if confirmation:
                     result = confirmation_reply(self.operations.confirm(actor, confirmation[1]))
+                elif text.startswith("/announce"):
+                    result, draft_id = self._announce(actor, text[len("/announce"):].strip())
+                elif re.fullmatch(r"/ack(\s+[A-Za-z0-9_-]{1,64})?", text):
+                    notice = self.operations.acknowledge_latest(actor, text[len("/ack"):].strip() or None)
+                    result = (f"Acknowledged\n{notice[:120]}" if notice else
+                              "Nothing to acknowledge. You have no update waiting for acknowledgement.")
                 elif text in {"/brief", "/brief_more"}:
                     brief = self.assistant.queries.coordinator_brief(actor)
                     result = render_brief(brief, expanded=text == "/brief_more")

@@ -15,6 +15,7 @@ from .models import (
     Notification, Person, SeatingTable, Task, TaskDependency, Team, TimelineItem, Vendor, Wedding,
 )
 from .policy import Access, Actor, load_access, require_human
+from .telegram_ui import ACK_TOPICS
 
 
 def row(session: Session, cls, wedding_id: str, record_id: str):
@@ -182,7 +183,26 @@ class Queries:
             if failures:
                 title = "1 delivery problem" if failures == 1 else f"{failures} delivery problems"
                 followups.append((title, "Check recipient enrollment and review failed notices."))
+            pending_ack = self._latest_unacknowledged(session, owners)
+            if pending_ack:
+                followups.append(pending_ack)
             return {"urgent": urgent, "followups": followups, "notes": notes}
+
+    def _latest_unacknowledged(self, session, owners: dict[str, str]) -> tuple[str, str] | None:
+        """Who has not acknowledged the newest announcement or timeline update."""
+        notices = [n for n in rows(session, Notification, self.wid)
+                   if n.topic in ACK_TOPICS and n.state in {"queued", "sending", "sent", "simulated"}]
+        if not notices:
+            return None
+        # notify() stores keys as "<update key>:<recipient>", so one update shares a prefix.
+        newest = max(notices, key=lambda n: (n.created_at, n.id)).dedupe_key.rsplit(":", 1)[0]
+        group = [n for n in notices if n.dedupe_key.rsplit(":", 1)[0] == newest]
+        missing = sorted(owners.get(n.recipient_id, "Unknown member") for n in group if n.acknowledged_at is None)
+        if not missing:
+            return None
+        label = "announcement" if group[0].topic == "coordinator_message" else "timeline update"
+        return (f"Not acknowledged: latest {label} ({len(group) - len(missing)} of {len(group)} acknowledged)",
+                ", ".join(missing[:12]) + (" and others" if len(missing) > 12 else ""))
 
     def guests(self, actor: Actor, query: str, *, sensitive: bool = False) -> list[dict]:
         with self.db.transaction(self.wid) as (s, _):

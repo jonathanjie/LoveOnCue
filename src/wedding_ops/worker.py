@@ -16,7 +16,7 @@ from .errors import OpsError
 from .models import Approval, Member, Notification, Task, new_id
 from .operations import audit, notify, recipients
 from .policy import Actor, load_access
-from .telegram_ui import reply_markup
+from .telegram_ui import notice_markup, reply_markup
 from .views import row, rows
 
 
@@ -150,6 +150,8 @@ class Worker:
             if n.topic == "bot_reply" and isinstance(self.transport, TelegramTransport):
                 markup = reply_markup(coordinator=a.coordinator, guest_lookup=a.permits("guests:seating"),
                                       draft_id=n.telegram_draft_id, app_url=self.settings.public_url)
+            elif isinstance(self.transport, TelegramTransport):
+                markup = notice_markup(n.topic, n.id)
         # Never hold the wedding lock across a network call.
         try:
             if markup is not None and isinstance(self.transport, TelegramTransport):

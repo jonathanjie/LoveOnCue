@@ -9,6 +9,17 @@ NAVIGATION = {
 }
 
 
+# Notices the coordinator needs to see acknowledged. Each gets an Acknowledge button.
+ACK_TOPICS = {"coordinator_message", "timeline_updated"}
+ACK_PROMPT = "Tap Acknowledge or send /ack so the coordinator knows you saw this."
+
+
+def notice_markup(topic: str, notification_id: str) -> dict | None:
+    if topic not in ACK_TOPICS:
+        return None
+    return {"inline_keyboard": [[{"text": "Acknowledge", "callback_data": f"ack:{notification_id}"}]]}
+
+
 def reply_markup(*, coordinator: bool, guest_lookup: bool, draft_id: str | None,
                  app_url: str) -> dict:
     def button(label: str, action: str) -> dict:

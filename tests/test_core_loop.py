@@ -5,11 +5,13 @@ import pytest
 from sqlalchemy import select
 
 from wedding_ops.agent import Assistant
+from wedding_ops.errors import OpsError
 from wedding_ops.auth import Auth
 from wedding_ops.models import Approval, Incident, Notification, Person
 from wedding_ops.policy import Actor
 from wedding_ops.schemas import Intent
 from wedding_ops.telegram import TelegramIngress
+from wedding_ops.worker import Worker
 
 WEDDING = "demo-wedding"
 WEBHOOK_SECRET = "fictional-webhook-secret-for-core-loop"
@@ -40,6 +42,7 @@ class Chat:
             auth.redeem(auth.issue_invite(coordinator, member)["token"], str(sender))
         parser = StubParser(intents or {})
         self.ingress = TelegramIngress(db, self.config, clock, auth, Assistant(queries, ops, parser), ops)
+        self.worker = Worker(db, self.config, clock)
         self.update_id = 0
 
     def _deliver(self, member: str, update: dict) -> Notification:
@@ -50,6 +53,7 @@ class Chat:
         self.ingress.accept(WEBHOOK_SECRET, update)
         while self.ingress.process_one():
             pass
+        self.worker.tick()  # Deliver queued notices, so people can act on them.
         created = [n for n in self.notices(member, "bot_reply") if n.id not in before]
         assert len(created) == 1, f"expected one reply, got {len(created)}"
         return created[0]
@@ -171,3 +175,83 @@ def test_withdraw_closes_my_open_incident_and_cannot_repeat(chat_factory, db):
     with db.sessions() as s:
         assert s.scalars(select(Incident)).one().status == "resolved"
     assert "nothing to withdraw" in chat.send("driver", "/withdraw").message.lower()
+
+
+# 3. Coordinator announcement and acknowledgement in Telegram
+
+
+def test_coordinator_announces_and_helpers_acknowledge(chat_factory, db, queries):
+    chat = chat_factory()
+    draft = chat.send("coordinator", "/announce Rain: ceremony moves to the Cedar Ballroom at 18:40")
+    assert draft.telegram_draft_id and "everyone" in draft.message.lower()
+    sent = chat.tap("coordinator", f"confirm:{draft.telegram_draft_id}")
+    assert "Announcement sent" in sent.message
+
+    notice = chat.last("usher", "coordinator_message")
+    assert "Cedar Ballroom" in notice.message and "Acknowledge" in notice.message
+    assert chat.notices("coordinator", "coordinator_message") == []
+
+    reply = chat.tap("usher", f"ack:{notice.id}")
+    assert reply.message.startswith("Acknowledged")
+    assert "Acknowledged" in chat.send("driver", "/ack").message
+
+    brief = queries.coordinator_brief(Actor(WEDDING, "coordinator"))
+    unacknowledged = [detail for title, detail in brief["followups"] if title.startswith("Not acknowledged")]
+    assert unacknowledged and "Jamie Lim" not in unacknowledged[0] and "Jordan Tay" not in unacknowledged[0]
+
+
+def test_helpers_cannot_announce(chat_factory):
+    chat = chat_factory()
+    assert "not permit" in chat.send("usher", "/announce free drinks for all").message
+
+
+def test_ack_with_nothing_pending_says_so(chat_factory):
+    chat = chat_factory()
+    assert "Nothing to acknowledge" in chat.send("usher", "/ack").message
+
+
+def test_notices_that_need_acknowledgement_get_an_acknowledge_button():
+    from wedding_ops.telegram_ui import notice_markup
+    markup = notice_markup("coordinator_message", "abc123")
+    assert markup == {"inline_keyboard": [[{"text": "Acknowledge", "callback_data": "ack:abc123"}]]}
+    assert notice_markup("task_reminder", "abc123") is None
+
+
+# Withdrawal safety: time window, newer changes, and incidents closed by an arrival
+
+
+def confirmed_report(chat, member, text):
+    draft = chat.send(member, text)
+    chat.tap(member, f"confirm:{draft.telegram_draft_id}")
+    return f"draft:{draft.telegram_draft_id}"
+
+
+def test_withdraw_is_refused_after_the_window(chat_factory, ops, clock):
+    chat = chat_factory()
+    request_id = confirmed_report(chat, "driver", "/report flat tyre")
+    clock.advance(31)
+    with pytest.raises(OpsError, match="no longer be withdrawn"):
+        ops.execute(Actor(WEDDING, "driver"), {"type": "withdraw_report", "request_id": request_id}, "late-withdraw")
+
+
+def test_withdraw_does_not_overwrite_a_newer_arrival_change(chat_factory, ops, db):
+    chat = chat_factory()
+    request_id = confirmed_report(chat, "registration-a", "/arrival Grace Tan")
+    with db.sessions() as s:
+        grace = s.scalars(select(Person).where(Person.name == "Grace Tan")).one().id
+    ops.execute(Actor(WEDDING, "coordinator"), {"type": "arrival", "person_ids": [grace], "status": "departed"}, "left-early")
+    with pytest.raises(OpsError, match="changed since"):
+        ops.execute(Actor(WEDDING, "registration-a"), {"type": "withdraw_report", "request_id": request_id}, "stale-withdraw")
+
+
+def test_withdrawing_an_arrival_reopens_the_missing_person_report_it_closed(chat_factory, ops, db):
+    chat = chat_factory()
+    with db.sessions() as s:
+        mei = s.scalars(select(Person).where(Person.name == "Mei Lee")).one().id
+    ops.execute(Actor(WEDDING, "coordinator"), {"type": "report_incident", "kind": "location_unconfirmed",
+                                                "title": "Locate Mei Lee", "details": "Not seen", "subject_person_id": mei},
+                "missing-mei")
+    request_id = confirmed_report(chat, "registration-a", "/arrival Mei Lee")
+    ops.execute(Actor(WEDDING, "registration-a"), {"type": "withdraw_report", "request_id": request_id}, "undo-mei")
+    with db.sessions() as s:
+        assert s.scalars(select(Incident).where(Incident.title == "Locate Mei Lee")).one().status == "open"
