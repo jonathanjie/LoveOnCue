@@ -137,11 +137,62 @@ unrecorded incidents, and zero conflicting pending proposals for one item.
 - Multi-event setup, templates and Mandarin replies.
 - The venue channel.
 
-## 6. Resume point
+## 6. Core-loop sprint and simulation gate (later on 21 November)
 
-- Code: `main` plus PR #3, which contains the rename, `scripts/simulate.py` and this document.
-- Staging: `loveoncue.jonathanjie.com` runs release `aa1b7a4`, with
+PR #4 implements the five core-loop steps from section 5, test-first: 124
+tests pass, migration 0003 is applied on staging, and live Telegram checks
+pass on staging release `08a6fd0`. I then reran both simulation rounds with
+the same personas on a fresh wedding.
+
+| Round | Ease (before → after) | Clarity | Trust |
+|---|---|---|---|
+| Normal day (6 users) | 2.0 → 2.2 | 1.7 → 2.0 | 2.3 → 2.0 |
+| Confounders (7 users) | 1.9 → 2.1 | 1.7 → 2.1 | 2.1 → 2.4 |
+
+**Gate: not met.** The target of at least 3.5 for ease and clarity is still
+far away.
+
+**Critical findings 1 to 4 from section 3, all verified in the gate database:**
+- The flat tyre and the missing meals were each recorded once, and both reached the coordinator.
+- The wrong arrival and the missing-person report were withdrawn, and everyone told was told to ignore them.
+- Revised delays never left two live proposals for one item.
+- Approval requests showed the changes and the reporter's words.
+- Blocked changes offered only Reject.
+- Reporters were told decisions with the coordinator's note.
+- Helpers acknowledged updates, and the brief showed "2 of 5 acknowledged".
+
+**What still blocks the gate:**
+1. **Understanding.** Mixed or vague messages still fall through to the
+   fallback, for example "was my delay approved, should I hold the food",
+   "I'm 25 minutes late", "who hasn't confirmed?" and "kitchen now 20, not 15".
+   This is now the main gap. Next fixes:
+   - a "late" intent for people
+   - default a delay without an activity to the sender's last delay item
+   - treat a combined question as several intents
+2. **Discoverability.** The coordinator did not find `/announce` and sent the
+   rain move as an incident instead. A coordinator-specific help is now live;
+   a pinned command menu would help more.
+3. **Dead ends.** Advice such as "ask registration" or "ask the coordinator"
+   points people back at themselves, and a denial message gives no reason.
+   Rejected reporters cannot reply with the reason the coordinator asked for.
+4. **Location knowledge.** Places named in tasks (Ballroom Entrance B) and
+   toilets are not in the seed data. That is a data gap more than a code gap.
+
+**Security:** an automated review flagged five issues in this work, and all five are fixed with tests:
+- the withdrawal window and permission are now enforced on the server
+- a withdrawn arrival is not reverted if someone changed it since
+- withdrawal notices keep the original notice's restrictions
+- reporter text cannot imitate system sections of a notice
+- reporter text stays quoted
+
+A pre-fix withdrawal notice reached the couple in the gate run. It was created
+before the restriction fix, and the round-2 notices were correctly restricted.
+
+## 7. Resume point
+
+- Code: `main`, plus PR #3 (rename, harness, this review) and PR #4 (core loop), which is stacked on #3.
+- Staging: `loveoncue.jonathanjie.com` runs release `08a6fd0` (migration 0003), with
   DeepSeek V4.1 Flash for chat and photos, and `WEDDINGOPS_REHEARSAL=true`.
 - Simulation: create a world with `scripts/simulate.py --dir <dir> init`. Put a model key in
   `<dir>/model.key` (mode 600) to turn on free-form parsing.
-- The first item to build is core loop step 1, incident reporting.
+- Next to build: the understanding fixes in section 6, item 1. Then rerun the gate.
