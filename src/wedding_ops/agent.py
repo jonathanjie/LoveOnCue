@@ -211,7 +211,9 @@ class MistralParser:
         self.vision_model = settings.telegram_vision_model
         self.client = httpx.Client(
             headers={"Authorization": f"Bearer {settings.mistral_api_key}"},
-            timeout=httpx.Timeout(8.0, connect=2.0, pool=0.25),
+            # A deputy turn with a full coordinator context can take several seconds; a slower answer
+            # beats dropping to the rigid intent path.
+            timeout=httpx.Timeout(12.0, connect=2.0, pool=0.25),
             limits=httpx.Limits(max_connections=8, max_keepalive_connections=2),
             follow_redirects=False,
             trust_env=False,
