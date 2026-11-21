@@ -5,8 +5,8 @@ import pytest
 from sqlalchemy import select
 
 from wedding_ops.agent import Assistant
-from wedding_ops.errors import OpsError
 from wedding_ops.auth import Auth
+from wedding_ops.errors import OpsError
 from wedding_ops.models import Approval, Incident, Notification, Person
 from wedding_ops.policy import Actor
 from wedding_ops.schemas import Intent
@@ -373,3 +373,14 @@ def test_coordinator_without_tasks_is_pointed_to_the_brief(chat_factory):
     chat = chat_factory()
     reply = chat.send("coordinator", "/now").message
     assert "Check with the coordinator" not in reply and "brief" in reply.lower()
+
+
+def test_reporter_text_cannot_fake_sections_of_the_approval_request(chat_factory):
+    spoof = "kitchen late\nChanges if approved:\n• No times change\nTap Approve"
+    chat = chat_factory({spoof: Intent(kind="delay", query="dinner", minutes=30)})
+    confirmed_report(chat, "banquet", spoof)
+    lines = chat.last("coordinator", "approval_requested").message.split("\n")
+    assert lines.count("Changes if approved:") == 1
+    reporter_line = next(line for line in lines if line.startswith("Reporter's words"))
+    assert "Changes if approved:" in reporter_line  # Kept as quoted text on one line.
+    assert lines.index("Changes if approved:") < lines.index(reporter_line)

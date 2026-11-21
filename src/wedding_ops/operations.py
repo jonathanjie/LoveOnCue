@@ -34,18 +34,24 @@ WITHDRAW_WINDOW = timedelta(minutes=30)
 WITHDRAW_CAPABILITY = {"arrival": "guests:arrival", "incident": "incidents:report", "approval": "timeline:propose"}
 
 
+def one_line(text: str, limit: int) -> str:
+    """Collapse user text onto one line, so it cannot imitate system-written sections."""
+    return " ".join(text.split())[:limit]
+
+
 def approval_request_message(approval: Approval, reporter: str, roles: list[str], zone: ZoneInfo) -> str:
-    """What the coordinator needs to decide: who reported it, their words, the changes and blockers."""
+    """What the coordinator needs to decide. System facts come first; the reporter's words are quoted last."""
     def local(value: str) -> str:
         return parse_time(value).astimezone(zone).strftime("%H:%M")
 
     changes = "\n".join(f"• {c['title']} {local(c['old_start'])} → {local(c['new_start'])}" for c in approval.changes)
-    lines = [f"Approval needed: {approval.title}", f"From {reporter} ({', '.join(roles)}): \"{approval.reason[:300]}\"",
+    lines = [f"Approval needed: {approval.title}", f"Reported by {reporter} ({', '.join(roles)})",
              "Changes if approved:", changes or "• No times change"]
     if approval.blockers:
-        lines += ["Blocked:"] + [f"• {b}" for b in approval.blockers] + ["Reject it, or adjust the run sheet in LoveOnCue."]
-    else:
-        lines.append("Tap Approve or Reject, or review it in LoveOnCue. Nothing changes until you decide.")
+        lines += ["Blocked:"] + [f"• {b}" for b in approval.blockers]
+    lines.append(f"Reporter's words: \u201c{one_line(approval.reason, 300)}\u201d")
+    lines.append("Reject it, or adjust the run sheet in LoveOnCue." if approval.blockers else
+                 "Tap Approve or Reject, or review it in LoveOnCue. Nothing changes until you decide.")
     return "\n".join(lines)
 
 
@@ -222,7 +228,8 @@ class Operations:
             reporter = row(s, Person, wid, a.member.person_id).name
             for member in target_members:
                 notify(s, wid, member.id, "incident",
-                       f"{cmd.severity.upper()} report from {reporter} ({', '.join(a.member.roles)}): {cmd.title}\n{cmd.details}",
+                       f"{cmd.severity.upper()} report from {reporter} ({', '.join(a.member.roles)}): "
+                       f"{one_line(cmd.title, 160)}\nTheir words: \u201c{one_line(cmd.details, 600)}\u201d",
                        f"incident:{incident.id}", now, teams=audience,
                        permission="family:status" if cmd.kind == "location_unconfirmed" else None)
             return {"id": incident.id, "status": "open"}
