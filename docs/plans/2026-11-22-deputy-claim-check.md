@@ -141,6 +141,56 @@ for a seat lookup, a nudge when asked "who never ack"), and an occasional malfor
 recipient, which code turns into a clarification. URGENT plus the emergency line on
 non-emergencies (the model chooses the level) is unchanged.
 
+## Gate v7 (22 November, 26 raters, code at e22cc4b)
+
+Six round-2 raters could not start with the others (the session limit is 20 agents
+at once), so they ran in a fresh world `r2c` with its own clock. The r2b banquet lead
+ran alone in its world.
+
+| | Round 1 (12) | Round 2 (14) |
+|---|---|---|
+| Ease / Clarity / Trust, v6 | 3.08 / 2.75 / 2.75 | 3.50 / 3.00 / 2.71 |
+| Ease / Clarity / Trust, v7 | 3.25 / 3.17 / 2.67 | 3.50 / 3.21 / 2.43 |
+| Fallback replies, v7 | 0 / 149 | 0 / 171 |
+| Fact removals, v7 | 3 of 89 answers | 3 of 103 answers |
+| First-person promises removed, v7 | 23 | 20 |
+| Coordinator pushes, v7 | 10 and 9 (14 helper questions) | 15, 2 and 9 (18 helper questions) |
+
+Clarity went up in both rounds. Trust did not move (the noise between runs is about
+0.3). The claim check does its narrow job: about 3% of answers lose an unsupported
+fact, and the promises and report-status claims are removed before anyone sees them.
+The trust complaints that remain are of other kinds:
+
+1. **Over-drafting.** Plain questions became coordinator reports with a preview and
+   a Send tap ("Check this report before I send it", "Problem reports also go to
+   your team", "Confirm only if this is a different problem"). Helper questions
+   pushed to the coordinator rose from 2–6 per world to 7–11. The per-action schema
+   makes the model choose an action more often (see the probe), and a question has
+   no lighter path than a full report draft.
+2. **"Your words, as sent" merged several messages** into one quote, which raters
+   read as a misquote (driver, registration, banquet). This is K4's `quote`.
+3. **Statement-level contradictions** that tokens cannot catch: "Noted, Robert Tan's
+   arrival is recorded" before the tap; "I've taken back that urgent report" before
+   the withdrawal; an answer saying "speeches stay at 19:45" above a preview that moves
+   them; "0 of 1 acknowledged" after a message to one person, read as the count for
+   the run-sheet change.
+4. **Internal names in answers** ("tell_coordinator", "draft_arrival") and the
+   "After that, tell me about:" line, which reads as a template leftover.
+5. Not product defects: the simulated clock runs ahead of the persona's stated time;
+   the emergency contact is a seeded placeholder; "the foyer's double doors" is real
+   place data that raters cannot see.
+
+Recommended next, in order:
+- A question path lighter than a report: the answer says what is not known, and
+  code adds one "Ask the coordinator" button that creates the question on tap, with
+  no preview. Reports stay for problems.
+- Carry only the latest message in a report (drop `quote`), as Fable first advised.
+- Remove `also`, and remove sentences that name an internal action.
+- Treat "recorded", "taken back", "withdrawn" and similar outcome words like report
+  status: code states the outcome of a draft only after the tap.
+- Review the plan schema choice with Fable: the per-action schema fills messages
+  reliably but drafts more often than the flat one.
+
 ## Checks
 - Unit: extractor (each token type, Singlish time forms); `unsupported` with
   cited and uncited lines; quoted spans do not ground; self-acts with and without

@@ -262,6 +262,7 @@ Fable review are in `docs/plans/2026-11-21-deputy-trust-root-causes.md`. ADR
 | v4, root-cause fixes | 3.17 / 3.17 / 2.83 | 3.29 / 3.43 / 2.86 | 0/69 and 0/67 | 2 and 5 |
 | v5, plus v4 findings | 3.17 / 3.17 / 2.17 | 3.57 / 3.29 / 2.71 | 0/70 and 0/73 | 3 and 7 |
 | v6, claim check (26 raters) | 3.08 / 2.75 / 2.75 | 3.50 / 3.00 / 2.71 | 0/141 and 0/150 | 5–8 and 9–11 |
+| v7, plus v6 findings (26 raters) | 3.25 / 3.17 / 2.67 | 3.50 / 3.21 / 2.43 | 0/149 and 0/171 | 9–10 and 2–15 |
 
 What the numbers say:
 - **The structural measures moved a lot.** No reply fell back to the help menu.
@@ -317,4 +318,4 @@ and not yet measured.
 - Simulation: `scripts/simulate.py --dir <dir> init --deputy`, with a model key in
   `<dir>/model.key` (mode 600). Persona prompts for the gate are in the session
   scratchpad (`gate-v5/`); copy them into `evals/` if the gate becomes routine.
-- Next: gate v7 to measure 7858501 (see the claim-check plan's resume point).
+- Next: the recommendations under "Gate v7" in the claim-check plan (question path, latest-message reports, outcome words).
