@@ -191,6 +191,44 @@ Recommended next, in order:
 - Review the plan schema choice with Fable: the per-action schema fills messages
   reliably but drafts more often than the flat one.
 
+## Fable review of the gate v7 fixes (22 November)
+
+Verdict: revise, then build. Two items change, one is cut, and the gate is fixed first.
+
+| Recommended fix | Verdict |
+|---|---|
+| Lighter question path | **Keep, changed.** Same `ActionDraft`, light render, so a tap still commits code-rendered content: the person's latest message verbatim, no model title. Remove `level: question` from the model's `tell_coordinator`. |
+| Drop `quote` | **Keep.** Also remove the U-numbering from the prompt; follow-ups use `about`. |
+| Remove `also` | **Keep.** |
+| Remove sentences that name an action | **Keep as a backstop**, built from the `DeputyAction` enum (a closed code vocabulary). The cause is the prose: the prompt and the CONTEXT line "Actions you may offer this person: tell_coordinator, …". The schema already carries the names, so take them out of the prose. |
+| Outcome words ("recorded", "taken back") | **Cut.** A keyword patch like the first K4; "Consider it done" passes it. |
+
+Further changes from the review:
+- **Answer against preview:** when a draft exists, the model's answer is dropped and code's introduction and preview are the whole reply. This removes "recorded before the tap" and "speeches stay at 19:45" by construction, and the `text if drafting` support branch can go. Cost: a question asked together with an action request loses its answer; count that case in the v7 transcripts first.
+- **"0 of 1 acknowledged"** is a defect in code text: the brief line must name the update it counts.
+- **Question button:** the model sets one boolean (the CONTEXT does not answer this). Code decides whether to show the button: not for a coordinator, not with a draft in the same reply, not while this person has an open question, and under a cap. Code also offers it with "I can't confirm that from the records." The label says what it sends; the next message invalidates it; the confirmation quotes the words and offers Undo. One open question per person; later taps update it. The couple get the button but are never chased.
+- **Schema:** keep per action. The likely causes of over-drafting are two prompt lines ("Drafting costs nothing … choose the action now" and "also choose tell_coordinator with level question") and the missing light path. Reword the first and delete the second; both are general rules. Extend the probe to about 30 messages, half needing no action, and measure false drafts, not field fill.
+- **The gate is now the limit.** Trust moved 2.4–2.9 over five versions with noise of 0.3 and 12–14 raters, so it cannot detect these fixes. Before v8:
+  - Remove the clock drift and the placeholder emergency contact.
+  - Show raters the records and what the coordinator received.
+  - Use one world per round.
+  - Have raters score a hand-written ideal transcript, to find the ceiling.
+  - Primary evidence: a labelled replay set of about 60 messages from the v5–v7 transcripts, run 3 times.
+  - Compare versions as blind pairs on the same scripts, and count complaints per class.
+
+Build order:
+1. Replay set, gate repairs, ceiling calibration.
+2. Deletions: the answer when a draft exists, `also`, `quote`, action names out of the prose, and the enum filter.
+3. Question button, with `question` removed from the model's levels and the two prompt lines changed.
+4. Extended probe, then gate v8.
+
+Measure:
+- False-draft rate on the replay set.
+- Helper questions per world (target 2–6) and button tap-through.
+- Replies with internal names (target 0).
+- Complaints per class.
+- Paired trust preference, v7 against v8.
+
 ## Checks
 - Unit: extractor (each token type, Singlish time forms); `unsupported` with
   cited and uncited lines; quoted spans do not ground; self-acts with and without
