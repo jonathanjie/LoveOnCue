@@ -65,6 +65,7 @@ MAX_SHIFT_MINUTES = 180  # the command's own limit on one change
 # Open helper questions above which the question button is not offered: past this, more
 # questions bury the coordinator, and the person is told to ask them directly if it is urgent.
 QUESTION_CAP = 12
+QUESTIONS_PER_PERSON = 3  # open questions one person may have before new messages are added to the latest
 
 DeputyAction = Literal["none", "ask_coordinator", "tell_coordinator", "report_late", "run_sheet_change", "complete_task",
                        "draft_arrival", "withdraw_last",
@@ -164,7 +165,8 @@ FIELD_HELP = {
         "text": "A title of at most eight words that names the thing, not the person.",
         "level": "fyi (no reply needed), problem (something is wrong), or urgent (it blocks the ceremony or "
                  "someone may be hurt).",
-        "about": "The reference of their open report this follows up (for example R1), if any."},
+        "about": "The reference of their open report (for example R1), only when this message is about the same "
+                 "problem. A different problem is a new report, with about empty."},
     "report_late": {"minutes": "How late they are, in minutes."},
     "run_sheet_change": {
         "text": "The run-sheet activity, as named on the run sheet.",
@@ -271,8 +273,9 @@ action per message, and only an action the schema offers.
   system offers a button that sends their own message; nothing else is needed from you.
 - tell_coordinator: never for a question. A note (level fyi) or a problem report (level problem, or urgent only when it
   blocks the ceremony or someone may be hurt). It carries their latest message; text = a title that
-  names the thing, not the person (for example "Bridal car flat tyre"). If it follows up one of
-  their open reports, set about to that report's reference (for example R1).
+  names the thing, not the person (for example "Bridal car flat tyre"). Set about to one of their
+  open reports (for example R1) only when the message is about the same problem; a different
+  problem, even from the same person, is a new report.
 - report_late: only when they themselves are running late; minutes = how late.
 - run_sheet_change: an activity will start late, should start later, should move, or needs a note
   for helpers. text = the activity; minutes = how much later, or new_time = "HH:MM"; place = the new
@@ -359,7 +362,11 @@ class Deputy:
         result = self._act(actor, plan, snapshot, turn)
         # The answer may state only facts that the records (and new lookups) support. Beside a
         # draft or the question button, an offer to act is the draft's job, so it is removed too.
-        support = Support("\n".join([grounding, *lookups]), turn.names, set(refs), extra_names=text)
+        # The current time is supported only when the model also has code state it (say_time):
+        # then a sentence such as "it's due at 17:50 and it's 17:45 now" is true as a whole.
+        now = parse_time(snapshot["now"]).astimezone(ZoneInfo(snapshot["wedding"]["timezone"]))
+        clock = f"{now:%H:%M}" if plan.say_time else ""
+        support = Support("\n".join([grounding, *lookups, clock]), turn.names, set(refs), extra_names=text)
         offered = bool(result.get("draft")) or plan.action == "ask_coordinator"
         checked = check_answer(plan.answer, support, turn.names, INTERNAL_NAMES, offered=offered)
         logger.info("Claim check: sentences=%d removed=%d status=%d self_acts=%d internal=%d",
@@ -371,6 +378,10 @@ class Deputy:
         # and the claim check has removed what it said about acting or outcomes.
         changes = (result.get("draft") or {}).get("command_type") in {"change_item", "propose_delay"}
         answer = "" if changes else checked.text
+        if result.get("draft"):
+            # Code says what to tap under every draft; the answer's own "tap the button" repeats it,
+            # sometimes above the draft it refers to.
+            answer = " ".join(part for part in sentences(answer) if not DRAFT_CLAIM.search(part))
         pending_id, pending = self._pending(actor.member_id)
         # The question button never replaces a draft that is still waiting for a tap.
         if not result.get("draft") and not pending and self._question_wanted(plan, checked, answer, result, turn,
@@ -443,28 +454,30 @@ class Deputy:
     def _question_button(self, actor: Actor, snapshot: dict, turn: Turn) -> dict:
         """Offer one tap that passes the person's own message to the coordinator, as code-rendered words.
 
-        One open thread per person: if they have an open question or report, the message is added
-        to it, so the coordinator reads it with what it follows ("hello?? i sent already" under the
-        flat-tyre report). Past QUESTION_CAP open questions, no new question is offered.
+        Each tap asks a new question: code cannot tell whether two messages are about the same
+        thing, and gate v8 raters found unrelated questions filed under one title. Past
+        QUESTIONS_PER_PERSON open questions, the message is added to their latest one instead, and
+        past QUESTION_CAP open questions in all, no new question is offered.
         """
         words = turn.words
         quoted = f"\u201c{glance(words)}\u201d"
-        mine = [i for i in snapshot["incidents"] if i["status"] == "open" and i["reported_by"] == actor.member_id]
-        target = max(mine, key=lambda i: i["created_at"]) if mine else None
-        if target is None and self.queries.open_question_count() >= QUESTION_CAP:
+        mine = sorted((i for i in snapshot["incidents"] if i["status"] == "open" and i["kind"] == "question"
+                       and i["reported_by"] == actor.member_id), key=lambda i: i["created_at"])
+        if len(mine) >= QUESTIONS_PER_PERSON:
+            target = mine[-1]
+            command = {"type": "report_incident", "kind": "question", "title": target["title"][:160],
+                       "details": words, "severity": "normal", "updates_incident_id": target["id"]}
+            summary = f"Add to your question \u201c{target['title']}\u201d: {quoted}"
+            line = (f"You have {len(mine)} questions open. Tap Add to my question to add your message to "
+                    f"\u201c{target['title']}\u201d: {quoted}")
+        elif self.queries.open_question_count() >= QUESTION_CAP:
             # A helper sees only their own questions, so the cap counts everyone's in code.
             return {"kind": "question", "data": [], "message": "",
                     "button_line": f"The coordinator has many open questions. If it is urgent, {coordinator_contact(snapshot)}."}
-        if target is None:
+        else:
             command = {"type": "report_incident", "kind": "question", "title": short_title(words) if len(words) >= 3
                        else "Question", "details": words, "severity": "normal"}
             summary, line = f"Ask the coordinator: {quoted}", f"Tap Ask the coordinator to send them your message: {quoted}"
-        else:
-            what = "question" if target["kind"] == "question" else "report"
-            command = {"type": "report_incident", "kind": target["kind"], "title": target["title"][:160],
-                       "details": words, "severity": "normal", "updates_incident_id": target["id"]}
-            summary = f"Add to your {what} \u201c{target['title']}\u201d: {quoted}"
-            line = f"Tap Add to my {what} to add your message to \u201c{target['title']}\u201d: {quoted}"
         draft = self.operations.draft(actor, command, summary, offer="button")
         return {"kind": "question", "data": [], "message": "", "draft": draft | {"light": True}, "button_line": line}
 

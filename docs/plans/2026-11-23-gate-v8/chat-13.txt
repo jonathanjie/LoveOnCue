@@ -1,0 +1,63 @@
+[18:25] notice (timeline_updated): Run sheet updated by the coordinator (version 2):
+• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden terrace)
+• Dinner service 19:00 → 19:10
+• Family speeches 19:45 → 19:50
+• Dessert service 20:00 → 20:05
+Check your tasks. Tap Acknowledge, or reply “ok”, so the coordinator knows you saw this.
+    [button: Acknowledge]
+
+[18:27] banquet: hi chris here banquet captain. kitchen is 20 minutes behind lah, dinner 20 late, guests waiting
+[18:27] bot: Thanks Chris — noting dinner service 20 minutes late, so 19:30 instead of 19:10.
+That change can't go through as it is: Couple's toast: would exceed its hard latest-end constraint. Try a smaller change, or adjust the run sheet in LoveOnCue.
+
+[18:28] banquet: DINNER 20 LATE!! food need 20 more min lah, sure guests angry already
+[18:28] bot: That change can't go through as it is: Couple's toast: would exceed its hard latest-end constraint. Try a smaller change, or adjust the run sheet in LoveOnCue.
+
+[18:29] banquet: wait wait the timeline changed? what happen, ceremony moved to cedar ballroom ah? i never know
+[18:29] bot: Yes — the coordinator updated the run sheet at 18:25: the garden ceremony moved from the Garden terrace to Cedar Ballroom and now starts at 18:40, with dinner at 19:10, family speeches at 19:50 and dessert at 20:05. Your task is to confirm dinner readiness at the Banquet service door, due 19:00.
+Check this report before I send it.
+After that, tell me about: dinner delay.
+
+Send a problem report to the coordinator and your team: Dinner 20 min late, kitchen behind.
+Your words, as sent: “wait wait the timeline changed? what happen, ceremony moved to cedar ballroom ah? i never know”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:30] notice (deputy_ping): Hi Chris, did you see the coordinator's update? “• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden terrace) • Dinner service 19:00 → 19:10 • Family speeches 19:45 → 19:50 • Dessert service 20:” Tap Acknowledge, or reply “ok”.
+    [button: Acknowledge]
+
+[18:30] banquet: correction: chef say only 10 min now lah, not 20. dinner 10 late only
+[18:30] bot: Got it — dinner 10 minutes late, so 19:20 instead of 19:10.
+Confirm the report to create a proposal, not to change the schedule.
+
+Ask the coordinator to approve this run-sheet change:
+• Dinner service 19:10 → 19:20
+• Family speeches 19:50 → 20:00
+• Dessert service 20:05 → 20:15
+• Couple's toast 20:20 → 20:30
+Later items move too, so that nothing overlaps.
+Reason: “correction: chef say only 10 min now lah, not 20. dinner 10 late only”
+Nothing changes until the coordinator approves it.
+
+Tap the button below within five minutes to send it.
+Timeline changes still need the coordinator's approval.
+    [button: Send to coordinator]
+
+[18:31] banquet: (taps the draft button)
+[18:31] bot: Report confirmed
+Proposal awaiting approval from the coordinator. The run sheet does not change until they approve it. I will tell you their decision.
+
+[18:31] banquet: ok so now dinner only 10 min late. should i start plating at 7 or wait lah?
+[18:31] bot: The run sheet still shows dinner service at 19:10, and nothing in it says when to start plating — that's the coordinator's call. I can put the question to the coordinator.
+Check this report before I send it.
+
+Ask the coordinator: Dinner 10 min late: when to start plating?.
+Your words, as sent: “ok so now dinner only 10 min late. should i start plating at 7 or wait lah?”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:32] banquet: (taps the draft button)
+[18:32] bot: Report sent
+The coordinator has it. Problem reports also go to your team.

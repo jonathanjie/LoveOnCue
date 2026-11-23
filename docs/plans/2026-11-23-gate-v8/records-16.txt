@@ -1,0 +1,43 @@
+Records at 18:42.
+
+Run sheet (approved):
+  18:00 Guest registration at Registration foyer
+  18:40 Garden ceremony at Cedar Ballroom (planned 18:30)
+  19:00 Family portraits at Portrait alcove (planned 18:50)
+  19:10 Dinner service at Cedar Ballroom (planned 19:00)
+  19:50 Family speeches at Stage & AV desk (planned 19:45)
+  20:05 Dessert service at Cedar Ballroom (planned 20:00)
+  20:20 Couple's toast at Stage & AV desk
+
+Places:
+  Registration foyer: Level 1, main entrance. Desks A and B beside the lift.
+  Cedar Ballroom: Level 1, through the foyer's double doors.
+  Garden terrace: Through the glass doors at the west side of the foyer.
+  Stage & AV desk: Front of ballroom; AV desk at stage right.
+  Banquet service door: Staff-only east corridor. Keep access unobstructed.
+  Portrait alcove: North-west corner of the garden terrace.
+  Ballroom Entrance B: Second set of ballroom doors, off the foyer opposite the lift.
+  Restrooms: Level 1, left of the foyer lift. Accessible restroom beside the service door.
+
+Emergency contact: Venue duty manager Lee, +65 6555 0142
+
+What reached the coordinator:
+  18:26 run-sheet request from Alex Morgan: “Garden ceremony: +10 minutes, move to Cedar Ballroom, new note” — approved (Changed by the coordinator.)
+
+Acknowledgements of updates and messages (latest first):
+  18:39 coordinator_message “Message from Alex Morgan:
+Ben Wu is not on the guest list. Please don't hold or ”: acknowledged by nobody; not yet by Michelle Chen
+  18:38 coordinator_message “Message from Alex Morgan:
+You're covering the welcome for Taylor, who is running”: acknowledged by nobody; not yet by Priya Rao
+  18:35 coordinator_message “Message from Alex Morgan:
+Family speeches are at 19:50 at the Stage & AV desk, a”: acknowledged by nobody; not yet by Asha Tan
+  18:34 coordinator_message “Message from Alex Morgan:
+Dinner service is at 19:10 in Cedar Ballroom, per the ”: acknowledged by nobody; not yet by Jamie Lim
+  18:33 coordinator_message “Message from Alex Morgan:
+Bridal car has a flat tyre. Call venue duty manager Le”: acknowledged by nobody; not yet by Jordan Tay
+  18:29 coordinator_message “Message from Alex Morgan:
+Guests are to wait in Cedar Ballroom — the ceremony is”: acknowledged by nobody; not yet by Jamie Lim
+  18:27 coordinator_message “Announcement from Alex Morgan:
+Update: due to rain, the garden ceremony has move”: acknowledged by nobody; not yet by Michelle Chen, Ryan Goh, Jamie Lim, Priya Rao, Sam Koh, Chris Wong, Taylor Ng, Casey Teo, Jordan Tay, Asha Tan
+  18:26 timeline_updated “Run sheet updated by the coordinator (version 2):
+• Garden ceremony 18:30 → 18:4”: acknowledged by nobody; not yet by Michelle Chen, Ryan Goh, Jamie Lim, Priya Rao, Sam Koh, Chris Wong, Taylor Ng, Casey Teo, Jordan Tay

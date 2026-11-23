@@ -245,3 +245,8 @@ def test_a_question_after_a_ping_is_answered_not_acknowledged(deputy_chat, db): 
     deputy_chat(planner).send("usher", "eh where i stand ah")
     with db.sessions() as s:
         assert all(t.acknowledged_at is None for t in s.scalars(select(Task).where(Task.owner_id == "usher")))
+
+
+def test_the_current_time_is_supported_when_code_also_states_it(deputy_chat):  # noqa: F811
+    planner = StubPlanner({"due when ah": DeputyPlan(answer="It's due at 17:50, and it's 17:45 now.", say_time=True)})
+    assert "It's due at 17:50, and it's 17:45 now." in deputy_chat(planner).send("usher", "due when ah").message

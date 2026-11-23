@@ -1,0 +1,166 @@
+[17:45] coordinator: hi, i just take over the wedding today. what needs my attention now? ok who never confirm yet
+[17:45] bot: It's 17:45 now. Registration is the pinch point: Ryan's Desk B signage check is overdue and Desk B can't open until it's confirmed, and Michelle's Desk A opening is also unacknowledged. Jamie at Ballroom Entrance B and Jordan's shuttle route are still unconfirmed too.
+Check the message before it goes out.
+
+Message to Ryan Goh:
+“Hi Ryan, Desk B signage confirmation is overdue and Desk B opening depends on it. Please confirm the signage now and acknowledge both tasks.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[17:46] coordinator: (taps the draft button)
+[17:46] bot: Message sent
+1 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[17:46] coordinator: ok who never acknowledge yet
+[17:46] bot: It's 17:46 now. Ryan Goh, Jordan Tay, Jamie Lim and Michelle Chen have not acknowledged their assignments yet. Ryan's Desk B signage check is the overdue one, and Desk B opening depends on it.
+Check the message before it goes out.
+
+Message to Ryan Goh:
+“Hi Ryan, Desk B signage confirmation is overdue and Desk B opening depends on it. Please confirm signage now and acknowledge both tasks.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[17:47] coordinator: (taps the draft button)
+[17:47] bot: Message sent
+1 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[17:47] coordinator: is the kitchen on time? kitchen ok anot
+[17:47] bot: Nothing in what I have covers the kitchen or banquet prep, so I can't say whether they're on time. Chris Wong leads the banquet team, so he's the one to ask.
+Check the message before it goes out.
+
+Message to Chris Wong:
+“Hi Chris, checking in on the kitchen and banquet prep — are you on time for dinner service at 19:00? Please confirm.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[17:48] coordinator: (taps More details)
+[17:48] bot: Coordinator brief
+
+1 urgent · 7 follow-ups · 1 notes
+
+🔴 Confirm Desk B signage
+Ryan Goh has not acknowledged this assignment.
+
+🟠 Not acknowledged: message sent 17:47 “Hi Ryan, Desk B signage confirmation is overdue and Desk B…” (0 of 1 acknowledged)
+Ryan Goh
+
+🟠 Not acknowledged: message sent 17:46 “Hi Ryan, Desk B signage confirmation is overdue and Desk B…” (0 of 1 acknowledged)
+Ryan Goh
+
+🟠 Confirm shuttle drop-off route
+Jordan Tay has not acknowledged this assignment.
+
+🟠 Take position at Ballroom Entrance B
+Jamie Lim has not acknowledged this assignment.
+
+🟠 Open registration Desk A
+Michelle Chen has not acknowledged this assignment.
+
+🟠 Open registration Desk B
+Unfinished prerequisites: Confirm Desk B signage.
+
+🟠 Open registration Desk B
+Ryan Goh has not acknowledged this assignment.
+
+• Assistant activity: 3 check-ins sent
+0 answered, 3 waiting. Replies reach you as they come in.
+
+Tap Coordinator brief for the summary.
+
+Coordinator availability is not recorded. Use an enrolled backup for major decisions.
+
+[17:48] coordinator: is the father of the bride here? and where is mei lee, the groom mother, portraits soon
+[17:48] bot: It's 17:48 now. Nothing here confirms the father of the bride has arrived, so I can't say. Family portraits are at 18:50 in the Portrait alcove, and Priya is due to confirm parents' arrival at 18:15.
+Check the message before it goes out.
+• Mei Lee: Table 1; not checked in yet
+
+Message to Priya Rao:
+“Hi Priya, quick check ahead of the 18:50 family portraits at the Portrait alcove: has the father of the bride arrived, and where is Mei Lee, the groom's mother? Please confirm parents' arrival as planned.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[17:49] coordinator: tell priya to bring mei lee to the portrait area, keep looking at the garden too, and tell me when she is found
+[17:49] bot: I can't confirm where Mei Lee is right now, and I won't pass on instructions of my own. Priya is due to confirm parents' arrival at 18:15, so she's the right person to check with.
+Check the message before it goes out.
+• Mei Lee: Table 1; not checked in yet
+
+Message to Priya Rao:
+“Hi Priya, please confirm whether Mei Lee, the groom's mother, has arrived, and let me know as soon as she is found. Family portraits are at 18:50 in the Portrait alcove.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[17:50] notice (deputy_digest): Update from the floor:
+• No reply from Jordan Tay about “Confirm shuttle drop-off route” (asked 17:45). You may want to call them. (just now)
+• No reply from Ryan Goh about “Confirm Desk B signage” (asked 17:45). You may want to call them. (just now)
+• No reply from Jamie Lim about “Take position at Ballroom Entrance B” (asked 17:45). You may want to call them. (just now)
+Quoted words are helpers' own; nothing they typed changed records.
+
+[17:50] coordinator: say: please bring mei lee to the portrait area by 6.50, check garden too, reply me when found
+[17:50] bot: I can't confirm where Mei Lee is right now, and I won't pass on instructions of my own. Priya is due to confirm parents' arrival at 18:15, so she's the right person to check with.
+Check the message before it goes out.
+• Mei Lee: Table 1; not checked in yet
+
+Message to Priya Rao:
+“Please bring Mei Lee to the Portrait alcove by 18:50, check the garden too, and reply to me when she is found.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[17:51] coordinator: (taps the draft button)
+[17:51] bot: Message sent
+1 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[17:51] coordinator: tell taylor dinner not confirmed yet, dont stall yet, i will update in 5 min. speech order is per the brief
+[17:51] bot: Dinner readiness is still with Chris Wong, and nothing here confirms the speech order beyond the run sheet's 19:45 family speeches at the Stage & AV desk.
+Check the message before it goes out.
+
+Message to Taylor Ng:
+“Dinner is not confirmed yet, so please don't stall. I'll update you in 5 minutes. Speech order stays as per the brief.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[17:52] coordinator: (taps the draft button)
+[17:52] bot: Message sent
+1 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[17:52] coordinator: kitchen ok anot? dinner 7pm still on?
+[17:52] bot: It's 17:52 now. Nothing here confirms the kitchen or dinner readiness, so I can't say whether 19:00 dinner service is still on. Chris Wong leads the banquet team and is due to confirm dinner readiness at 18:50.
+Check the message before it goes out.
+
+Message to Chris Wong:
+“Hi Chris, checking on the kitchen — is dinner service at 19:00 still on track? Please confirm dinner readiness and let me know of any issues.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[17:53] coordinator: (taps the draft button)
+[17:53] bot: Message sent
+1 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[17:53] coordinator: find mei lee for me, is she checked in? what is her number
+[17:53] bot: It's 17:53 now. Mei Lee is at Table 1 and hasn't checked in yet. No phone number for her is in what I can see, so I can't give you one.
+• Mei Lee: Table 1; not checked in yet
+
+[17:54] coordinator: (taps the draft button)
+[17:54] bot: Already recorded
+This report was confirmed earlier. No new change was made.
+
+[17:54] coordinator: tell taylor the speech order is in the brief, i will send the file, dont worry
+[17:54] bot: Nothing here shows a speech order beyond the run sheet's 19:45 family speeches at the Stage & AV desk, so I can't confirm what the brief says. Taylor Ng is the MC to reach about it.
+Check the message before it goes out.
+
+Message to Taylor Ng:
+“The speech order is in the brief; I'll send you the file, so don't worry.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[17:55] coordinator: (taps the draft button)
+[17:55] bot: Message sent
+1 people get it with an Acknowledge button. Ask me who has not acknowledged yet.

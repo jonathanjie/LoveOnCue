@@ -264,6 +264,15 @@ Fable review are in `docs/plans/2026-11-21-deputy-trust-root-causes.md`. ADR
 | v6, claim check (26 raters) | 3.08 / 2.75 / 2.75 | 3.50 / 3.00 / 2.71 | 0/141 and 0/150 | 5–8 and 9–11 |
 | v7, plus v6 findings (26 raters) | 3.25 / 3.17 / 2.67 | 3.50 / 3.21 / 2.43 | 0/149 and 0/171 | 9–10 and 2–15 |
 
+Gate v8 changed method, because single raters cannot tell a good chat from a bad one (a
+hand-written ideal chat scored trust 3.5). The 13 v7 rater chats were replayed message for
+message through v7 and v8 code, and blind raters compared the two in both orders:
+
+| Code | Preferred (26 blind pairs) | Paired ease / clarity / trust |
+|---|---|---|
+| v7 (61ce8ea) | 2 | 3.38 / 3.19 / 2.31 |
+| v8 (15de154) | 24 | 3.65 / 3.69 / 3.65 |
+
 What the numbers say:
 - **The structural measures moved a lot.** No reply fell back to the help menu.
   Coordinator interruptions fell to between 2 and 7. Round 2's 7 includes 5
@@ -316,6 +325,6 @@ and not yet measured.
 - Staging: `loveoncue.jonathanjie.com` runs the PR branch with migration 0005 and
   the deputy on. DeepSeek V4.1 Flash for chat and photos, `WEDDINGOPS_REHEARSAL=true`.
 - Simulation: `scripts/simulate.py --dir <dir> init --deputy`, with a model key in
-  `<dir>/model.key` (mode 600). Persona prompts for the gate are in the session
-  scratchpad (`gate-v5/`); copy them into `evals/` if the gate becomes routine.
-- Next: the recommendations under "Gate v7" in the claim-check plan (question path, latest-message reports, outcome words).
+  `<dir>/model.key` (mode 600). Persona prompts: `scripts/gate.py`. Replay:
+  `scripts/replay.py`. Paired comparison: `scripts/ab.py`.
+- Next: see the resume point in `docs/plans/2026-11-22-deputy-claim-check.md`.

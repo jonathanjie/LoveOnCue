@@ -1,0 +1,44 @@
+[17:45] usher: eh im jamie the usher lol. where i stand ah? wat do i need to do
+[17:45] bot: It's 17:45 now. You're at Ballroom Entrance B from 17:50, and your job is to direct guests to the garden terrace until seating is announced.
+
+[17:45] notice (deputy_ping): Hi Jamie, the coordinator's assistant here. Are you at Ballroom Entrance B for “Take position at Ballroom Entrance B” (due 17:50)? Tap On it, or reply with how it is going.
+    [button: On it]
+
+[17:45] notice (task_reminder): Due 17:50: Take position at Ballroom Entrance B. Open My tasks, review prerequisites and acknowledge the assignment.
+
+[17:46] usher: (taps On it)
+[17:46] bot: Thanks, marked as acknowledged. The coordinator can see it.
+
+[17:46] usher: wait ballroom entrance b is where ah?? i dun know where that is leh
+[17:46] bot: Ballroom Entrance B is the second set of ballroom doors, off the foyer opposite the lift. From the registration foyer, look across from the lift and you'll see it.
+
+[17:47] usher: ok can 👍 but wait the guests ask me where to sit, i tell them where? my cousin amelia tan where she sit
+[17:47] bot: It's 17:47 now. Until seating is announced, direct guests to the garden terrace.
+• Amelia Tan: Table 2; checked in
+
+[17:48] usher: auntie sarah tan is coming, where she sit eh
+[17:48] bot: It's 17:48 now.
+• Sarah Tan: Table 18; not checked in yet
+
+[17:49] usher: mr lee where he sit
+[17:49] bot: It's 17:49 now.
+• Mr Lee: 14 guests match; send the full name
+Tap Ask the coordinator to send them your message: “mr lee where he sit”
+    [button: Ask the coordinator]
+
+[17:50] usher: wait i confuse, mr lee got 14 ah?? which one. where toilet is
+[17:50] bot: It's 17:50 now. Sorry, 14 guests match the name Lee, so I need his full name to find his seat. The restrooms are on Level 1, left of the foyer lift, with an accessible one beside the service door.
+• Mr Lee: 14 guests match; send the full name
+Tap Ask the coordinator to send them your message: “wait i confuse, mr lee got 14 ah?? which one. where toilet is”
+    [button: Ask the coordinator]
+
+[17:51] usher: (taps My tasks)
+[17:51] bot: Your current and next tasks, by due time. Blocked tasks wait for their prerequisites.
+• Take position at Ballroom Entrance B · due 17:50 · pending
+  Where: Ballroom Entrance B. Second set of ballroom doors, off the foyer opposite the lift.
+  What: Direct guests to the garden terrace until seating is announced.
+
+[17:51] usher: so i just tell guests go garden terrace only? and when they can sit
+[17:51] bot: It's 17:51 now. Yes, until seating is announced, direct guests to the garden terrace. The run sheet has dinner service in the Cedar Ballroom at 19:00, but it doesn't say when seating is announced, so only the coordinator can confirm that.
+Tap Ask the coordinator to send them your message: “so i just tell guests go garden terrace only? and when they can sit”
+    [button: Ask the coordinator]

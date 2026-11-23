@@ -201,15 +201,20 @@ class Queries:
             followups[:0] = self._unacknowledged(session, owners, ZoneInfo(wedding.timezone))
             return {"urgent": urgent, "followups": followups, "notes": notes}
 
-    # Updates whose acknowledgements the brief lists, newest first. A count with no name for its
-    # update was misread (gate v7: "0 of 1 acknowledged" after a message to one person was read as
-    # the count for the run-sheet change), so each line names the update it counts.
-    UNACKNOWLEDGED_SHOWN = 3
+    # Updates whose acknowledgements the brief lists: those sent in the last hour, newest first.
+    # A count with no name for its update was misread (gate v7: "0 of 1 acknowledged" after a
+    # message to one person was read as the count for the run-sheet change), so each line names
+    # the update it counts. The newest three alone dropped the rain announcement once the
+    # coordinator had sent a few messages (gate v8).
+    UNACKNOWLEDGED_WINDOW = timedelta(hours=1)
+    UNACKNOWLEDGED_SHOWN = 8
 
     def _unacknowledged(self, session, owners: dict[str, str], zone: ZoneInfo) -> list[tuple[str, str]]:
         """Who has not acknowledged each of the newest announcements, messages and timeline updates."""
+        since = self.clock.now() - self.UNACKNOWLEDGED_WINDOW
         notices = [n for n in rows(session, Notification, self.wid)
-                   if n.topic in ACK_TOPICS and n.state in {"queued", "sending", "sent", "simulated"}]
+                   if n.topic in ACK_TOPICS and n.state in {"queued", "sending", "sent", "simulated"}
+                   and n.created_at >= since]
         groups: dict[str, list[Notification]] = {}
         # notify() stores keys as "<update key>:<recipient>", so one update shares a prefix.
         for notice in notices:

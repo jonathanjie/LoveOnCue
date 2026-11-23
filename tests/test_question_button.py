@@ -37,29 +37,30 @@ def test_the_button_sends_the_persons_own_message_and_can_be_undone(deputy_chat,
         assert s.scalars(select(Incident)).one().status == "resolved"
 
 
-def test_a_message_about_an_open_report_is_added_to_it(deputy_chat, db):  # noqa: F811
+def test_each_tap_asks_a_new_question_until_the_persons_limit(deputy_chat, db):  # noqa: F811
+    from wedding_ops.deputy import QUESTIONS_PER_PERSON
+    asks = [f"question {number}?" for number in range(QUESTIONS_PER_PERSON + 1)]
+    chat = deputy_chat(StubPlanner({text: UNKNOWN for text in asks}))
+    for text in asks[:-1]:
+        reply = chat.send("mc", text)
+        # Code cannot tell whether two messages are about the same thing, so each is its own question.
+        assert button(db, reply) == "Ask the coordinator"
+        chat.tap("mc", f"confirm:{reply.telegram_draft_id}")
+    reply = chat.send("mc", asks[-1])
+    assert button(db, reply) == "Add to my question" and f"You have {QUESTIONS_PER_PERSON} questions open" in reply.message
+    chat.tap("mc", f"confirm:{reply.telegram_draft_id}")
+    with db.sessions() as s:
+        questions = s.scalars(select(Incident).order_by(Incident.created_at)).all()
+    assert len(questions) == QUESTIONS_PER_PERSON and questions[-1].details.endswith(f": {asks[-1]}")
+
+
+def test_a_question_is_never_filed_under_an_open_report(deputy_chat, db):  # noqa: F811
     chat = deputy_chat(StubPlanner({"car flat tyre": DeputyPlan(action="tell_coordinator", level="urgent",
                                                                 text="Bridal car flat tyre"),
-                                    "hello?? got anybody coming": UNKNOWN}))
+                                    "bride need the car or not?": UNKNOWN}))
     chat.tap("driver", f"confirm:{chat.send('driver', 'car flat tyre').telegram_draft_id}")
-    reply = chat.send("driver", "hello?? got anybody coming")
-    assert button(db, reply) == "Add to my report" and "\u201cBridal car flat tyre\u201d" in reply.message
-    chat.tap("driver", f"confirm:{reply.telegram_draft_id}")
-    with db.sessions() as s:
-        report = s.scalars(select(Incident)).one()
-    assert report.kind == "other" and report.details.endswith(": hello?? got anybody coming")
-
-
-def test_a_second_question_is_added_to_the_open_one(deputy_chat, db):  # noqa: F811
-    chat = deputy_chat(StubPlanner({"speech order how": UNKNOWN, "and the brief where": UNKNOWN}))
-    chat.tap("mc", f"confirm:{chat.send('mc', 'speech order how').telegram_draft_id}")
-    reply = chat.send("mc", "and the brief where")
-    assert button(db, reply) == "Add to my question"
-    added = chat.tap("mc", f"confirm:{reply.telegram_draft_id}")
-    assert added.message.startswith("Added to your question")
-    with db.sessions() as s:
-        question = s.scalars(select(Incident)).one()
-    assert question.details.endswith(": and the brief where")
+    reply = chat.send("driver", "bride need the car or not?")
+    assert button(db, reply) == "Ask the coordinator"
 
 
 def test_the_next_message_makes_the_button_stale(deputy_chat, db):  # noqa: F811

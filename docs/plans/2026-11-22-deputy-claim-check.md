@@ -310,6 +310,79 @@ Defects the raters found in code-written text (both versions show them where the
 - Open items are not surfaced: an unacknowledged task or update, and a coordinator's
   instruction that asks the helper to act.
 
+## Steps 2 to 4 and gate v8 (23 November)
+
+Built (commits 2ecc5e0, 3ab5dea, 15de154 and the next one), reviewed by Fable before the gate.
+
+What changed, and where the build departs from Fable's review, with the evidence:
+- **Asking the coordinator is its own action**, rendered by code as one light button that
+  sends the person's own message. Fable proposed a boolean; the model ignored it and filed
+  62 of 189 replies as problem reports. Code still decides: never for the coordinator, never
+  over a waiting draft, a cap of 12 open questions, at most 3 per person (then the message is
+  added to their latest), Undo after sending, stale on the next message. Each tap is a new
+  question: adding to the latest open thread filed unrelated items together (gate v8).
+- **Action names stay in the system prompt.** Without them the model chose report_late for
+  arrivals and questions (83 of 189). The per-role "Actions you may offer" context line is
+  gone, and a backstop removes answer sentences that name an action or field. Leaks: 0.
+- **The answer is dropped only beside a run-sheet change**, whose preview states the times.
+  Dropping it beside every draft lost correct answers (13 false drafts; 6 lost a required fact
+  such as the emergency contact). Offers to act ("I can flag", "want me to ask") are removed
+  beside a draft or button; negations ("I have no record") are not acts.
+- **Reports carry the person's words**: the latest message, plus the words of an unsent report
+  it replaces, each quoted on its own line. Follow-ups to a sent report are updates; a different
+  problem is a new report.
+- **Numbers a draft states must be the person's** (minutes late, minutes later).
+- **Code text is true**: who received a report, "Your words" before the tap, the acknowledged
+  update named without cutting a word, each brief line naming the update it counts (all
+  updates of the last hour, up to 8), a question never marks a task done.
+- **The coordinator's context lists the people and teams they can message.**
+- Draft offers are marked in the database (`action_drafts.offer`, migration 0006).
+
+### Replay (63 tuned cases and 23 held-out cases, 3 runs each)
+
+| Measure | Baseline 61ce8ea | Final |
+|---|---|---|
+| Outcome matches the label, tuned set | 135 of 189 | 163 of 189 |
+| Outcome matches the label, held-out set | 55 of 69 (v7) | 64 of 69 |
+| False full drafts in answer-only replies, tuned set | 7 of 72 | 3 of 72 |
+| False question drafts or buttons, tuned set | 26 full reports | 15 buttons |
+| Replies with internal names or template lines | 42 | 0 |
+| Replies missing a required fact | 0 | 0 |
+
+Labels: six coordinator questions accept a drafted message as well as an answer, because the
+coordinator's context tells the model to offer messaging the right helper. The baseline is
+rescored with the same labels (`replay.py --score`). Answers with a first-person act removed:
+74 of 213, mostly offers beside a draft or button.
+
+### Gate v8: paired blind comparison
+
+`scripts/ab.py` replayed each of 13 v7 rater chats (one per persona; exact messages and taps,
+from the rater logs) through v7 (61ce8ea) and v8 (15de154) code in identical stage worlds.
+Haiku raters compared the two transcripts with each version's records, blind, in both orders
+(26 raters). Materials: `docs/plans/2026-11-23-gate-v8/`.
+
+| | v7 | v8 |
+|---|---|---|
+| Preferred | 2 of 26 | 24 of 26 |
+| Paired ease / clarity / trust | 3.38 / 3.19 / 2.31 | 3.65 / 3.69 / 3.65 |
+
+Every persona gave the same verdict in both orders: 12 preferred v8, and the round 1 banquet
+captain preferred v7, because v8 filed the missing vegetarian meals under the dinner-delay
+report. That is fixed (the model may link a report only for the same problem; the question
+button never threads), and the replayed chat now files them separately in 3 of 3 runs.
+
+What raters still found in v8 (all behind a tap, or honest gaps):
+- A wrong recipient once: "Tell Taylor: cover is Priya Rao" drafted to Priya. The preview names
+  the recipient before the tap.
+- The bot does not raise open items unprompted: an unacknowledged task or update, or a
+  coordinator instruction that asks the helper to act.
+- Records show a withdrawn report as "resolved", which raters read as a contradiction of
+  "Withdrawn". The records view should say withdrawn.
+
+The v7 complaint classes that are gone in v8 transcripts: "Problem reports also go to your
+team" after a question, "Your words, as sent" before the tap, cut-off acknowledgements, the
+"After that" line, internal action names, merged quotes that included unrelated messages.
+
 ## Checks
 - Unit: extractor (each token type, Singlish time forms); `unsupported` with
   cited and uncited lines; quoted spans do not ground; self-acts with and without
@@ -325,12 +398,11 @@ Success: fact removals in under 5% of answers; first-person acts well below v5's
 in 71; trust ≥ 3.5 with no fall in ease or clarity.
 
 ## Resume point
-Read this file, then `git log` on the branch. Step 1 of Fable's build order is done:
-replay set, gate repairs and the ceiling (section "Step 1"). Next is step 2, the
-deletions: drop the model's answer when a draft exists, remove `also`, `quote` and the
-U-numbering, take action names out of the prompt and context prose, and add the enum
-filter. Fold in the step-1 findings that are root causes, not keyword patches: the
-coordinator's context needs the people and teams it can message, and the code-written
-lines above must be true for every case they appear in. After each change, run
-`scripts/replay.py --runs 3` and compare with the baseline file; the targets are in
-"Measure" above.
+Read this file, then `git log` on the branch. Fable's build order is done through gate v8
+(sections "Step 1" and "Steps 2 to 4"). Evidence tools: `scripts/replay.py` (tuned and held-out
+cases), `scripts/ab.py` with `WEDDING_OPS_SRC` (paired comparison on exact rater chats),
+`scripts/gate.py` and `simulate.py records|transcript|realtime` (live play). Open items, in
+order: surface open items to helpers (unacknowledged task or update, a coordinator
+instruction); show withdrawn reports as withdrawn in records and the brief; a live-play round
+with the new gate method to look for new kinds of failure; then decide on a staging deploy
+(message the Mini App session first).

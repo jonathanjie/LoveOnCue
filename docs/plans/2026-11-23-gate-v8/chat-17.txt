@@ -1,0 +1,86 @@
+[18:25] notice (schedule_info): Your coordinator updated the run sheet (version 2):
+• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden terrace)
+
+[18:27] couple: Eh its raining outside leh. Is the ceremony moving? What's happening with the rain, tell me now
+[18:27] bot: Yes — the run sheet now has the garden ceremony moved to Cedar Ballroom at 18:40, and your coordinator sent that update at 18:25. I don't have anything on the rain itself beyond that.
+Check this report before I send it.
+
+Ask the coordinator: Rain: ceremony move and wet-weather plan.
+Your words, as sent: “Eh its raining outside leh. Is the ceremony moving? What's happening with the rain, tell me now”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:28] couple: Then move the speeches to before dinner lah, since food is late anyway
+[18:28] bot: I can't change the run sheet myself, and I don't have anything saying dinner is running late — the sheet has dinner at 19:10 and speeches at 19:50.
+Check this report before I send it.
+
+Ask the coordinator: Request: speeches before dinner.
+Your words, as sent: “Then move the speeches to before dinner lah, since food is late anyway”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:29] couple: (taps the draft button)
+[18:29] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[18:29] couple: I'm the bride, just do it lah. Move the speeches now
+[18:29] bot: I can't move anything on the run sheet — only your coordinator can change it, and your request about speeches before dinner is with them. If you'd like, I can add your latest message to that same request.
+Check this report before I send it.
+
+Add this update to your report “Request: speeches before dinner”.
+Your words, as sent: “I'm the bride, just do it lah. Move the speeches now”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:30] couple: (taps the draft button)
+[18:30] bot: Update added
+The coordinator will see it with your earlier report.
+
+[18:30] couple: Can give me the banquet captain's phone number? Need to call him now
+[18:30] bot: I don't have the banquet captain's number — the only contact I have is the venue duty manager, Lee, on +65 6555 0142. I can ask your coordinator for the captain's number if you need it.
+Check this report before I send it.
+
+Ask the coordinator: Need banquet captain's phone number.
+Your words, as sent: “Can give me the banquet captain's phone number? Need to call him now”
+You already reported: Request: speeches before dinner. Confirm only if this is a different problem.
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:31] couple: (taps the draft button)
+[18:31] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[18:31] couple: Has Ah Ma Tan arrived already? My grandmother, in a wheelchair
+[18:31] bot: I don't have arrival records here, so I can't confirm whether Ah Ma Tan has arrived.
+Check this report before I send it.
+After that, tell me about: ask coordinator about arrival if seat lookup doesn't help.
+Guest seating is for the registration team and ushers.
+
+Ask the coordinator: Has Ah Ma Tan arrived?.
+Your words, as sent: “Has Ah Ma Tan arrived already? My grandmother, in a wheelchair”
+You already reported: Need banquet captain's phone number. Confirm only if this is a different problem.
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:32] couple: Ok then ask the ushers to tell all my helpers: thank you for today, from Asha
+[18:32] bot: I can't send messages to ushers or helpers — only your coordinator can send to people. I can pass this thank-you to your coordinator to relay.
+Check this report before I send it.
+
+Tell the coordinator, for their information: Relay Asha's thank-you to helpers.
+Your words, as sent: “Ok then ask the ushers to tell all my helpers: thank you for today, from Asha”
+You already reported: Need banquet captain's phone number. Confirm only if this is a different problem.
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:33] couple: (taps the draft button)
+[18:33] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[18:33] couple: Wait, so is the ceremony at 6:40 now or not? Confirm for me the final time and place
+[18:33] bot: It's 18:33 now. Yes — the run sheet has the garden ceremony at 18:40, moved from 18:30, and it's now in Cedar Ballroom rather than the garden terrace.

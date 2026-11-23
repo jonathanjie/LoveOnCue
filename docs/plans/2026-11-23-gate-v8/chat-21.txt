@@ -1,0 +1,67 @@
+[18:25] notice (timeline_updated): Run sheet updated by the coordinator (version 2):
+• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden terrace)
+• Dinner service 19:00 → 19:10
+• Family speeches 19:45 → 19:50
+Check your tasks. Tap Acknowledge, or reply “ok”, so the coordinator knows you saw this.
+    [button: Acknowledge]
+
+[18:27] mc: Sorry lah, stuck in jam in heavy rain. Taxi still about 25 min away. Will be ~25 min late. Can you let the coordinator know?
+[18:27] bot: The run sheet has the garden ceremony moved to 18:40 in the Cedar Ballroom, so you'll still have time before your dinner announcement task at 19:08.
+Check this report before I send it.
+
+Send a problem report to the coordinator and your team: Taylor Ng is running about 25 minutes late.
+Your words, as sent: “Sorry lah, stuck in jam in heavy rain. Taxi still about 25 min away. Will be ~25 min late. Can you let the coordinator know?”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:28] mc: (taps the draft button)
+[18:28] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[18:28] mc: Can someone cover the welcome for me? I'm stuck in taxi, not reaching in time.
+[18:28] bot: I don't have anything in the context about who can cover the welcome, so that needs the coordinator's answer.
+Check this report before I send it.
+
+Ask the coordinator: MC late: who covers the welcome?.
+Your words, as sent: “Can someone cover the welcome for me? I'm stuck in taxi, not reaching in time.”
+You already reported: Taylor Ng is running about 25 minutes late. Confirm only if this is a different problem.
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:29] mc: (taps the draft button)
+[18:29] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[18:29] mc: Wah, I'm stuck. What did I miss? Did the schedule or venue change?
+[18:29] bot: It's 18:29 now. Yes — the garden ceremony moved from 18:30 to 18:40 and is now in the Cedar Ballroom instead of the garden terrace. Dinner service moved to 19:10 and family speeches to 19:50.
+
+[18:30] notice (deputy_ping): Hi Taylor, did you see the coordinator's update? “• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden terrace) • Dinner service 19:00 → 19:10 • Family speeches 19:45 → 19:50 Check your tasks.” Tap Acknowledge, or reply “ok”.
+    [button: Acknowledge]
+
+[18:30] mc: (taps Acknowledge)
+[18:30] bot: Acknowledged
+Run sheet updated by the coordinator (version 2):
+• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden ter
+
+[18:30] mc: ok, noted. Where's the dinner announcement? Can you check if it's still pending? I'm still in taxi
+[18:30] bot: It's 18:30 now. Your dinner announcement is still pending and not acknowledged, due 19:08 at the Stage & AV desk, and you're to wait for the coordinator-approved go-ahead.
+Your 18:28 normal problem report “Taylor Ng is running about 25 minutes late”: open.
+Your 18:29 question “MC late: who covers the welcome?”: open.
+
+[18:31] mc: Still stuck in jam. Is anyone covering the welcome yet? Please tell me once the coordinator replies.
+[18:31] bot: I don't have anything in the context saying whether anyone is covering the welcome yet — that's still with the coordinator.
+Check this report before I send it.
+Your 18:29 question “MC late: who covers the welcome?”: open.
+After that, tell me about: tell me when the coordinator replies.
+
+Add this update to your report “MC late: who covers the welcome?”.
+Your words, as sent: “Still stuck in jam. Is anyone covering the welcome yet? Please tell me once the coordinator replies.”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:32] mc: (taps the draft button)
+[18:32] bot: Update added
+The coordinator will see it with your earlier report.

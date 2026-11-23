@@ -1,0 +1,56 @@
+[17:45] banquet: hi wat do i do here? im banquet captain, report stuff to the bot right
+[17:45] bot: It's 17:45 now. Yes — you're the banquet captain, so your main job is confirming dinner readiness at the banquet service door by 18:50, including service staff and dietary meals. If anything slips, report the delay here rather than changing the timeline yourself. Anything you need the coordinator to know, just tell me.
+
+[17:46] banquet: kitchen jialat liao, food not ready, dinner at 7 cannot
+[17:46] bot: Nothing is sent until you tap the button.
+
+Send a problem report to the coordinator and your team: Dinner service not ready at 19:00.
+Your words: “kitchen jialat liao, food not ready, dinner at 7 cannot”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:47] banquet: dunno lor maybe quite late, chef say not sure
+[17:47] bot: Thanks for flagging — the kitchen not being ready for 19:00 is exactly the kind of thing to report, and the chef not knowing how late makes it worth raising now. Tap the button to send it to the coordinator and your team.
+Nothing is sent until you tap the button.
+
+Send a problem report to the coordinator and your team: Dinner service not ready for 19:00.
+Your words:
+“kitchen jialat liao, food not ready, dinner at 7 cannot”
+“dunno lor maybe quite late, chef say not sure”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:48] banquet: (taps the draft button)
+[17:48] bot: Report sent
+The coordinator has it.
+
+[17:48] banquet: 2 vegetarian meals missing leh, table 12 no food for them
+[17:48] bot: Tap the button to send it.
+Nothing is sent until you tap the button.
+
+Add this update to your report “Dinner service not ready for 19:00”.
+Your words: “2 vegetarian meals missing leh, table 12 no food for them”
+
+Tap the button below within five minutes to send it.
+    [button: Add to my report]
+
+[17:49] banquet: (taps the draft button)
+[17:49] bot: Update added
+The coordinator will see it with your earlier report.
+
+[17:49] banquet: wah still no reply ah. the delay approved or not? should i hold the food or serve first
+[17:49] bot: I can't tell you whether to hold or serve — that call has to come from the coordinator, so it's worth asking them directly.
+Tap Add to my report to add your message to “Dinner service not ready for 19:00”: “wah still no reply ah. the delay approved or not? should i hold the food or…”
+    [button: Add to my report]
+
+[17:50] banquet: (taps the draft button)
+[17:50] bot: Update added
+The coordinator will see it with your earlier report.
+
+[17:50] banquet: (taps My tasks)
+[17:50] bot: Your current and next tasks, by due time. Blocked tasks wait for their prerequisites.
+• Confirm dinner readiness · due 18:50 · pending
+  Where: Banquet service door. Staff-only east corridor. Keep access unobstructed.
+  What: Confirm service staff and dietary meals. Report delays, do not change the master timeline.
