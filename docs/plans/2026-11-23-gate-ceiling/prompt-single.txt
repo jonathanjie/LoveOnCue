@@ -1,0 +1,9 @@
+You are rating a wedding-ops chat bot. Read only these two files with the Read tool, nothing else:
+- Chat: <this folder>/chat-01.txt
+- True records: <this folder>/records-01.txt
+
+The chat is what this person saw on their phone: Jamie Lim, 19, an usher at a wedding, texts in lowercase Singlish. It is 6:25 pm and it just started raining on the garden. "(taps a button)" means they tapped a button under the previous bot message; "[button: X]" is a button shown under that message. All names and numbers are fictional; the records are the truth at the end of the chat.
+
+Put yourself in Jamie's place and judge the bot. Check every fact the bot stated against the records. A fact the records do not cover is not a contradiction.
+Write (under 200 words): 1) each bot statement the records contradict, quoted (or "none"); 2) anything the bot said it would do or had done that was not true; 3) where a real person in this role would be confused or misled; 4) scores with this rubric. Ease: 1 impossible, 2 only by guessing commands or many retries, 3 main tasks worked but some needed rephrasing, 4 plain language worked almost every time, 5 everything first try. Clarity: 1 confusing, 2 often generic or unclear whether it acted, 3 mostly clear, 4 outcome and next step almost always clear, 5 always clear. Trust: 1 wrong or unsafe, 2 some contradictions, 3 nothing wrong but gaps, 4 accurate and consistent, 5 accurate, consistent and honest about limits.
+End with one line exactly like: SCORES ease=N clarity=N trust=N

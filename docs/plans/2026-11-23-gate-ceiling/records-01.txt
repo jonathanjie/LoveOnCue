@@ -1,0 +1,40 @@
+Records at 19:29.
+
+Run sheet (approved):
+  18:00 Guest registration at Registration foyer
+  18:40 Garden ceremony at Cedar Ballroom (planned 18:30)
+  19:00 Family portraits at Portrait alcove (planned 18:50)
+  19:10 Dinner service at Cedar Ballroom (planned 19:00)
+  19:50 Family speeches at Stage & AV desk (planned 19:45)
+  20:05 Dessert service at Cedar Ballroom (planned 20:00)
+  20:20 Couple's toast at Stage & AV desk
+
+Places:
+  Registration foyer: Level 1, main entrance. Desks A and B beside the lift.
+  Cedar Ballroom: Level 1, through the foyer's double doors.
+  Garden terrace: Through the glass doors at the west side of the foyer.
+  Stage & AV desk: Front of ballroom; AV desk at stage right.
+  Banquet service door: Staff-only east corridor. Keep access unobstructed.
+  Portrait alcove: North-west corner of the garden terrace.
+  Ballroom Entrance B: Second set of ballroom doors, off the foyer opposite the lift.
+  Restrooms: Level 1, left of the foyer lift. Accessible restroom beside the service door.
+
+Emergency contact: Venue duty manager Lee (fictional), DEMO-NOT-A-REAL-NUMBER
+
+Tasks of Jamie Lim:
+  due 17:50 Take position at Ballroom Entrance B (pending, not acknowledged): Direct guests to the garden terrace until seating is announced.
+
+What reached the coordinator from Jamie Lim:
+  18:26 normal question from Jamie Lim: “Rain: where should guests wait?” — resolved; also shown to: no team. Details: hey is the ceremony still in the garden? it just started raining lol. where should i send ppl?
+Update 18:27: sorry that was a guest lol. where i put ppl now??
+  18:26 normal question from Jamie Lim: “Dinner time: kitchen says 7pm, captain 7.10” — resolved; also shown to: no team. Details: ok i acknowledged the run sheet change. one of the kitchen staff just told me 'dinner on time actually' so dinner is 7pm?? banquet captain said 7.10 i think
+
+Updates and messages to Jamie Lim, and whether the coordinator sees them acknowledged:
+  18:25 timeline_updated “Run sheet updated by the coordinator (version 2):
+• Garden ceremony 18:30 → 18:4”: not acknowledged
+  18:26 coordinator_message “Announcement from Alex Morgan:
+Ceremony is now indoors at Cedar Ballroom, starti”: not acknowledged
+  18:27 coordinator_message “Message from Alex Morgan:
+Guests should wait in Cedar Ballroom — the ceremony is”: acknowledged at 18:28
+  18:29 coordinator_message “Message from Alex Morgan:
+Dinner service is at 19:10, per the run sheet. Please ”: not acknowledged

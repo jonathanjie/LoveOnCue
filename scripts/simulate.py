@@ -51,7 +51,7 @@ from wedding_ops.operations import Operations
 from wedding_ops.policy import Actor, load_access
 from wedding_ops.seed import DEMO_TIME, seed_demo
 from wedding_ops.telegram import TelegramIngress
-from wedding_ops.telegram_ui import approval_markup, attendance_label, notice_markup, reply_markup
+from wedding_ops.telegram_ui import DRAFT_BUTTONS, approval_markup, attendance_label, notice_markup, reply_markup
 from wedding_ops.views import Queries
 from wedding_ops.worker import Worker, deputy_ping_markup, draft_type
 
@@ -282,15 +282,35 @@ def command_transcript(world: World, member_id: str) -> None:
         at = notification.created_at.astimezone(zone).strftime("%H:%M")
         if notification.topic != "bot_reply":
             print(f"\n[{at}] notice ({notification.topic}): {notification.message}")
+            print_action_button(world, notification)
             continue
-        # A reply that starts with the deputy's next answer answers the member's next message.
-        # Any other reply answers a button tap.
-        if len(turns) >= 2 and turns[0][0] == "user" and notification.message.startswith(turns[1][1][:60]):
-            print(f"\n[{at}] {member_id}: {turns[0][1]}")
-            turns = turns[2:]
+        # A reply that starts with the deputy's next answer answers a message: the user turn just
+        # before that answer, when the deputy kept it. Any other reply answers a button tap.
+        answer = next((i for i, (role, _) in enumerate(turns) if role == "assistant"), None)
+        if answer is not None and notification.message.startswith(turns[answer][1][:60]):
+            message = turns[answer - 1][1] if answer and turns[answer - 1][0] == "user" else "(message not kept)"
+            print(f"\n[{at}] {member_id}: {message}")
+            turns = turns[answer + 1:]
         else:
             print(f"\n[{at}] {member_id}: (taps a button)")
         print(f"[{at}] bot: {notification.message}")
+        print_action_button(world, notification)
+
+
+def print_action_button(world: World, notification: Notification) -> None:
+    """The button that acts (a draft's, Acknowledge, On it), as the member saw it. Menu buttons are left out."""
+    with world.db.sessions() as s:
+        if notification.topic == "bot_reply":
+            kind = draft_type(s, WEDDING_ID, notification.telegram_draft_id)
+            label = DRAFT_BUTTONS.get(kind, "Confirm") if notification.telegram_draft_id else None
+        elif notification.topic == "deputy_ping":
+            markup = deputy_ping_markup(s, WEDDING_ID, notification)
+            label = markup["inline_keyboard"][0][0]["text"] if markup else None
+        else:
+            markup = notice_markup(notification.topic, notification.id)
+            label = markup["inline_keyboard"][0][0]["text"] if markup else None
+    if label:
+        print(f"    [button: {label}]")
 
 
 def command_records(world: World, member_id: str) -> None:
@@ -332,15 +352,27 @@ def command_records(world: World, member_id: str) -> None:
     reports = [i for i in incidents if is_coordinator or i.reported_by == member_id]
     requests = [a for a in snapshot["approvals"] if is_coordinator or a["proposed_by"] == member_id]
     print("\nWhat reached the coordinator" + ("" if is_coordinator else f" from {names[member_id]}") + ":")
+    teams = {team["id"]: team["name"] for team in snapshot["teams"]}
     for incident in sorted(reports, key=lambda i: i.created_at):
+        shared = ", ".join(teams.get(t, t) for t in incident.audience_team_ids) or "no team"
         print(f"  {local(incident.created_at)} {incident.severity} {incident.kind} from {names.get(incident.reported_by)}: "
-              f"“{incident.title}” — {incident.status}. Details: {incident.details[:200]}")
+              f"“{incident.title}” — {incident.status}; also shown to: {shared}. Details: {incident.details[:600]}")
     for request in requests:
         note = f" ({request['decision_note']})" if request.get("decision_note") else ""
         print(f"  {local(request['created_at'])} run-sheet request from {names.get(request['proposed_by'])}: "
               f"“{request['title']}” — {request['status']}{note}")
     if not reports and not requests:
         print("  nothing")
+    if not is_coordinator:
+        with world.db.sessions() as s:
+            received = s.scalars(select(Notification).where(
+                Notification.wedding_id == WEDDING_ID, Notification.recipient_id == member_id,
+                Notification.topic.in_(("timeline_updated", "coordinator_message")))).all()
+        if received:
+            print(f"\nUpdates and messages to {names[member_id]}, and whether the coordinator sees them acknowledged:")
+            for notice in sorted(received, key=lambda n: n.created_at):
+                seen = f"acknowledged at {local(notice.acknowledged_at)}" if notice.acknowledged_at else "not acknowledged"
+                print(f"  {local(notice.created_at)} {notice.topic} “{notice.message[:80]}”: {seen}")
     if is_coordinator:
         print("\nAcknowledgements of updates and messages (latest first):")
         with world.db.sessions() as s:

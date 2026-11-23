@@ -229,6 +229,87 @@ Measure:
 - Complaints per class.
 - Paired trust preference, v7 against v8.
 
+## Step 1: replay set, gate repairs, ceiling (23 November)
+
+Built (commits 4c57966 and the next one):
+- **Replay set** (`scripts/replay_cases.py`): 63 messages from the gate v5–v7 chats, each
+  labelled with the outcome a good reply has (answer, question, report, urgent, late,
+  change, message, arrival, withdraw). Labels are judgments written before any replay.
+- **Replay runner** (`scripts/replay.py --key K --out D --runs 3`): each case runs in a
+  fresh copy of a stage world (r1 at 17:45, r2 at 18:25, r2-moved after the rain change),
+  with any earlier steps the case needs. It scores the outcome, false drafts, internal
+  names and template lines, and missing facts. 189 replies take about one minute.
+- **Gate repairs** (`scripts/simulate.py`, `scripts/gate.py`):
+  - `realtime`: the simulated clock runs at real speed from the persona's start time. No
+    clock loop, so no drift.
+  - A realistic fictional emergency contact replaces the seeded placeholder.
+  - `records --as M`: what raters check the bot against after playing: run sheet, places,
+    tasks, what reached the coordinator (with the teams that saw it), and which updates
+    the member acknowledged.
+  - `transcript --as M`: what the member saw, in order, with each action button.
+  - `gate.py prompts --round r1|r2 --world D --out F`: the persona prompts, now in the
+    repository. One cast per world; at most two casts at once (14 raters), so no rater
+    waits for an agent slot.
+
+### Replay baseline (code at 61ce8ea, 3 runs)
+
+| Measure | Result |
+|---|---|
+| Outcome matches the label | 128 of 189 |
+| False drafts (answer-only cases that drafted) | 40 of 90 |
+| Replies with "After that, tell me about" (one also names an action) | 42 |
+| Coordinator "tell X …" messages drafted (5 cases) | 1 of 15 |
+| Replies missing a required fact | 0 |
+
+Findings the replay adds:
+- **The coordinator's context lists no people.** The model writes "Taylor isn't in the
+  team list I have" and leaves `to` or `message` empty, so 14 of 15 "tell X …" runs
+  end as "Who should get it?" or "What should the message say?". In the gate
+  this was hidden because the person had usually appeared earlier in the chat.
+- **Over-drafting is mostly question drafts** (62 of 189 replies), including plain
+  questions the records answer ("when exactly I announce dinner", "where i put ppl now").
+- **Escalation level:** "Can someone cover the welcome for me?" became an URGENT report
+  in 3 of 3 runs, and "hello?? i sent already" an urgent update in 3 of 3.
+
+Results per run are in `docs/plans/2026-11-23-gate-ceiling/replay-baseline-61ce8ea.jsonl`.
+
+### Ceiling calibration
+
+Three v7 chats (r2 usher, r2 driver, r1 MC) were exported with `transcript`, and I wrote
+an ideal chat for each: the same messages and notices, with replies that answer from the
+records, keep one urgent report, state status honestly, and offer a question button only
+when the records cannot answer. Haiku raters read a chat and its records (blind, two per
+chat), and other Haiku raters compared the two chats of a persona side by side, in both
+orders. Materials: `docs/plans/2026-11-23-gate-ceiling/` (`key.json` maps the chats).
+
+Run 1 had defects in my setup: the transcripts showed no buttons, and the records showed
+no acknowledgements. Raters then read "tap Ask the coordinator" as a missing button. Run 2
+fixed both:
+
+| Run 2 | v7 chats | Ideal chats |
+|---|---|---|
+| Single ratings, ease / clarity / trust (6 each) | 3.0 / 3.0 / 2.5 | 3.0 / 3.0 / 3.5 |
+| Paired, preferred (6 pairs, both orders) | 0 | 6 |
+| Paired, ease / clarity / trust | 3.2 / 2.8 / 2.7 | 4.0 / 4.0 / 4.5 |
+
+What this means for the gate:
+1. **A single reader's ease and clarity do not discriminate**: every one of 12 single
+   ratings gave 3 and 3. Only trust moved, by about 1 point.
+2. **The old success line, trust ≥ 3.5, is the ceiling itself**: a hand-written ideal
+   scored 3.5 from single raters. Read singly, raters always find a gap.
+3. **Paired, blind comparison discriminates**: 6 of 6 preferred the ideal in both orders,
+   with a trust gap of 1.8 and ease and clarity gaps of about 1.
+4. So gate v8 uses: the replay metrics as primary evidence; paired blind comparison of
+   v7 against v8 on the same scripts as the human-proxy measure; live persona play only
+   to find new kinds of failure, not to pass or fail.
+
+Defects the raters found in code-written text (both versions show them where they apply):
+- "Problem reports also go to your team" after a question that no team sees.
+- "Your words, as sent" on a draft that is not sent yet.
+- The "Acknowledged" reply repeats the message and cuts it mid-word ("Speech o").
+- Open items are not surfaced: an unacknowledged task or update, and a coordinator's
+  instruction that asks the helper to act.
+
 ## Checks
 - Unit: extractor (each token type, Singlish time forms); `unsupported` with
   cited and uncited lines; quoted spans do not ground; self-acts with and without
@@ -244,9 +325,12 @@ Success: fact removals in under 5% of answers; first-person acts well below v5's
 in 71; trust ≥ 3.5 with no fall in ease or clarity.
 
 ## Resume point
-Read this file, then `git log` on the branch. Built: K1–K5 (f1ac2bf) and the gate
-v6 fixes (7858501), with tests in `tests/test_claims.py`. Not yet measured: the
-gate v6 fixes. Next: gate v7 with the same 26 raters (prompts in the session
-scratchpad `gate-v6/`; worlds by `simulate.py init --deputy`, `advance 40` for
-round 2, a clock loop of `advance 1` every 15 s). Then decide on a repair call only
-if fact removals exceed 5%.
+Read this file, then `git log` on the branch. Step 1 of Fable's build order is done:
+replay set, gate repairs and the ceiling (section "Step 1"). Next is step 2, the
+deletions: drop the model's answer when a draft exists, remove `also`, `quote` and the
+U-numbering, take action names out of the prompt and context prose, and add the enum
+filter. Fold in the step-1 findings that are root causes, not keyword patches: the
+coordinator's context needs the people and teams it can message, and the code-written
+lines above must be true for every case they appear in. After each change, run
+`scripts/replay.py --runs 3` and compare with the baseline file; the targets are in
+"Measure" above.

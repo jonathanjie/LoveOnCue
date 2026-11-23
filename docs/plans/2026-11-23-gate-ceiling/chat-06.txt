@@ -1,0 +1,56 @@
+
+[17:46] mc: eh hi, i'm the MC for tonight. what do i need to do and when ah? it's 5.45 now
+[17:46] bot: Hi Taylor. Your task is to prepare the dinner announcement at the Stage & AV desk (front of the ballroom, AV desk at stage right). It is due at 18:58.
+Dinner service starts at 19:00. Announce it only when the coordinator gives you the go-ahead.
+Later: family speeches at 19:45, and the couple's toast at 20:20.
+
+[17:46] mc: eh when i announce dinner ah? and the speech order how
+[17:46] bot: Announce dinner when the coordinator gives the go-ahead. Dinner is set for 19:00.
+The run sheet has no speech order. It says only that family speeches start at 19:45. The coordinator can tell you the order: tap Ask the coordinator below to send them your question.
+    [button: Ask the coordinator]
+
+[17:46] mc: (taps a button)
+[17:46] bot: Question sent to the coordinator: “eh when i announce dinner ah? and the speech order how”. Their answer will come to this chat.
+
+[17:46] mc: how to pronounce the groom's family name ah? i don't want to mess up on mic
+[17:46] bot: The records do not have the groom's family name or how to say it.
+You have a question open with the coordinator. Tap Add to my question to ask this too.
+    [button: Add to my question]
+
+[17:47] mc: (taps a button)
+[17:47] bot: Added to your question to the coordinator.
+
+[17:47] mc: i heard dinner is running late ah. is it confirmed? should i stall the crowd with a song or something
+[17:47] bot: No delay is recorded. Dinner is still at 19:00, and nobody has asked to move it. Do not stall unless the coordinator tells you to.
+
+[17:48] mc: ok so is the go-ahead for my dinner announcement coming or not? i'm standing here with the mic
+[17:48] bot: Not yet. Your task says to wait for the coordinator's go-ahead, and the coordinator has not answered your question yet. Your announcement is due at 18:58, for dinner at 19:00.
+
+[17:48] notice (coordinator_message): Message from Alex Morgan:
+Dinner is not confirmed yet, so don't stall guests yet. I'll update you in 5 minutes. Speech order is per the brief.
+
+Tap Acknowledge, or reply “ok”, so the coordinator knows you saw this.
+    [button: Acknowledge]
+
+[17:48] mc: (taps a button)
+[17:48] bot: Acknowledged
+The coordinator can see that you saw their message.
+
+[17:49] mc: eh the coordinator said speech order is per the brief. where is the brief ah? i cannot find it
+[17:49] bot: I can't see a brief in your records, so I can't tell you where it is.
+Tap Ask the coordinator below to ask them where the brief is.
+    [button: Ask the coordinator]
+
+[17:49] mc: (taps a button)
+[17:49] bot: Question sent to the coordinator: “eh the coordinator said speech order is per the brief. where is the brief ah? i cannot find it”. Their answer will come to this chat.
+
+[17:50] notice (coordinator_message): Message from Alex Morgan:
+Speech order is in the brief; I will send the file shortly, so don't worry.
+
+Tap Acknowledge, or reply “ok”, so the coordinator knows you saw this.
+    [button: Acknowledge]
+
+[17:55] notice (deputy_ping): Hi Taylor, did you see the coordinator's update? “Speech order is in the brief; I will send the file shortly, so don't worry.” Tap Acknowledge, or reply “ok”.
+    [button: Acknowledge]
+
+[18:48] notice (task_reminder): Due 18:58: Prepare dinner announcement. Open My tasks, review prerequisites and acknowledge the assignment.

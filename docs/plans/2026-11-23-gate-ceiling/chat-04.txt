@@ -1,0 +1,58 @@
+
+[18:25] notice (deputy_ping): Hi Jordan, the coordinator's assistant here. Are you at Registration foyer for “Confirm shuttle drop-off route” (due 17:50)? Tap On it, or reply with how it is going.
+    [button: On it]
+
+[18:25] driver: hi sorry wah i am the bridal car driver Jordan. its 6.25pm already. what am i supposed to do now ah?
+[18:25] bot: Hi Jordan. Your task is to confirm the shuttle drop-off route at the Registration foyer, using the signed east driveway. It was due at 17:50.
+Reply “done” when the route is confirmed, or tell me what is wrong.
+
+[18:25] notice (timeline_updated): Run sheet updated by the coordinator (version 2):
+• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden terrace). Note: Moved indoors due to rain; acknowledge receipt.
+Check your tasks. Tap Acknowledge, or reply “ok”, so the coordinator knows you saw this.
+    [button: Acknowledge]
+
+[18:25] driver: WAIT I AM IN CAR PARK NOW AND THE BRIDAL CAR GOT FLAT TYRE!!! CAR PANCIT LIAO
+[18:25] bot: If anyone is hurt or in danger, call Venue duty manager Lee (fictional), DEMO-NOT-A-REAL-NUMBER now. Do not wait for this bot.
+
+Send an URGENT problem report to the coordinator and your team: Bridal car flat tyre.
+Your words: “WAIT I AM IN CAR PARK NOW AND THE BRIDAL CAR GOT FLAT TYRE!!! CAR PANCIT LIAO”
+
+Tap Send urgent report below.
+    [button: Send urgent report]
+
+[18:26] driver: FLAT TYRE
+[18:26] bot: This is the same problem as the report above, which is not sent yet. Tap Send urgent report to send it.
+    [button: Send urgent report]
+
+[18:26] driver: car cannot move
+[18:26] bot: I added this to the report above: “car cannot move”. It is still not sent. Tap Send urgent report to send it.
+    [button: Send urgent report]
+
+[18:26] notice (coordinator_message): Announcement from Alex Morgan:
+Ceremony is now indoors at Cedar Ballroom, starting 18:40. Please acknowledge receipt.
+
+Tap Acknowledge, or reply “ok”, so the coordinator knows you saw this.
+    [button: Acknowledge]
+
+[18:26] driver: help car spoil. bride need the car for ceremony or not ah? who i must call now??
+[18:26] bot: The ceremony moved inside, to the Cedar Ballroom at 18:40. The records do not say if the bride still needs the car. Only the coordinator knows.
+Who to call now: Venue duty manager Lee (fictional), DEMO-NOT-A-REAL-NUMBER.
+I added your question to the report, so the coordinator sees it too. The report is still not sent. Tap Send urgent report.
+    [button: Send urgent report]
+
+[18:27] driver: (taps a button)
+[18:27] bot: Urgent report sent
+The coordinator and the Transport team have it: “Bridal car flat tyre”, with your four messages. The coordinator's answer will come to this chat.
+
+[18:27] driver: hello?? i sent already. got anybody coming to help or not
+[18:27] bot: Your urgent report was sent at 18:27. The coordinator has not answered yet.
+If you need help now, call Venue duty manager Lee (fictional), DEMO-NOT-A-REAL-NUMBER.
+
+[18:29] notice (coordinator_message): Message from Alex Morgan:
+Bridal car has a flat tyre. Call venue duty manager Lee now (DEMO-NOT-A-REAL-NUMBER) and find a backup car. Reply to me with status.
+
+Tap Acknowledge, or reply “ok”, so the coordinator knows you saw this.
+    [button: Acknowledge]
+
+[18:35] notice (deputy_ping): Hi Jordan, did you see the coordinator's update? “Bridal car has a flat tyre. Call venue duty manager Lee now (DEMO-NOT-A-REAL-NUMBER) and find a backup car. Reply to me with status.” Tap Acknowledge, or reply “ok”.
+    [button: Acknowledge]
