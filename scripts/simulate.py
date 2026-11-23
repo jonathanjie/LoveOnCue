@@ -53,7 +53,13 @@ from wedding_ops.operations import Operations
 from wedding_ops.policy import Actor, load_access
 from wedding_ops.seed import DEMO_TIME, seed_demo
 from wedding_ops.telegram import TelegramIngress
-from wedding_ops.telegram_ui import DRAFT_BUTTONS, approval_markup, attendance_label, notice_markup, reply_markup
+from wedding_ops.telegram_ui import (
+    DRAFT_BUTTONS,
+    approval_markup,
+    attendance_label,
+    notice_markup,
+    reply_markup,
+)
 from wedding_ops.views import Queries
 from wedding_ops.worker import Worker, deputy_ping_markup, draft_type
 
@@ -158,7 +164,8 @@ class World:
                 access = load_access(s, Actor(WEDDING_ID, member_id), WEDDING_ID)
                 markup = reply_markup(coordinator=access.coordinator, guest_lookup=access.permits("guests:seating"),
                                       draft_id=notification.telegram_draft_id, app_url=self.settings.public_url,
-                                      draft_type=draft_type(s, WEDDING_ID, notification.telegram_draft_id))
+                                      draft_type=draft_type(s, WEDDING_ID, notification.telegram_draft_id),
+                                      ask=not access.coordinator and access.permits("coordinator:ask"))
         elif notification.topic == "approval_requested":
             with self.db.sessions() as s:
                 approval = s.scalar(select(Approval).where(Approval.id == notification.dedupe_key.split(":")[1]))

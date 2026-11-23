@@ -159,14 +159,15 @@ def test_a_follow_up_adds_to_the_open_report(deputy_chat, db):
 def test_a_question_reaches_the_coordinator_and_the_answer_comes_back(deputy_chat, db):
     planner = StubPlanner({
         "where i put guests now, raining": DeputyPlan(
-            answer="The run sheet does not say where guests wait in the rain.", action="ask_coordinator"),
+            answer="The run sheet does not say where guests wait in the rain."),
         "tell jamie foyer until 18:35": DeputyPlan(answer="Here's the answer.", action="send_message", to="",
                                                    about="Q1", message="Keep guests in the foyer until 18:35."),
     })
     chat = deputy_chat(planner)
-    question = chat.send("usher", "where i put guests now, raining")
-    assert question.message == ("The run sheet does not say where guests wait in the rain.\n"
-                                "Tap Ask the coordinator to send them your message: \u201cwhere i put guests now, raining\u201d")
+    answered = chat.send("usher", "where i put guests now, raining")
+    assert answered.message == "The run sheet does not say where guests wait in the rain."
+    question = chat.tap("usher", "nav:ask")  # the person decides that the answer was not enough
+    assert question.message == "Tap Ask the coordinator to send them your message: \u201cwhere i put guests now, raining\u201d"
     chat.tap("usher", f"confirm:{question.telegram_draft_id}")
     assert "Question from Jamie Lim" in chat.last("coordinator", "question").message  # Pushed: it needs an answer.
     answer = chat.send("coordinator", "tell jamie foyer until 18:35")

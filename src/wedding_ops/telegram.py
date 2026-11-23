@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 import httpx
 from sqlalchemy import or_, select
 
-from .agent import Assistant
+from .agent import Assistant, ask_coordinator
 from .auth import Auth
 from .clock import Clock, parse_time
 from .config import Settings
@@ -20,7 +20,13 @@ from .models import InboundUpdate, new_id
 from .operations import Operations, audit, notify
 from .schemas import PhotoReview
 from .telegram_photo import MAX_PHOTO_BYTES, download_photo, render_photo
-from .telegram_ui import NAVIGATION, acknowledged_reply, attendance_label, names_list, render_brief
+from .telegram_ui import (
+    NAVIGATION,
+    acknowledged_reply,
+    attendance_label,
+    names_list,
+    render_brief,
+)
 from .views import row
 
 
@@ -86,7 +92,8 @@ def private_callback(update: dict, token: str) -> tuple[str, str | None, str] | 
 
 HELP = ("Just message me like you would a teammate. Ask what you should be doing, where something "
         "is, or when something happens. Tell me about delays or problems in your own words and I will "
-        "pass them on once you confirm. Photo reviews are read-only when enabled. "
+        "pass them on once you confirm. If my answer is not enough, tap Ask the coordinator under it. "
+        "Photo reviews are read-only when enabled. "
         "Reports need confirmation. "
         "Schedule changes need human approval in LoveOnCue.")
 
@@ -370,7 +377,7 @@ class TelegramIngress:
                         draft_id = self.operations.draft(
                             actor, {"type": "withdraw_report", "request_id": f"draft:{confirmation[1]}"},
                             "Take back your question.", offer="undo")["id"]
-                elif decision := re.fullmatch(r"/(approve|reject)\s+([A-Za-z0-9_-]{1,64})(?:\s+(.+))?", text, re.S):
+                elif decision := re.fullmatch(r"/(approve|reject)\s+([A-Za-z0-9_-]{1,64})(?:\s+(.+))?", text, re.DOTALL):
                     result = self._decide(actor, decision[1], decision[2], (decision[3] or "").strip())
                 elif deputy_command := re.fullmatch(r"/(quiet|unquiet|deputy\s+(?:on|off)|taskack\s+[A-Za-z0-9_-]{1,64})", text):
                     result = self._deputy_command(actor, deputy_command[1])
@@ -390,6 +397,14 @@ class TelegramIngress:
                     permission = "guests:seating"
                 elif text in {"/start", "/help"}:
                     result = HELP
+                elif text == "/ask" and self.deputy is None:
+                    # Without the deputy there is no chat memory to send: say who to ask.
+                    result = ask_coordinator(self.assistant.queries.snapshot(actor))
+                elif text == "/ask":
+                    response = self.deputy.ask_from_last_message(actor)
+                    result = render_reply(response)
+                    if response.get("draft"):
+                        draft_id = response["draft"]["id"]
                 else:
                     responder = self.deputy if self.deputy is not None else self.assistant
                     response = responder.ask(actor, text)

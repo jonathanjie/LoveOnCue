@@ -27,8 +27,9 @@ def test_the_time_is_said_once(deputy_chat):  # noqa: F811
 
 def test_a_question_title_skips_a_leading_confirmation(deputy_chat, db):  # noqa: F811
     text = "ok thanks. i stand at entrance b till seating announce then i go where"
-    chat = deputy_chat(StubPlanner({text: DeputyPlan(answer="The run sheet doesn't say.", action="ask_coordinator")}))
-    chat.tap("usher", f"confirm:{chat.send('usher', text).telegram_draft_id}")
+    chat = deputy_chat(StubPlanner({text: DeputyPlan(answer="The run sheet doesn't say.")}))
+    chat.send("usher", text)
+    chat.tap("usher", f"confirm:{chat.tap('usher', 'nav:ask').telegram_draft_id}")
     with db.sessions() as s:
         question = s.scalars(select(Incident)).one()
     assert question.title.startswith("i stand at entrance b") and question.details == text
@@ -98,8 +99,9 @@ def test_a_lateness_report_needs_the_person_to_say_late(deputy_chat):  # noqa: F
 
 def test_a_question_title_is_the_sentence_that_asks(deputy_chat, db):  # noqa: F811
     text = "Ok, saw the coordinator's message. Who is covering the welcome speech?"
-    chat = deputy_chat(StubPlanner({text: DeputyPlan(answer="The records don't say.", action="ask_coordinator")}))
-    chat.tap("mc", f"confirm:{chat.send('mc', text).telegram_draft_id}")
+    chat = deputy_chat(StubPlanner({text: DeputyPlan(answer="The records don't say.")}))
+    chat.send("mc", text)
+    chat.tap("mc", f"confirm:{chat.tap('mc', 'nav:ask').telegram_draft_id}")
     with db.sessions() as s:
         assert s.scalars(select(Incident)).one().title.startswith("Who is covering the welcome")
 

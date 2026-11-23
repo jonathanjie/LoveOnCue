@@ -11,7 +11,9 @@ Results go to OUT/results.jsonl (one line per case and run) and a summary is pri
 What is scored, per reply:
     outcome     What the reply drafted: none, question, report, urgent, late, change, message,
                 arrival, withdraw, task or control.
-    ok          The outcome is one of the case's expected outcomes.
+    ok          The outcome is one of the case's expected outcomes. A reply with no draft also
+                meets a "question" label when Ask the coordinator is under it (ask_button): the
+                person can send the question with that button (tests/test_ask_button.py).
     false draft The case expects an answer only, and the reply drafted something: a full draft,
                 or a question button (counted apart, since it is lighter).
     leaks       Internal action names or template lines that a person should never see.
@@ -41,7 +43,8 @@ from sqlalchemy import select
 
 from wedding_ops.deputy import DeputyAction, DeputyPlan
 from wedding_ops.models import ActionDraft, Notification
-from wedding_ops.policy import Actor
+from wedding_ops.policy import Actor, load_access
+from wedding_ops.telegram_ui import NAVIGATION
 
 # Words that come from code's own vocabulary and mean nothing to a person at a wedding.
 INTERNAL_NAMES = [name for name in [*get_args(DeputyAction), *DeputyPlan.model_fields] if "_" in name]
@@ -161,9 +164,10 @@ def run_case(case: Case, run: int, stage: Path, root: Path) -> dict:
         reply = "\n\n".join(n.message for n in replies)
         draft_id = next((n.telegram_draft_id for n in replies if n.telegram_draft_id), None)
         outcome = outcome_of(chat.command(draft_id))
+        ask_button = draft_id is None and offers_ask_button(world, case.member)
         result |= {
-            "reply": reply, "outcome": outcome,
-            "ok": outcome in case.expect or (outcome == "none" and "answer" in case.expect),
+            "reply": reply, "outcome": outcome, "ask_button": ask_button,
+            "ok": meets_label(outcome, case.expect, ask_button),
             "false_draft": case.expect == {"answer"} and outcome != "none",
             "leaks": [word for word in INTERNAL_NAMES + TEMPLATE_LINES if word.casefold() in reply.casefold()],
             "missing": [word for word in case.must if word.casefold() not in reply.casefold()],
@@ -176,6 +180,23 @@ def run_case(case: Case, run: int, stage: Path, root: Path) -> dict:
     return result
 
 
+def offers_ask_button(world: World, member: str) -> bool:
+    """Whether a reply without a draft has the Ask the coordinator button, as the worker decides.
+    Code from before that button (paired runs with WEDDING_OPS_SRC) never offers it."""
+    if "nav:ask" not in NAVIGATION:
+        return False
+    with world.db.transaction(WEDDING_ID) as (s, _):
+        access = load_access(s, Actor(WEDDING_ID, member), WEDDING_ID)
+    return not access.coordinator and access.permits("coordinator:ask")
+
+
+def meets_label(outcome: str, expect: set[str] | list[str], ask_button: bool) -> bool:
+    """A reply with no draft answers; with the ask button under it, it also lets the person ask."""
+    if outcome in expect:
+        return True
+    return outcome == "none" and ("answer" in expect or ("question" in expect and ask_button))
+
+
 def rescore(result: dict) -> dict:
     """A stored result judged against the current label of its case."""
     case = next((c for c in CASES + HELD_OUT if c.id == result["case"]), None)
@@ -183,7 +204,7 @@ def rescore(result: dict) -> dict:
         return result
     outcome = result["outcome"]
     return result | {"expect": sorted(case.expect),
-                     "ok": outcome in case.expect or (outcome == "none" and "answer" in case.expect),
+                     "ok": meets_label(outcome, case.expect, result.get("ask_button", False)),
                      "false_draft": case.expect == {"answer"} and outcome != "none",
                      "missing": [word for word in case.must if word.casefold() not in result["reply"].casefold()]}
 
@@ -199,7 +220,8 @@ def summarise(results: list[dict]) -> None:
     buttons = sum(r["false_draft"] and r["outcome"] == "question" for r in answer_only)
     print(f"False drafts in {len(answer_only)} answer-only replies: {full} full drafts, {buttons} question buttons")
     print(f"Question cases that drafted a question: {sum(r['outcome'] == 'question' for r in question_cases)} of "
-          f"{len(question_cases)}")
+          f"{len(question_cases)}; with no draft and the ask button: "
+          f"{sum(r['outcome'] == 'none' and r.get('ask_button', False) for r in question_cases)}")
     print(f"Replies with internal names or template lines: {sum(bool(r['leaks']) for r in scored)}")
     print(f"Replies missing a required fact: {sum(bool(r['missing']) for r in scored)}")
     by_case = defaultdict(list)

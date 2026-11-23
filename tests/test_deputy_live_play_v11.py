@@ -79,14 +79,6 @@ def test_a_question_link_needs_the_coordinators_words(deputy_chat, ops, db):  # 
     assert "Message to Chris Wong:" in reply.message and "closes it" not in reply.message
 
 
-def test_a_note_made_only_of_questions_goes_by_the_question_button(deputy_chat, db):  # noqa: F811
-    text = "the coordinator got my message or not? Did you tell them already?"
-    planner = StubPlanner({text: DeputyPlan(answer="I can't see that.", action="tell_coordinator", level="fyi",
-                                            text="Did the coordinator get my message")})
-    reply = deputy_chat(planner).send("family-liaison", text)
-    assert "Ask the coordinator" in reply.message and "for their information" not in reply.message
-
-
 def test_a_messaged_run_sheet_change_becomes_the_change(deputy_chat, db):  # noqa: F811
     # Live play v11: the rain move was announced as a message only; the run sheet kept 18:30.
     text = "rain, garden ceremony move into Cedar Ballroom and start 6:40 pm. announce to everyone"

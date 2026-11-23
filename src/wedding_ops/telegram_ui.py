@@ -6,6 +6,7 @@ NAVIGATION = {
     "nav:brief": "/brief",
     "nav:details": "/brief_more",
     "nav:help": "/help",
+    "nav:ask": "/ask",
 }
 
 
@@ -61,13 +62,20 @@ def acknowledged_reply(notice: str) -> str:
 
 
 def reply_markup(*, coordinator: bool, guest_lookup: bool, draft_id: str | None,
-                 app_url: str, draft_type: str | None = None) -> dict:
+                 app_url: str, draft_type: str | None = None, ask: bool = False) -> dict:
+    """The buttons under a bot reply. `ask`: the person may send the coordinator a question.
+
+    The person, not the model, decides whether an answer was enough, so a helper's reply always
+    offers to ask the coordinator, except beside a draft, whose button is the one to tap.
+    """
     def button(label: str, action: str) -> dict:
         return {"text": label, "callback_data": action}
 
     keyboard = []
     if draft_id:
         keyboard.append([button(DRAFT_BUTTONS.get(draft_type, "Confirm"), f"confirm:{draft_id}")])
+    elif ask:
+        keyboard.append([button("Ask the coordinator", "nav:ask")])
     operations = [button("My tasks", "nav:now")]
     if guest_lookup:
         operations.append(button("Find a guest", "nav:guest"))

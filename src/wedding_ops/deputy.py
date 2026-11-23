@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from pydantic import Field, ValidationError
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 
 from .agent import (
     Assistant,
@@ -45,7 +45,7 @@ from .claims import (
 )
 from .clock import Clock, parse_time, utcnow
 from .db import Database
-from .models import ActionDraft, ConversationTurn, DeputyPing
+from .models import ActionDraft, Approval, ConversationTurn, DeputyPing
 from .operations import Operations
 from .policy import Actor
 from .schemas import Intent, Strict
@@ -149,9 +149,9 @@ PLAN_FIELDS = ["answer", "find_guests", "status_of", "say_time"]  # fields outsi
 # name that reaches an answer is removed with its sentence (INTERNAL_NAMES).
 ACTION_HELP = {
     "none": "No draft: the answer, the guest lookups or the status say everything. Most messages need no action.",
-    "ask_coordinator": "Their question is not answered by the RECORDS and only the coordinator could answer it. "
-                       "The system offers one button that sends their message, as written, to the coordinator. "
-                       "Your answer says what the records do not say.",
+    "ask_coordinator": "Their message is a question that only the coordinator can answer. The person already has a "
+                       "button that sends it to the coordinator, so nothing is drafted. Your answer says what the "
+                       "records do not say.",
     "tell_coordinator": "Draft a note or a problem report to the coordinator, when they tell you something is wrong "
                         "or something the coordinator must know. Never for a question.",
     "report_late": "Draft a lateness report, when they themselves are running late.",
@@ -265,7 +265,8 @@ Sources. Every RECORDS line says where it comes from, and only some are facts:
 Never state a time, name, place, table or count that no line gives, and never give instructions
 of your own, such as where to put guests: relay only instructions that a line gives. The system
 removes any sentence whose facts no record supports. When the RECORDS does not answer their
-question, say so in one sentence; if only the coordinator could answer it, choose ask_coordinator.
+question, say so in one sentence. Every reply to a helper has a button to ask the coordinator, so
+never offer to ask the coordinator for them.
 If you are talking to the coordinator, call them "you", never by name.
 
 Fields the system turns into words:
@@ -274,10 +275,10 @@ Fields the system turns into words:
 - find_guests: only if the RECORDS say this person can look up seats (see there).
 
 Actions. Choose one only when they ask for something to be done, or tell you something the
-coordinator or a team must know, or when only the coordinator can answer their question. One
-action per message, and only an action the schema offers.
-- ask_coordinator: the RECORDS does not answer their question and only the coordinator could. The
-  system offers a button that sends their own message; nothing else is needed from you.
+coordinator or a team must know, or when their question is one only the coordinator can answer.
+One action per message, and only an action the schema offers.
+- ask_coordinator: their message is a question that only the coordinator can answer. The person
+  already has a button that sends it to the coordinator, so nothing is drafted.
 - tell_coordinator: never for a question. A note (level fyi) or a problem report (level problem, or urgent only when it
   blocks the ceremony or someone may be hurt). It carries their latest message; text = a title that
   names the thing, not the person (for example "Bridal car flat tyre"). Set about to one of their
@@ -412,7 +413,7 @@ class Deputy:
         now = parse_time(snapshot["now"]).astimezone(ZoneInfo(snapshot["wedding"]["timezone"]))
         clock = f"{now:%H:%M}" if plan.say_time else ""
         support = Support("\n".join([grounding, *lookups, clock]), turn.names, set(refs), extra_names=text)
-        offered = bool(result.get("draft")) or plan.action == "ask_coordinator"
+        offered = bool(result.get("draft"))
         # What the draft acts on: a sentence that says it is already done is false until the tap.
         objects = (plan.text, plan.to, "report", "request", "arrival", "draft") if offered else ()
         checked = check_answer(plan.answer, support, turn.names, INTERNAL_NAMES, offered=offered, objects=objects)
@@ -535,18 +536,65 @@ class Deputy:
     @staticmethod
     def _question_wanted(plan: DeputyPlan, checked: Checked, answer: str, result: dict, turn: Turn,
                          snapshot: dict) -> bool:
-        """The model says only the coordinator can answer; or the person asked something, nothing else
-        was done, and code removed every sentence of the answer as unsupported."""
-        me = snapshot["me"]
-        if "coordinator" in me["roles"]:
-            return False  # nobody is above the coordinator
-        if "coordinator:ask" not in me["grants"] and "*" not in me["grants"]:
+        """The person asked something, nothing else was done, and code removed every sentence of the
+        answer as unsupported. Otherwise the person decides, with the Ask the coordinator button under
+        every reply: offered whenever the model chose, the button stood beside 47 of 53 complete
+        answers that the replay scored wrong (v11)."""
+        if not may_ask_coordinator(snapshot["me"]):
             return False
-        if plan.action == "ask_coordinator":
-            return True
-        # Never in place of another outcome (an acknowledgement, a switch) or for a statement.
-        return (plan.action == "none" and result["kind"] == "chat" and bool(checked.removed) and not answer
-                and asks(turn.text))
+        # Never in place of another outcome (an acknowledgement, a switch) or for a statement. A
+        # question classed for the coordinator with no answer at all also gets it: else the reply
+        # would only say that nothing was done.
+        emptied = bool(checked.removed) or plan.action == "ask_coordinator"
+        return (plan.action in {"none", "ask_coordinator"} and result["kind"] == "chat" and emptied
+                and not answer and asks(turn.text))
+
+    @staticmethod
+    def _waiting_request(about: str, snapshot: dict, turn: Turn) -> str | None:
+        """The status line of the person's pending run-sheet request for the item `about` names, if any."""
+        item = match_timeline_item(snapshot["timeline"], about)
+        if item is None:
+            return None
+        now = parse_time(snapshot["now"])
+        approvals = {approval["id"]: approval for approval in snapshot["approvals"]}
+        for kind, ident, line in turn.refs.values():
+            approval = approvals.get(ident) if kind == "approval" else None
+            if (approval and approval["status"] == "pending" and parse_time(approval["expires_at"]) > now
+                    and approval["changes"] and approval["changes"][0]["item_id"] == item["id"]):
+                return line
+        return None
+
+    def _moved_from_places(self, snapshot: dict) -> set[str]:
+        """Names of the places that applied run-sheet changes moved an activity away from, casefolded."""
+        places = {p["id"]: p["name"] for p in snapshot["locations"]}
+        with self.db.sessions() as s:
+            approved = s.scalars(select(Approval).where(
+                Approval.wedding_id == self.queries.wid, Approval.status == "approved")).all()
+            changes = [change for approval in approved for change in approval.changes]
+        return {places[change["old_location_id"]].casefold() for change in changes
+                if change.get("new_location_id") and change.get("old_location_id") in places}
+
+    def ask_from_last_message(self, actor: Actor) -> dict:
+        """The Ask the coordinator button under a reply: offer the person's latest message as a question.
+
+        The tap shows what will be sent, and a second tap sends it, as with every other draft.
+        """
+        snapshot = self.queries.snapshot(actor)
+        if not may_ask_coordinator(snapshot["me"]):
+            return {"kind": "help", "data": [], "message": ask_coordinator(snapshot)}
+        with self.db.sessions() as s:
+            last = s.scalar(select(ConversationTurn).where(
+                ConversationTurn.wedding_id == self.queries.wid, ConversationTurn.member_id == actor.member_id,
+                ConversationTurn.role == "user", ConversationTurn.created_at > self.clock.now() - MEMORY_TTL,
+            ).order_by(ConversationTurn.created_at.desc(), ConversationTurn.id.desc()).limit(1))
+        if last is None:
+            return {"kind": "help", "data": [],
+                    "message": "Send me your question first, then tap Ask the coordinator under my reply."}
+        turn = Turn(text=last.text, words=self._their_words(last.text), recent_words=last.text, grounding="",
+                    refs={}, names=self._names(snapshot))
+        offer = self._question_button(actor, snapshot, turn)
+        line = offer.pop("button_line")  # here the line is the whole reply
+        return offer | {"message": line}
 
     def _question_button(self, actor: Actor, snapshot: dict, turn: Turn) -> dict:
         """Offer one tap that passes the person's own message to the coordinator, as code-rendered words.
@@ -618,7 +666,10 @@ class Deputy:
         if plan.action in CONTROL_ACTIONS:
             return self._control(actor, plan)
         if plan.action == "ask_coordinator":
-            return {"kind": "chat", "message": "", "data": []}  # code decides on the button in ask()
+            # A class with no effect: the Ask the coordinator button is under every helper reply.
+            # Logged, so the replay can count how often it stands beside an answer.
+            logger.info("Deputy classed the message as a question for the coordinator; nothing drafted")
+            return {"kind": "chat", "message": "", "data": []}
         if plan.action == "send_message":
             return self._send_message(actor, plan, snapshot, turn)
         if plan.action == "run_sheet_change":
@@ -628,11 +679,21 @@ class Deputy:
         if plan.action == "tell_coordinator":
             earlier = turn.refs.get(plan.about.upper().strip())
             level = plan.level
-            if level == "fyi" and not earlier and all(asks(part) for part in sentences(turn.text)):
-                # A note made only of questions is a question: "did the coordinator get my message? Did
-                # you tell them already?" became a note quoting itself (live play v11). The question
-                # button carries the same words and asks for an answer.
-                return self._question_button(actor, snapshot, turn)
+            if level == "fyi" and not earlier and asks(turn.text):
+                # A note carries information; a message that asks is a question. "its raining. where do
+                # I send arriving guests" became "Tell the coordinator, for their information: Rain at
+                # Registration; ceremony venue query" (paired replay). The answer stands alone; the Ask
+                # the coordinator button is under it if they want more.
+                return {"kind": "chat", "message": "", "data": []}
+            if level == "problem" and (waiting := self._waiting_request(plan.text or turn.text, snapshot, turn)):
+                # The coordinator already has their request about this item: "the delay approved or
+                # not? should i hold the food" was filed again as "Dinner service delay: approval
+                # needed" (paired replay). Its status answers them. Urgent reports always go through.
+                return {"kind": "status", "message": waiting, "data": []}
+            if (earlier and earlier[0] == "incident"
+                    and all(asks(part) or is_confirmation(part) for part in sentences(turn.text))):
+                # An update that only asks adds nothing to the report; its status answers them.
+                return {"kind": "status", "message": earlier[2], "data": []}
             if level != "fyi" and "incidents:report" not in snapshot["me"]["grants"] and "*" not in snapshot["me"]["grants"]:
                 # Roles without problem reports (the couple) pass anything that needs the coordinator
                 # as their own words, through the question button.
@@ -859,11 +920,18 @@ class Deputy:
             lines.append(f"- {local(item['current_start'])} {item['title']} at {place}{moved}{state}.{note}")
         lines += ["", "[record] Their tasks (instructions were written before any run-sheet change):"]
         tasks = [t for t in snapshot["tasks"] if t["mine"] and t["state"] not in {"done", "cancelled"}]
+        moved_from = self._moved_from_places(snapshot) if tasks else set()
         for task in tasks:
             place = places.get(task["location_id"], {}).get("name", "")
             acknowledged = "acknowledged" if task["acknowledged_at"] else "not acknowledged"
+            # Instructions are written once, so they can name a place the run sheet has since moved
+            # away from. The model hedged on the contradiction beside complete answers (replay v11,
+            # 13 of 50), and repeated it even when the line was marked outdated. A sentence that names
+            # a moved-from place is left out; the run sheet above gives the place now.
+            instructions = " ".join(part for part in sentences(task["instructions"])
+                                    if not any(old in part.casefold() for old in moved_from))
             lines.append(f"- {task['title']}, due {local(task['due_at'])}, {task['state']}, {acknowledged}, at {place}. "
-                         f"{task['instructions']}")
+                         f"{instructions}".rstrip())
         if not tasks:
             lines.append("- none")
         lines += ["", "[record] Places:"] + [f"- {p['name']}: {p['directions']}" for p in snapshot["locations"]]
@@ -1111,6 +1179,13 @@ class Deputy:
         with self.db.sessions.begin() as s:
             s.execute(delete(ConversationTurn).where(
                 ConversationTurn.wedding_id == self.queries.wid, ConversationTurn.created_at <= now - MEMORY_TTL))
+            # Turns are ordered by time, and IDs are random. Under a clock that does not move between
+            # messages (tests, replay worlds), turns of the same instant came back in random order, so
+            # history and "their latest message" could be an older one. Each turn follows the last.
+            latest = s.scalar(select(func.max(ConversationTurn.created_at)).where(
+                ConversationTurn.wedding_id == self.queries.wid, ConversationTurn.member_id == member_id))
+            if latest is not None and now <= latest:
+                now = latest + timedelta(microseconds=1)
             s.add(ConversationTurn(wedding_id=self.queries.wid, member_id=member_id, role="user",
                                    text=text[:2000], created_at=now))
             s.add(ConversationTurn(wedding_id=self.queries.wid, member_id=member_id, role="assistant",
@@ -1129,6 +1204,11 @@ class Deputy:
 def can_look_up(me: dict) -> bool:
     """Guest seat lookups are for roles with the seating grant."""
     return "guests:seating" in me["grants"] or "*" in me["grants"]
+
+
+def may_ask_coordinator(me: dict) -> bool:
+    """Whether this person can send the coordinator a question. Nobody is above the coordinator."""
+    return "coordinator" not in me["roles"] and ("coordinator:ask" in me["grants"] or "*" in me["grants"])
 
 
 def allowed_actions(me: dict) -> list[str]:

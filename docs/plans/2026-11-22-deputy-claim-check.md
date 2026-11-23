@@ -791,6 +791,87 @@ Three intermediate v11 replays found problems, all fixed:
   request to send now allows them.
 Tests: 299 passed.
 
+### Paired replay, v10 against v11 (24 November)
+The v11 scores above came from runs at different times, so they could not show whether v11 was
+worse than v10. The v10 (b692516) and v11 (a5b0f07) code ran the same cases at the same time:
+2 rounds of 3 runs each, 6 runs per version. Each version used the same model and network.
+
+| Measure (sum of 6 runs) | v10 | v11 |
+|---|---|---|
+| Outcome matches the label, tuned set | 323 of 378 | 325 of 378 |
+| Outcome matches the label, held-out set | 128 of 138 | 131 of 138 |
+| False full drafts, tuned and held-out | 10 | 4 |
+| False question buttons, tuned and held-out | 51 | 54 |
+| Internal names, template lines, missing facts | 0 | 0 |
+
+v11 is not worse. It makes fewer false full drafts and is level on the rest. The question button
+beside a complete answer is the largest remaining fault, unchanged in both versions: 47 of the 53
+v11 tuned misses in the two rounds.
+
+## The question button: the person decides (24 November)
+
+### Cause (Fable's review)
+`ask_coordinator` was the only action with no code-checked precondition. "The records do not answer
+this" is a judgment about what the person needs, which the model cannot know, and the button cost
+it nothing, so it used the button as a hedge. Two record faults fed the hedge: a task instruction
+that a run-sheet change contradicts ("direct guests to the garden terrace"), and a person who
+already had an open item with the coordinator on the same subject.
+
+### First attempt: the action removed
+Fable's design (d): every helper reply gets an Ask the coordinator button, and the model loses the
+action. False question buttons went to 0, but the hedge moved to notes and problem reports, as
+Fable had warned: 41 false full drafts in 6 runs, against 0 for v11, and the tuned set fell to 147
+and 146 of 189. Most notes quoted the person's own question ("MC needs groom's family name
+pronunciation").
+
+### Built, after Fable's second review
+- **The ask button.** Every helper reply without a draft has an Ask the coordinator button (`nav:ask`,
+  `/ask`). Its tap offers the person's latest message as a question, with the same title rules and
+  per-person limit as before; a second tap sends it. Beside a draft there is no ask button, and the
+  coordinator gets none.
+- **The question class has no effect.** The model may still class a message as `ask_coordinator`.
+  Its description says that the person already has the button and nothing is drafted. Code draws
+  nothing for it and logs it. The class gives the model's wish to escalate a harmless target: it
+  chose it 66 to 68 times in 189 replies per round.
+- **The inline offer only when the answer lost content.** As before: the person asked something,
+  nothing else was done, and the claim check removed every sentence. Also when the model classed
+  the message for the coordinator and wrote no answer (added after the replay below; a unit test
+  covers it).
+- **A note from a message that asks has no draft.** A note carries information; a question goes by
+  the ask button. Before, only a note made entirely of questions was stopped.
+- **A problem about an item with a waiting request.** If the report's title names a run-sheet item
+  for which the person has a pending request, code drafts nothing and states the request's status.
+  Urgent reports always go through.
+- **A follow-up that only asks.** An update to an open report whose every sentence asks or confirms
+  makes no update; code states the report's status.
+- **Instructions that name a moved-from place.** A task-instruction sentence that names a place an
+  applied run-sheet change moved an activity away from is left out of the model's records. Marked
+  as outdated instead, it was still repeated ("your task note still says garden terrace").
+- **Chat memory order.** Turns are ordered by time and IDs are random, so under a clock that does
+  not move (tests, replay worlds) turns of the same instant came back in random order. Each saved
+  turn now follows the person's last one.
+- **Replay scoring.** A reply with no draft and the ask button under it also meets a "question"
+  label. mc-cover also accepts `late`: the person says they cannot arrive in time.
+
+### Evidence (paired replay, 2 rounds of 3 runs, run at the same time)
+| Measure (sum of 6 runs) | v11 | This build |
+|---|---|---|
+| Outcome matches the label, tuned set | 328 of 378 | 372 of 378 |
+| Outcome matches the label, held-out set | 131 of 138 | 138 of 138 |
+| Answer-only cases matched, tuned set | 97 of 144 | 138 of 144 |
+| Cases with "question" in the label matched, tuned set | 89 of 90 | 90 of 90 |
+| False question buttons | 54 | 0 |
+| False full drafts | 0 | 6 |
+| Internal names or template lines | 0 | 0 |
+| Missing a required fact | 3 | 1 |
+
+The gain is in the answer-only cases; the question cases were matched by both versions, so the new
+scoring rule does not explain it. The 6 false full drafts are problem reports in two cases:
+"who i should call ah?? … boss not answering" (a report that the coordinator cannot be reached)
+and "is the ceremony still outdoors? its raining" (a report about rain). Tests: 311 passed.
+
+Not yet measured: whether people tap the ask button when they need it. Only live play shows that.
+
 ## Checks
 - Unit: extractor (each token type, Singlish time forms); `unsupported` with
   cited and uncited lines; quoted spans do not ground; self-acts with and without
@@ -808,15 +889,15 @@ in 71; trust ≥ 3.5 with no fall in ease or clarity.
 ## Resume point
 Read this file, then `git log` on the branch. Done: Fable's build order through gate v8, the
 gate v8 open items, live-play rounds v9, v10 and v11 (26 players each, Haiku and GPT-6-Luna) and
-their fixes. Tools: `scripts/replay.py` (tuned and held-out cases), `scripts/ab.py` with
+their fixes, and the ask button (the person, not the model, decides when to ask the coordinator). Tools: `scripts/replay.py` (tuned and held-out cases), `scripts/ab.py` with
 `WEDDING_OPS_SRC` (paired comparison), `scripts/gate.py` and
 `simulate.py records|transcript|realtime` (live play; Luna players run as `codex exec -m
 gpt-6-luna -s workspace-write -c sandbox_workspace_write.network_access=true --add-dir <world>`).
 On a slow network the replay needs a longer connect limit than the product's 2 seconds.
-Residual model behaviours with no general check: hearsay restated as fact, a missed record, the
-model choosing "Ask the coordinator" beside a full answer, an unsent report that collects later
+Residual model behaviours with no general check: hearsay restated as fact, a missed record, a
+problem report made from a question ("its raining, where do I send guests"), an unsent report that collects later
 messages when the model drafts it again under a new title, and a place-only move sent as a
 message (only a new time redirects to a run-sheet change).
-Next: decide on a staging deploy (message the Mini App session first, and tell it about the
+Next: a live-play round to see whether people use the ask button, then decide on a staging deploy (message the Mini App session first, and tell it about the
 neutral badge for "withdrawn"). Staging runs release 406bf7c; migrations 0007 and 0008 are new
 since then.

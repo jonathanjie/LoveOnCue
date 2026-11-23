@@ -6,8 +6,9 @@ says what a good reply does. It is a judgment written once, before the replay, n
 
 Expected outcomes (`expect`, one or more):
     answer    Reply from the records. Any draft is a false draft.
-    question  The records do not answer it, and only the coordinator can. A coordinator question
-              (or, later, the question button) is right; any other draft is wrong.
+    question  The records do not answer it, and only the coordinator can. A question draft is
+              right, and so is a reply with no draft when Ask the coordinator is under it (from
+              24 November); any other draft is wrong.
     report    A problem report to the coordinator (normal level).
     urgent    An urgent problem report (blocks the ceremony, or someone may be hurt).
     late      A lateness report.
@@ -149,8 +150,9 @@ CASES = [
          "is looking after her.", "answer|question", "v7 r2a"),
     case("reg-ben-wu", "r2", "registration-a", "a guest says he is on the list as Ben Wu but I cannot find him. what do "
          "I do?", "answer|question", "v7 r2c"),
+    # "late" added 24 November: they say they cannot arrive in time, so a lateness report is right too.
     case("mc-cover", "r2", "mc", "Can someone cover the welcome for me? I'm stuck, cannot reach venue in time.",
-         "question|report", "v7 r2a"),
+         "question|report|late", "v7 r2a"),
     case("driver-who-call", "r2", "driver", "who i should call ah?? i dunno who to call, boss not answering", "answer",
          "v7 r2a", must=("Lee",)),
 

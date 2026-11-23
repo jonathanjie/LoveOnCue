@@ -9,12 +9,12 @@ from zoneinfo import ZoneInfo
 import httpx
 from sqlalchemy import func, or_, select
 
+from .attention import already_told, send_digest, tell_coordinators
 from .clock import Clock
 from .config import Settings
 from .db import Database
 from .errors import OpsError
 from .models import Approval, Member, Notification, Task, new_id
-from .attention import already_told, send_digest, tell_coordinators
 from .operations import audit, notify, one_line
 from .policy import Actor, load_access
 from .telegram_ui import approval_markup, notice_markup, reply_markup
@@ -199,7 +199,8 @@ class Worker:
             if n.topic == "bot_reply" and isinstance(self.transport, TelegramTransport):
                 markup = reply_markup(coordinator=a.coordinator, guest_lookup=a.permits("guests:seating"),
                                       draft_id=n.telegram_draft_id, app_url=self.settings.public_url,
-                                      draft_type=draft_type(s, self.wid, n.telegram_draft_id))
+                                      draft_type=draft_type(s, self.wid, n.telegram_draft_id),
+                                      ask=not a.coordinator and a.permits("coordinator:ask"))
             elif n.topic == "approval_requested" and isinstance(self.transport, TelegramTransport):
                 # notify() keys approval notices as "approval:<approval id>:<recipient>".
                 approval = s.scalar(select(Approval).where(Approval.wedding_id == self.wid,

@@ -1,7 +1,7 @@
 """The question button and the code-written lines around it (docs/plans/2026-11-22-deputy-claim-check.md).
 
-When only the coordinator can answer a helper, the model chooses ask_coordinator. Code decides
-whether to offer one button that sends the person's own message to the coordinator.
+Every helper reply has an Ask the coordinator button. Its tap offers the person's own latest
+message as a question; a second tap sends it (tests/test_ask_button.py).
 """
 from sqlalchemy import select
 from test_deputy import StubPlanner, deputy_chat  # noqa: F401  (fixture)
@@ -13,7 +13,13 @@ from wedding_ops.telegram_ui import DRAFT_BUTTONS, acknowledged_reply
 from wedding_ops.worker import draft_type
 
 WEDDING = "demo-wedding"
-UNKNOWN = DeputyPlan(answer="The records don't say.", action="ask_coordinator")
+UNKNOWN = DeputyPlan(answer="The records don't say.")
+
+
+def ask(chat, member: str, text: str):
+    """Send a message, then tap Ask the coordinator under the reply."""
+    chat.send(member, text)
+    return chat.tap(member, "nav:ask")
 
 
 def button(db, reply) -> str:
@@ -23,7 +29,7 @@ def button(db, reply) -> str:
 
 def test_the_button_sends_the_persons_own_message_and_can_be_undone(deputy_chat, db):  # noqa: F811
     chat = deputy_chat(StubPlanner({"how to say groom surname ah": UNKNOWN}))
-    reply = chat.send("mc", "how to say groom surname ah")
+    reply = ask(chat, "mc", "how to say groom surname ah")
     assert button(db, reply) == "Ask the coordinator"
     sent = chat.tap("mc", f"confirm:{reply.telegram_draft_id}")
     assert sent.message.startswith("Question sent\nThe coordinator has your message.")
@@ -40,7 +46,7 @@ def test_the_button_sends_the_persons_own_message_and_can_be_undone(deputy_chat,
 def test_a_question_taken_back_is_withdrawn_not_answered(deputy_chat):  # noqa: F811
     planner = StubPlanner({"how to say groom surname ah": UNKNOWN})
     chat = deputy_chat(planner)
-    sent = chat.tap("mc", f"confirm:{chat.send('mc', 'how to say groom surname ah').telegram_draft_id}")
+    sent = chat.tap("mc", f"confirm:{ask(chat, 'mc', 'how to say groom surname ah').telegram_draft_id}")
     chat.tap("mc", f"confirm:{sent.telegram_draft_id}")
     chat.send("mc", "did the coordinator answer?")
     context = planner.calls[-1][1]["content"]
@@ -53,11 +59,11 @@ def test_each_tap_asks_a_new_question_until_the_persons_limit(deputy_chat, db): 
     asks = [f"question {number}?" for number in range(QUESTIONS_PER_PERSON + 1)]
     chat = deputy_chat(StubPlanner({text: UNKNOWN for text in asks}))
     for text in asks[:-1]:
-        reply = chat.send("mc", text)
+        reply = ask(chat, "mc", text)
         # Code cannot tell whether two messages are about the same thing, so each is its own question.
         assert button(db, reply) == "Ask the coordinator"
         chat.tap("mc", f"confirm:{reply.telegram_draft_id}")
-    reply = chat.send("mc", asks[-1])
+    reply = ask(chat, "mc", asks[-1])
     assert button(db, reply) == "Add to my question" and f"You have {QUESTIONS_PER_PERSON} questions open" in reply.message
     chat.tap("mc", f"confirm:{reply.telegram_draft_id}")
     with db.sessions() as s:
@@ -70,13 +76,13 @@ def test_a_question_is_never_filed_under_an_open_report(deputy_chat, db):  # noq
                                                                 text="Bridal car flat tyre"),
                                     "bride need the car or not?": UNKNOWN}))
     chat.tap("driver", f"confirm:{chat.send('driver', 'car flat tyre').telegram_draft_id}")
-    reply = chat.send("driver", "bride need the car or not?")
+    reply = ask(chat, "driver", "bride need the car or not?")
     assert button(db, reply) == "Ask the coordinator"
 
 
 def test_the_next_message_makes_the_button_stale(deputy_chat, db):  # noqa: F811
     chat = deputy_chat(StubPlanner({"speech order how": UNKNOWN}))
-    stale = chat.send("mc", "speech order how")
+    stale = ask(chat, "mc", "speech order how")
     chat.send("mc", "never mind")
     late = chat.tap("mc", f"confirm:{stale.telegram_draft_id}")
     assert "expired" in late.message
@@ -102,7 +108,7 @@ def test_past_the_cap_no_button_is_offered(deputy_chat, ops):  # noqa: F811
     for number in range(QUESTION_CAP):
         ops.execute(Actor(WEDDING, "usher"), {"type": "report_incident", "kind": "question",
                                               "title": f"Question {number}", "details": "x"}, f"q-{number}")
-    reply = deputy_chat(StubPlanner({"speech order how": UNKNOWN})).send("mc", "speech order how")
+    reply = ask(deputy_chat(StubPlanner({"speech order how": UNKNOWN})), "mc", "speech order how")
     assert not reply.telegram_draft_id and "many open questions" in reply.message
 
 
