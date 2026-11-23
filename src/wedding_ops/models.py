@@ -385,6 +385,9 @@ class ActionDraft(TenantRecord, Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime())
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
     consumed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    # "button": offered as one tap under an answer (the question button); "undo": the Undo after
+    # a question. Both go stale on the person's next message. None: a full draft with a preview.
+    offer: Mapped[str | None] = mapped_column(String(16))
     __table_args__ = (
         UniqueConstraint("wedding_id", "id"),
         ForeignKeyConstraint(["wedding_id", "member_id"], ["members.wedding_id", "members.id"]),

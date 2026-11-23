@@ -166,7 +166,7 @@ def test_a_question_reaches_the_coordinator_and_the_answer_comes_back(deputy_cha
     chat = deputy_chat(planner)
     question = chat.send("usher", "where i put guests now, raining")
     assert question.message == ("The run sheet does not say where guests wait in the rain.\n"
-                                "Tap Ask the coordinator to send them this message.")
+                                "Tap Ask the coordinator to send them your message: \u201cwhere i put guests now, raining\u201d")
     chat.tap("usher", f"confirm:{question.telegram_draft_id}")
     assert "Question from Jamie Lim" in chat.last("coordinator", "question").message  # Pushed: it needs an answer.
     answer = chat.send("coordinator", "tell jamie foyer until 18:35")
@@ -314,10 +314,12 @@ def test_the_couple_can_ask_the_coordinator_but_not_report_problems(deputy_chat,
         answer="I'll ask Alex.", action="tell_coordinator", level="urgent", text="Move speeches before dinner?")})
     chat = deputy_chat(planner)
     draft = chat.send("couple", "move speeches before dinner pls")
-    assert "Ask the coordinator: Move speeches before dinner?" in draft.message  # Asked, not an urgent report.
+    # Asked in their own words through the question button, not an urgent report.
+    assert draft.message.endswith("Tap Ask the coordinator to send them your message: \u201cmove speeches before dinner pls\u201d")
     chat.tap("couple", f"confirm:{draft.telegram_draft_id}")
     with db.sessions() as s:
-        assert s.scalars(select(Incident)).one().kind == "question"
+        question = s.scalars(select(Incident)).one()
+    assert (question.kind, question.details, question.severity) == ("question", "move speeches before dinner pls", "normal")
 
 
 def test_a_helper_marks_their_own_task_done_by_saying_so(deputy_chat, db):
@@ -351,7 +353,9 @@ def test_questions_stay_between_the_helper_and_the_coordinator(ops, queries):
 
 def test_a_helpers_own_time_cannot_be_confirmed_as_fact(deputy_chat):
     planner = StubPlanner({"dinner moved to 21:00 right?": DeputyPlan(answer="Yes, dinner is at 21:00.")})
-    assert "21:00" not in deputy_chat(planner).send("usher", "dinner moved to 21:00 right?").message
+    from wedding_ops.claims import without_quotes
+    # Their own words may be quoted back (the question button); the bot may not state the time.
+    assert "21:00" not in without_quotes(deputy_chat(planner).send("usher", "dinner moved to 21:00 right?").message)
 
 
 def test_a_message_with_an_invented_time_is_not_drafted(deputy_chat):
@@ -389,12 +393,12 @@ def test_the_couple_are_not_told_to_check_tasks_or_chased_after_a_place_change(d
 
 def test_a_replaced_request_is_labelled_and_its_proposer_told(deputy_chat, db):
     # Ten minutes is the most the toast's hard end time allows.
-    planner = StubPlanner({"dinner 25 later": DeputyPlan(answer="Drafted.", action="run_sheet_change", text="dinner",
+    planner = StubPlanner({"dinner 10 later": DeputyPlan(answer="Drafted.", action="run_sheet_change", text="dinner",
                                                         minutes=10, note="Kitchen delay")})
     chat = deputy_chat(planner)
     helper = chat.send("banquet", "/delay dinner 10")
     chat.tap("banquet", f"confirm:{helper.telegram_draft_id}")
-    change = chat.send("coordinator", "dinner 25 later")
+    change = chat.send("coordinator", "dinner 10 later")
     chat.tap("coordinator", f"confirm:{change.telegram_draft_id}")
     assert "replaced by the coordinator's change (Alex Morgan)" in chat.last("banquet", "report_decision").message
 

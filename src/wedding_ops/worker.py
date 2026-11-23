@@ -77,13 +77,12 @@ def draft_type(s, wedding_id: str, draft_id: str | None) -> str | None:
     if draft is None:
         return None
     command = draft.command
+    if draft.offer == "undo":
+        return "undo"
+    if command["type"] == "report_incident" and command.get("updates_incident_id"):
+        return "question_update" if command.get("kind") == "question" else "report_update"
     if command["type"] == "report_incident" and command.get("kind") == "question":
-        return "question_update" if command.get("updates_incident_id") else "question"
-    if command["type"] == "withdraw_report":
-        withdrawn = s.scalar(select(ActionDraft).where(
-            ActionDraft.wedding_id == wedding_id, ActionDraft.id == command["request_id"].removeprefix("draft:")))
-        if withdrawn is not None and withdrawn.command.get("kind") == "question":
-            return "undo"
+        return "question"
     return command["type"]
 
 

@@ -37,7 +37,8 @@ def approval_markup(approval_id: str, *, blocked: bool) -> dict:
 
 # What the button under a draft does, in plain words. Keys are worker.draft_type values.
 DRAFT_BUTTONS = {"propose_delay": "Send to coordinator", "change_item": "Send change", "report_incident": "Send",
-                 "question": "Ask the coordinator", "question_update": "Add to my question", "undo": "Undo",
+                 "question": "Ask the coordinator", "question_update": "Add to my question",
+                 "report_update": "Add to my report", "undo": "Undo",
                  "arrival": "Record arrival", "withdraw_report": "Withdraw it", "broadcast": "Send message",
                  "set_deputy_enabled": "Confirm switch", "task_action": "Mark done"}
 

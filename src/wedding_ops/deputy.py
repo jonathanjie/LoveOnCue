@@ -31,6 +31,7 @@ from .attention import already_told, tell_coordinators
 from .claims import (
     Checked,
     Support,
+    asks,
     check_answer,
     from_their_words,
     is_confirmation,
@@ -43,7 +44,7 @@ from .models import ActionDraft, ConversationTurn, DeputyPing
 from .operations import Operations
 from .policy import Actor
 from .schemas import Intent, Strict
-from .telegram_ui import ACK_PROMPT, ACK_TOPICS, attendance_label
+from .telegram_ui import ACK_PROMPT, ACK_TOPICS, attendance_label, glance
 from .views import Queries
 
 logger = logging.getLogger(__name__)
@@ -297,6 +298,10 @@ class Turn:
     refs: dict            # R1, Q1 -> (kind, record ID, status line written by code)
     names: set[str]       # people and places in this wedding
 
+    def gave_number(self, number: int) -> bool:
+        """The person wrote this number in their recent messages."""
+        return bool(re.search(rf"(?<!\d){number}(?!\d)", self.recent_words))
+
     def unsupported(self, text: str) -> list[str]:
         """Facts in a model-written field that neither the records nor the person's words give."""
         support = Support(self.grounding + "\n" + self.recent_words, self.names, set(self.refs),
@@ -317,7 +322,7 @@ class Deputy:
         # A message right after a ping is the answer to it; the coordinator hears it in the digest.
         Heartbeat(self.db, self.queries.wid, self.clock).record_answer(actor.member_id, text)
         # A question button offers to send one message; the next message makes it stale.
-        self.operations.drop_unsent_questions(actor)
+        self.operations.drop_unsent_offers(actor)
         snapshot = self.queries.snapshot(actor)
         actions = allowed_actions(snapshot["me"])
         context, grounding, refs = self._context(actor, snapshot, actions)
@@ -344,13 +349,15 @@ class Deputy:
                     recent_words="\n".join([*earlier, text]), grounding=grounding,
                     refs=refs, names=self._names(snapshot))
         lookups = self._lookups(actor, plan, snapshot, turn)
-        # The answer may state only facts that the records (and new lookups) support.
+        result = self._act(actor, plan, snapshot, turn)
+        # The answer may state only facts that the records (and new lookups) support. Beside a
+        # draft or the question button, an offer to act is the draft's job, so it is removed too.
         support = Support("\n".join([grounding, *lookups]), turn.names, set(refs), extra_names=text)
-        checked = check_answer(plan.answer, support, turn.names, INTERNAL_NAMES)
+        offered = bool(result.get("draft")) or plan.action == "ask_coordinator"
+        checked = check_answer(plan.answer, support, turn.names, INTERNAL_NAMES, offered=offered)
         logger.info("Claim check: sentences=%d removed=%d status=%d self_acts=%d internal=%d",
                     len(sentences(plan.answer)), len(checked.removed), len(checked.status), len(checked.acts),
                     len(checked.internal))
-        result = self._act(actor, plan, snapshot, turn)
         # A run-sheet change's preview states every time before and after the change, so an answer
         # beside it can only repeat or contradict it (gate v7: "speeches stay at 19:45" above a
         # preview that moved them). Beside other drafts the answer stays: it answers the question,
@@ -359,7 +366,8 @@ class Deputy:
         answer = "" if changes else checked.text
         pending_id, pending = self._pending(actor.member_id)
         # The question button never replaces a draft that is still waiting for a tap.
-        if not result.get("draft") and not pending and self._question_wanted(plan, checked, answer, snapshot):
+        if not result.get("draft") and not pending and self._question_wanted(plan, checked, answer, result, turn,
+                                                                               snapshot):
             result = self._question_button(actor, snapshot, turn)
         if not result.get("draft") and DRAFT_CLAIM.search(answer):
             # The answer points at something to tap, but no draft exists. Code says so plainly.
@@ -410,38 +418,47 @@ class Deputy:
     # The question button -------------------------------------------------------------------
 
     @staticmethod
-    def _question_wanted(plan: DeputyPlan, checked: Checked, answer: str, snapshot: dict) -> bool:
-        """The model says only the coordinator can answer, or code removed every answer sentence."""
+    def _question_wanted(plan: DeputyPlan, checked: Checked, answer: str, result: dict, turn: Turn,
+                         snapshot: dict) -> bool:
+        """The model says only the coordinator can answer; or the person asked something, nothing else
+        was done, and code removed every sentence of the answer as unsupported."""
         me = snapshot["me"]
         if "coordinator" in me["roles"]:
             return False  # nobody is above the coordinator
         if "coordinator:ask" not in me["grants"] and "*" not in me["grants"]:
             return False
-        return plan.action == "ask_coordinator" or bool(checked.removed and not answer)
+        if plan.action == "ask_coordinator":
+            return True
+        # Never in place of another outcome (an acknowledgement, a switch) or for a statement.
+        return (plan.action == "none" and result["kind"] == "chat" and bool(checked.removed) and not answer
+                and asks(turn.text))
 
     def _question_button(self, actor: Actor, snapshot: dict, turn: Turn) -> dict:
-        """Offer to pass the person's own message to the coordinator, as code-rendered words.
+        """Offer one tap that passes the person's own message to the coordinator, as code-rendered words.
 
-        One open question per person: a later message is added to it. Past QUESTION_CAP open
-        questions, no button is offered, so a busy coordinator is not buried.
+        One open thread per person: if they have an open question or report, the message is added
+        to it, so the coordinator reads it with what it follows ("hello?? i sent already" under the
+        flat-tyre report). Past QUESTION_CAP open questions, no new question is offered.
         """
-        mine = [i for i in snapshot["incidents"] if i["kind"] == "question" and i["status"] == "open"
-                and i["reported_by"] == actor.member_id]
-        # A helper sees only their own questions, so the cap counts everyone's in code.
-        if not mine and self.queries.open_question_count() >= QUESTION_CAP:
+        words = turn.words
+        quoted = f"\u201c{glance(words)}\u201d"
+        mine = [i for i in snapshot["incidents"] if i["status"] == "open" and i["reported_by"] == actor.member_id]
+        target = max(mine, key=lambda i: i["created_at"]) if mine else None
+        if target is None and self.queries.open_question_count() >= QUESTION_CAP:
+            # A helper sees only their own questions, so the cap counts everyone's in code.
             return {"kind": "question", "data": [], "message": "",
                     "button_line": f"The coordinator has many open questions. If it is urgent, {coordinator_contact(snapshot)}."}
-        words = turn.words
-        command = {"type": "report_incident", "kind": "question", "title": short_title(words) if len(words) >= 3 else
-                   "Question", "details": words, "severity": "normal",
-                   "updates_incident_id": mine[-1]["id"] if mine else None}
-        if mine:
-            summary = f"Add to your open question \u201c{mine[-1]['title']}\u201d: \u201c{words}\u201d"
-            line = "Tap Add to my question to send this message to the coordinator with your open question."
+        if target is None:
+            command = {"type": "report_incident", "kind": "question", "title": short_title(words) if len(words) >= 3
+                       else "Question", "details": words, "severity": "normal"}
+            summary, line = f"Ask the coordinator: {quoted}", f"Tap Ask the coordinator to send them your message: {quoted}"
         else:
-            summary = f"Ask the coordinator: \u201c{words}\u201d"
-            line = "Tap Ask the coordinator to send them this message."
-        draft = self.operations.draft(actor, command, summary)
+            what = "question" if target["kind"] == "question" else "report"
+            command = {"type": "report_incident", "kind": target["kind"], "title": target["title"][:160],
+                       "details": words, "severity": "normal", "updates_incident_id": target["id"]}
+            summary = f"Add to your {what} \u201c{target['title']}\u201d: {quoted}"
+            line = f"Tap Add to my {what} to add your message to \u201c{target['title']}\u201d: {quoted}"
+        draft = self.operations.draft(actor, command, summary, offer="button")
         return {"kind": "question", "data": [], "message": "", "draft": draft | {"light": True}, "button_line": line}
 
     def _status_lines(self, plan: DeputyPlan, checked: Checked, turn: Turn, pending: str | None, *,
@@ -484,10 +501,10 @@ class Deputy:
         if plan.action == "tell_coordinator":
             earlier = turn.refs.get(plan.about.upper().strip())
             level = plan.level
-            if "incidents:report" not in snapshot["me"]["grants"] and "*" not in snapshot["me"]["grants"]:
-                # Roles without problem reports (the couple) can still tell the coordinator, as a
-                # note or, for anything that needs them, a question.
-                level = "fyi" if level == "fyi" else "question"
+            if level != "fyi" and "incidents:report" not in snapshot["me"]["grants"] and "*" not in snapshot["me"]["grants"]:
+                # Roles without problem reports (the couple) pass anything that needs the coordinator
+                # as their own words, through the question button.
+                return self._question_button(actor, snapshot, turn)
             # The title is the model's; it may not add facts beyond the records and the person's words.
             title = plan.text if plan.text and not turn.unsupported(plan.text) else turn.text
             return self.assistant.tell_coordinator(
@@ -495,6 +512,9 @@ class Deputy:
                 updates_incident_id=earlier[1] if earlier and earlier[0] == "incident" else None, snapshot=snapshot)
         if plan.action == "draft_arrival" and not from_their_words(plan.text, turn.recent_words):
             return {"kind": "clarification", "data": [], "message": "Who arrived? Send their name as it is on the list."}
+        if plan.action == "report_late" and plan.minutes and not turn.gave_number(plan.minutes):
+            # A number a report states must be one the person gave ("about 30 minutes" was invented).
+            plan = plan.model_copy(update={"minutes": None})
         intent = {
             "report_late": Intent(kind="late", minutes=plan.minutes),
             "draft_arrival": Intent(kind="arrival", query=plan.text),
@@ -517,6 +537,9 @@ class Deputy:
         if item is None:
             return {"kind": "clarification", "data": [],
                     "message": "Which activity on the run sheet should change? Name it as it appears there."}
+        if plan.minutes and not turn.gave_number(plan.minutes):
+            return {"kind": "clarification", "data": [],
+                    "message": f"How many minutes later should {item['title']} start?"}
         shift = plan.minutes or 0
         if plan.new_time:
             try:

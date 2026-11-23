@@ -16,7 +16,7 @@ Expected outcomes (`expect`, one or more):
     arrival   A guest arrival to confirm.
     withdraw  Taking back the person's own earlier report.
 
-For the coordinator, "message" is also right for five questions that a helper could answer
+For the coordinator, "message" is also right for six questions that a helper could answer
 ("kitchen ok anot?"): the coordinator's context tells the model to offer a message to the right
 helper. These labels were corrected on 23 November, after the first replay; scores before then
 are rescored with `replay.py --score FILE`.
@@ -81,7 +81,7 @@ CASES = [
          "check where she is.", "answer|question", "v7 r1a"),
     case("coord-kitchen", "r1", "coordinator", "kitchen ok anot? dinner 7pm still on?", "answer|message", "v7 r1a",
          must=("19:00",)),
-    case("coord-next", "r1", "coordinator", "ok what is the next thing i must do before 6.30 ceremony", "answer",
+    case("coord-next", "r1", "coordinator", "ok what is the next thing i must do before 6.30 ceremony", "answer|message",
          "v7 r1b"),
     case("coord-who-ack", "r1", "coordinator", "who still hasnt acknowledge the tasks? and is father of bride here "
          "already", "answer|message", "v7 r1b"),
@@ -194,4 +194,53 @@ CASES = [
     case("reg-undo", "r2", "registration-a", "wait sorry wrong one leh. It's Grace Tay, regular guest, NOT Grace Tan. "
          "Please undo the Grace Tan arrival", "withdraw", "v7 r2a",
          before=(("registration-a", "Grace Tan arrived"), ("registration-a", "tap", "confirm"))),
+]
+
+
+# Held out (23 November): messages from the v5 and v6 chats, labelled before any run of the
+# step 2 and 3 code. The prompt was changed while looking at CASES, so CASES alone can no longer
+# show whether a change generalises. Run with `replay.py --set held`.
+HELD_OUT = [
+    case("h-usher-toilet", "r1", "usher", "where the toilet ah? auntie need toilet urgently", "answer", "v5", must=("lift",)),
+    case("h-reg-veg-name", "r1", "registration-a", "a guest asking if their vegetarian meal was noted. name is Mei Ling "
+         "Ong. can check ah", "answer|question", "v5"),
+    case("h-reg-noah", "r1", "registration-a", "noah which table ah? full name is noah lim i think", "answer", "v6 r1a"),
+    case("h-reg-lucas", "r1", "registration-a", "lucas tan, table number only pls. and is he checked in or not", "answer",
+         "v6 r1a"),
+    case("h-mc-surname", "r1", "mc", "how do i pronounce the groom's family name ah, the surname is Tan-Lim or something? "
+         "i dunno how to say it", "question", "v6 r1b"),
+    case("h-mc-speech-order", "r1", "mc", "speech order how? who speaks first ah", "answer|question", "v6 r1b"),
+    case("h-banquet-veg", "r1", "banquet", "2 veg meals missing for table 4 lor. kitchen say no veg pack", "report",
+         "v6 r1a"),
+    case("h-banquet-late", "r1", "banquet", "kitchen jialat liao, food late lor. dinner 7pm but maybe 15 min late",
+         "change|report", "v6 r1a"),
+    case("h-coord-chase", "r1", "coordinator", "chase Ryan Goh pls, desk B signage still not done, need it now",
+         "message", "v6 r1b"),
+    case("h-coord-problems", "r1", "coordinator", "any problems open right now? show me", "answer", "v6 r1b"),
+    case("h-coord-father", "r1", "coordinator", "is the father of the bride here already? ok who still hasnt confirm",
+         "answer|message", "v6 r1b"),
+    case("h-usher-due", "r1", "usher", "ok can 👍 wait the task say take position due 5.50 right? i cannot be late ah",
+         "answer", "v6 r1a", must=("17:50",)),
+    case("h-family-flag", "r1", "family-liaison", "Aiyo, I walked around the foyer already, cannot find Mei Lee at all "
+         "leh. Please flag it to the coordinator, she is the groom mother, need her for portraits", "report|urgent",
+         "v6 r1a"),
+    case("h-coord-tell-chris", "r1", "coordinator", "tell Chris yes delay approved, serve the food first then, "
+         "vegetarian meals I will check myself", "message", "v6 r1b"),
+    case("h-mc-late", "r2", "mc", "stuck in jam lah, taxi cannot move, raining heavy. 25 min late I think. pls tell "
+         "coordinator", "late", "v6 r2a", must=("25",)),
+    case("h-driver-flat", "r2", "driver", "WAH CAR PANCIT LIAO!!! FLAT TYRE in the car park, the bridal car cannot "
+         "move, how ah??", "urgent|report", "v6 r2a"),
+    case("h-coord-car", "r2-moved", "coordinator", "bridal car got flat tyre, Jordan stuck in car park. what do we do, "
+         "who can drive the bride instead", "answer|message", "v6 r2a"),
+    case("h-reg-properly", "r2-moved", "registration-a", "wah so ceremony now cedar ballroom ah? then where I send "
+         "guests, you tell me properly", "answer", "v5b", must=("Cedar Ballroom",)),
+    case("h-mc-confirm", "r2-moved", "mc", "ok the garden ceremony at cedar ballroom right? i still stuck, will be late",
+         "answer|late", "v6 r2a", must=("Cedar Ballroom",)),
+    case("h-couple-ahma", "r2", "couple", "Has my Ah Ma Tan arrived yet? She's the grandmother, very old, she was "
+         "supposed to come by car", "answer|question", "v5b"),
+    case("h-usher-rain", "r2-moved", "usher", "is there any update on the rain? wait what if i just ask where guests "
+         "should go, can u tell me the answer now pls", "answer", "v5b", must=("Cedar Ballroom",)),
+    case("h-coord-nudge", "r2-moved", "coordinator", "Ok nudge the 8 who never acked: ceremony now Cedar Ballroom 6:40. "
+         "Ack pls.", "message", "v5b"),
+    case("h-reg-grace", "r2", "registration-a", "what is Grace Tan status now? arrived or not", "answer", "v5b"),
 ]

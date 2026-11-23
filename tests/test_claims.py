@@ -121,7 +121,7 @@ def test_status_asked_by_reference_is_stated_from_the_record(deputy_chat):  # no
 def test_an_answer_with_nothing_supported_says_so_and_offers_to_ask(deputy_chat):  # noqa: F811
     planner = StubPlanner({"which table uncle lee": DeputyPlan(answer="He is at Table 99.")})
     reply = deputy_chat(planner).send("usher", "which table uncle lee")
-    assert reply.message == CANNOT_CONFIRM + "\nTap Ask the coordinator to send them this message."
+    assert reply.message == CANNOT_CONFIRM + "\nTap Ask the coordinator to send them your message: \u201cwhich table uncle lee\u201d"
     assert reply.telegram_draft_id
 
 
@@ -154,9 +154,28 @@ def test_an_answer_stays_beside_a_report_but_not_beside_a_run_sheet_change(deput
     assert not change.startswith("Dinner service is at 19:00.") and "19:00 \u2192 19:15" in change
 
 
-def test_offers_to_act_in_any_mood_are_first_person_acts():
-    assert self_acts("I can flag this to the coordinator. Want me to ask Alex? I've taken back that report.") == 3
-    assert self_acts("I can look up a guest's seat if you give me a name.") == 0
+def test_offers_to_act_count_only_beside_a_draft_and_negations_are_not_acts():
+    offers = "I can flag this to the coordinator. Want me to ask Alex?"
+    assert self_acts(offers, offered=True) == 2 and self_acts(offers) == 0
+    assert self_acts("I've taken back that report.") == 1
+    for honest in ["I have no record of a backup car.", "I can tell you dinner is at 19:00.",
+                   "I can look up a guest's seat if you give me a name."]:
+        assert self_acts(honest, offered=True) == 0, honest
+
+
+def test_a_lateness_report_states_only_minutes_the_person_gave(deputy_chat, db):  # noqa: F811
+    planner = StubPlanner({"stuck in jam, cannot reach in time": DeputyPlan(action="report_late", minutes=30)})
+    chat = deputy_chat(planner)
+    draft = chat.send("mc", "stuck in jam, cannot reach in time")
+    assert "30" not in draft.message and "is running late" in draft.message
+
+
+def test_the_fallback_button_never_replaces_another_outcome(deputy_chat):  # noqa: F811
+    planner = StubPlanner({"ok noted": DeputyPlan(answer="Noted for Table 99.", action="acknowledge"),
+                           "the flowers are nice": DeputyPlan(answer="They are at Table 99.")})
+    chat = deputy_chat(planner)
+    assert not chat.send("usher", "ok noted").telegram_draft_id
+    assert not chat.send("usher", "the flowers are nice").telegram_draft_id
 
 
 def test_a_sentence_naming_an_action_is_removed(deputy_chat):  # noqa: F811

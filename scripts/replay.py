@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import get_args
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from replay_cases import CASES, Case
+from replay_cases import CASES, HELD_OUT, Case
 from simulate import (
     COORDINATOR_ID,
     WEDDING_ID,
@@ -178,7 +178,7 @@ def run_case(case: Case, run: int, stage: Path, root: Path) -> dict:
 
 def rescore(result: dict) -> dict:
     """A stored result judged against the current label of its case."""
-    case = next((c for c in CASES if c.id == result["case"]), None)
+    case = next((c for c in CASES + HELD_OUT if c.id == result["case"]), None)
     if case is None or "outcome" not in result:
         return result
     outcome = result["outcome"]
@@ -222,6 +222,8 @@ def main(argv: list[str]) -> None:
     parser.add_argument("--score", type=Path, help="Score an earlier results file with the current labels")
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--only", default="", help="Comma-separated case IDs")
+    parser.add_argument("--set", choices=["main", "held", "all"], default="main",
+                        help="main: the cases the prompt was tuned on; held: held-out cases; all: both")
     parser.add_argument("--workers", type=int, default=6)
     args = parser.parse_args(argv)
     if args.score:
@@ -234,7 +236,8 @@ def main(argv: list[str]) -> None:
     logging.getLogger("httpx").setLevel(logging.ERROR)
     logging.getLogger("wedding_ops.deputy").setLevel(logging.INFO)
     only = set(filter(None, args.only.split(",")))
-    cases = [c for c in CASES if not only or c.id in only]
+    chosen = {"main": CASES, "held": HELD_OUT, "all": CASES + HELD_OUT}[args.set]
+    cases = [c for c in chosen if not only or c.id in only]
     stages = build_stages(args.out, args.key)
     jobs = [(case, run) for run in range(args.runs) for case in cases]
     with ThreadPoolExecutor(args.workers) as pool:

@@ -335,7 +335,7 @@ class TelegramIngress:
                         # A question just sent can be taken back with one tap.
                         draft_id = self.operations.draft(
                             actor, {"type": "withdraw_report", "request_id": f"draft:{confirmation[1]}"},
-                            "Take back your question.")["id"]
+                            "Take back your question.", offer="undo")["id"]
                 elif decision := re.fullmatch(r"/(approve|reject)\s+([A-Za-z0-9_-]{1,64})(?:\s+(.+))?", text, re.S):
                     result = self._decide(actor, decision[1], decision[2], (decision[3] or "").strip())
                 elif deputy_command := re.fullmatch(r"/(quiet|unquiet|deputy\s+(?:on|off)|taskack\s+[A-Za-z0-9_-]{1,64})", text):

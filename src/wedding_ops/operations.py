@@ -861,7 +861,7 @@ class Operations:
                        f"withdrawn:{request_id}", now, teams=teams, permission=permission)
         return {"id": request_id, "status": "withdrawn", "title": target["title"]}
 
-    def draft(self, actor: Actor, command: dict, summary: str) -> dict:
+    def draft(self, actor: Actor, command: dict, summary: str, *, offer: str | None = None) -> dict:
         """The model may propose only an already-authorized command; no mutation occurs."""
         cmd = COMMAND.validate_python(command)
         if cmd.type not in {"arrival", "report_incident", "propose_delay", "change_item", "withdraw_report", "broadcast",
@@ -879,25 +879,18 @@ class Operations:
                 if earlier.member_id == a.member.id and earlier.consumed_at is None and earlier.expires_at > now:
                     earlier.expires_at = now
             draft = ActionDraft(id=new_id(), wedding_id=self.wid, member_id=a.member.id, command=cmd.model_dump(mode="json"),
-                                summary=summary, created_at=now, expires_at=now + timedelta(minutes=5))
+                                summary=summary, created_at=now, expires_at=now + timedelta(minutes=5), offer=offer)
             s.add(draft)
             return {"id": draft.id, "summary": summary, "expires_at": iso(draft.expires_at), "command_type": cmd.type}
 
-    def drop_unsent_questions(self, actor: Actor) -> None:
-        """A question button, or the Undo after a question, offers one tap about one message.
-        The person's next message makes it stale."""
+    def drop_unsent_offers(self, actor: Actor) -> None:
+        """A one-tap offer (the question button, or the Undo after a question) is about one message.
+        The person's next message makes it stale. Full drafts with a preview stay until they expire."""
         with self.db.transaction(self.wid, write=True) as (s, _):
             now = utcnow()
-            drafts = {draft.id: draft for draft in rows(s, ActionDraft, self.wid) if draft.member_id == actor.member_id}
-
-            def is_question(draft) -> bool:
-                return draft.command.get("type") == "report_incident" and draft.command.get("kind") == "question"
-
-            for draft in drafts.values():
-                if draft.consumed_at is not None or draft.expires_at <= now:
-                    continue
-                undoes = drafts.get(draft.command.get("request_id", "").removeprefix("draft:"))
-                if is_question(draft) or (draft.command.get("type") == "withdraw_report" and undoes and is_question(undoes)):
+            for draft in rows(s, ActionDraft, self.wid):
+                if (draft.member_id == actor.member_id and draft.offer and draft.consumed_at is None
+                        and draft.expires_at > now):
                     draft.expires_at = now
 
     def confirm(self, actor: Actor, draft_id: str) -> dict:

@@ -37,6 +37,19 @@ def test_the_button_sends_the_persons_own_message_and_can_be_undone(deputy_chat,
         assert s.scalars(select(Incident)).one().status == "resolved"
 
 
+def test_a_message_about_an_open_report_is_added_to_it(deputy_chat, db):  # noqa: F811
+    chat = deputy_chat(StubPlanner({"car flat tyre": DeputyPlan(action="tell_coordinator", level="urgent",
+                                                                text="Bridal car flat tyre"),
+                                    "hello?? got anybody coming": UNKNOWN}))
+    chat.tap("driver", f"confirm:{chat.send('driver', 'car flat tyre').telegram_draft_id}")
+    reply = chat.send("driver", "hello?? got anybody coming")
+    assert button(db, reply) == "Add to my report" and "\u201cBridal car flat tyre\u201d" in reply.message
+    chat.tap("driver", f"confirm:{reply.telegram_draft_id}")
+    with db.sessions() as s:
+        report = s.scalars(select(Incident)).one()
+    assert report.kind == "other" and report.details.endswith(": hello?? got anybody coming")
+
+
 def test_a_second_question_is_added_to_the_open_one(deputy_chat, db):  # noqa: F811
     chat = deputy_chat(StubPlanner({"speech order how": UNKNOWN, "and the brief where": UNKNOWN}))
     chat.tap("mc", f"confirm:{chat.send('mc', 'speech order how').telegram_draft_id}")

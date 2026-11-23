@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import os
 import re
 import sys
 from datetime import UTC, datetime, timedelta
@@ -39,7 +40,8 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, text
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+# WEDDING_OPS_SRC runs another version of the code (scripts/ab.py compares two versions).
+sys.path.insert(0, os.environ.get("WEDDING_OPS_SRC") or str(Path(__file__).resolve().parents[1] / "src"))
 from wedding_ops.agent import Assistant, MistralParser
 from wedding_ops.auth import Auth
 from wedding_ops.clock import DemoClock, iso, parse_time

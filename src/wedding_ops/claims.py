@@ -36,12 +36,19 @@ REPORT_STATUS = re.compile(r"\b(sent|unsent|pending|approved|rejected|declined|o
 # only a draft can do ("I'm flagging", "I've sent", "I've taken back", "I can pass it on", "want
 # me to ask"): the draft under the answer says what a tap does. Code writes every outcome sentence.
 # Gate v6 measured these in 15% of answers when only the prompt forbade them.
-OUTBOUND_VERBS = (r"(?:flag|ask|tell|told|send|sent|message|notif|nudg|pass|forward|escalat|report|log|record|updat|"
-                  r"remind|chas|contact|call|cancel|withdr|arrang|put|let|tak|took|mark)\w*")
+# Verbs that act on someone else or on a record. "tell you" is informing the reader, not acting.
+OUTBOUND_VERBS = (r"(?:flag|ask|tell(?!\s+you)|told|send|sent|message|notif|nudg|pass|forward|escalat|report|log|"
+                  r"record|updat|remind|chas|contact|call|cancel|withdr|arrang|put|let|tak|took|mark)\w*")
+# Up to two words may stand between the subject and the verb ("I've just sent"), but not a
+# negation: "I have no record of it" says what is missing, not what was done.
+GAP = r"(?:(?!no\b|not\b|never\b)\w+\s+){0,2}?"
 SELF_ACT = re.compile(
     r"\b(?:I'll|I will|I'm going to|I am going to|I'm gonna|let me)\b"
-    r"|\b(?:I'm|I am|I've|I have|I just|I already|I can|I could|I would|I'd|want me to|shall I|should I)\s+"
-    r"(?:\w+\s+){0,2}?" + OUTBOUND_VERBS, re.IGNORECASE)
+    r"|\b(?:I'm|I am|I've|I have|I just|I already)\s+" + GAP + OUTBOUND_VERBS, re.IGNORECASE)
+# An offer to act ("I can pass it on", "want me to ask Alex?") is false only beside a draft or
+# button, which is the offer itself; without one, "I can't send messages" style lines are honest.
+OFFER = re.compile(r"\b(?:I can|I could|I would|I'd|want me to|shall I|should I)\s+" + GAP + OUTBOUND_VERBS,
+                   re.IGNORECASE)
 
 # Words that make a message a question, in English and common Singlish spellings.
 QUESTION_WORDS = {"what", "wat", "where", "when", "who", "whom", "which", "why", "how", "izzit", "issit", "can i",
@@ -130,7 +137,8 @@ class Checked:
     internal: list[str]          # sentences that name the system's own vocabulary
 
 
-def check_answer(text: str, support: Support, names: set[str], internal: re.Pattern | None = None) -> Checked:
+def check_answer(text: str, support: Support, names: set[str], internal: re.Pattern | None = None, *,
+                 offered: bool = False) -> Checked:
     """Keep the sentences whose facts are supported and that do not state report status.
 
     `internal` matches words from the system's closed vocabulary (action and field names). A
@@ -141,7 +149,7 @@ def check_answer(text: str, support: Support, names: set[str], internal: re.Patt
     for sentence in sentences(text):
         if internal is not None and internal.search(sentence):
             internals.append(sentence)
-        elif SELF_ACT.search(sentence):
+        elif SELF_ACT.search(sentence) or (offered and OFFER.search(sentence)):
             acts.append(sentence)
         elif states_report_status(sentence):
             status.append(sentence)
@@ -158,8 +166,8 @@ def without_quotes(text: str) -> str:
     return QUOTED.sub("“”", text)
 
 
-def self_acts(text: str) -> int:
-    return len(SELF_ACT.findall(text))
+def self_acts(text: str, *, offered: bool = False) -> int:
+    return len(SELF_ACT.findall(text)) + (len(OFFER.findall(text)) if offered else 0)
 
 
 def from_their_words(argument: str, words: str) -> bool:
@@ -169,13 +177,16 @@ def from_their_words(argument: str, words: str) -> bool:
     return bool(mine & theirs) or not mine
 
 
+def asks(text: str) -> bool:
+    """The message asks something: a question mark, or a question word in English or Singlish."""
+    lowered = f" {text.casefold().strip()} "
+    return "?" in lowered or any(f" {word} " in lowered for word in QUESTION_WORDS)
+
+
 def is_confirmation(text: str) -> bool:
     """A short message that confirms ("ok noted", "on it", a thumbs up) and asks nothing.
 
     Acknowledging changes a record without a tap, so code, not the model alone, decides that a
     message is a confirmation.
     """
-    lowered = f" {text.casefold().strip()} "
-    if "?" in lowered or len(lowered.split()) > 6:
-        return False
-    return not any(f" {word} " in lowered for word in QUESTION_WORDS)
+    return len(text.split()) <= 6 and not asks(text)
