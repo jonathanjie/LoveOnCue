@@ -120,3 +120,22 @@ def test_an_acknowledgement_names_the_update_without_cutting_a_word():
     reply = acknowledged_reply(notice)
     assert reply.startswith("Acknowledged\nThe coordinator can see that you saw: “Dinner is not confirmed yet")
     assert reply.endswith("…”") and "Speech o”" not in reply
+
+
+def test_a_new_report_keeps_the_words_of_the_unsent_one_it_replaces(deputy_chat, db):  # noqa: F811
+    planner = StubPlanner({"BRIDAL CAR FLAT TYRE IN CAR PARK": DeputyPlan(action="tell_coordinator", level="urgent",
+                                                                         text="Bridal car flat tyre"),
+                           "car cannot move": DeputyPlan(action="tell_coordinator", level="urgent",
+                                                         text="Bridal car cannot move")})
+    chat = deputy_chat(planner)
+    chat.send("driver", "BRIDAL CAR FLAT TYRE IN CAR PARK")
+    draft = chat.send("driver", "car cannot move")
+    assert "Your words:\n\u201cBRIDAL CAR FLAT TYRE IN CAR PARK\u201d\n\u201ccar cannot move\u201d" in draft.message
+    chat.tap("driver", f"confirm:{draft.telegram_draft_id}")
+    with db.sessions() as s:
+        assert s.scalars(select(Incident)).one().details == "BRIDAL CAR FLAT TYRE IN CAR PARK\ncar cannot move"
+
+
+def test_a_question_never_marks_a_task_done(deputy_chat):  # noqa: F811
+    planner = StubPlanner({"what am i supposed to do now ah?": DeputyPlan(action="complete_task", text="route")})
+    assert not deputy_chat(planner).send("driver", "what am i supposed to do now ah?").telegram_draft_id

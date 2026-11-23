@@ -22,7 +22,9 @@ import io
 import json
 import shutil
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -33,6 +35,7 @@ from sqlalchemy import select, text
 
 from wedding_ops.models import Notification
 
+STDOUT = threading.Lock()
 MENU_BUTTONS = {"My tasks", "Find a guest", "Help", "Coordinator brief", "More details", "Open LoveOnCue"}
 NOTICE_BUTTONS = {"Acknowledge", "On it"}
 
@@ -92,8 +95,10 @@ class Script:
                 self.world.ingress().accept(simulate.WEBHOOK_SECRET, simulate.message_update(self.world, self.member, argument))
                 self.world.run_background_work()
                 self._log_new()
-                with contextlib.redirect_stdout(io.StringIO()):
-                    simulate.command_advance(self.world, 1)
+                # simulate.command_advance prints; redirecting stdout is not safe across threads.
+                self.world.clock = simulate.DemoClock(self.world.clock.now() + timedelta(minutes=1))
+                self.world.queries.clock = self.world.operations.clock = self.world.clock
+                self.world.run_background_work()
                 self._log_new()
             elif verb == "tap":
                 callback = self._callback(argument)
@@ -123,7 +128,7 @@ def run_script(key: str, steps: list, stage: Path, out: Path) -> str:
         script.run(steps)
         (folder / "transcript.txt").write_text("\n".join(script.lines))
         records = io.StringIO()
-        with contextlib.redirect_stdout(records):
+        with STDOUT, contextlib.redirect_stdout(records):  # one thread at a time may swap stdout
             simulate.command_records(world, member)
         (folder / "records.txt").write_text(records.getvalue())
         return f"{key}: {sum(1 for v, _ in steps if v == 'send')} messages"
@@ -150,10 +155,12 @@ def main(argv: list[str]) -> None:
     chosen = {key: steps for key, steps in scripts.items() if not only or key in only}
     with contextlib.redirect_stdout(io.StringIO()):
         stages = build_stages(args.out, args.key)
-    with ThreadPoolExecutor(6) as pool:
-        for line in pool.map(lambda item: run_script(item[0], item[1], stages[stage_for(item[0])], args.out),
-                             chosen.items()):
-            print(line)
+    with ThreadPoolExecutor(4) as pool:
+        results = list(pool.map(lambda item: run_script(item[0], item[1], stages[stage_for(item[0])], args.out),
+                                chosen.items()))
+    print("\n".join(results))
+    failures = (args.out / "app.log").read_text().count("model call failed")
+    print(f"Model calls that failed and fell back to the intent path: {failures}")
 
 
 if __name__ == "__main__":

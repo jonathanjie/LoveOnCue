@@ -237,8 +237,9 @@ def test_each_action_offers_only_its_own_fields_and_requires_its_essentials():
     assert "message" not in branches["tell_coordinator"]["properties"]
     plan = plan_from_model({"answer": "", "action": {"type": "send_message", "to": "Jamie", "message": "Go now."}})
     assert (plan.action, plan.to, plan.message) == ("send_message", "Jamie", "Go now.")
-    with pytest.raises(ValueError):
-        plan_from_model({"answer": "", "action": {"type": "acknowledge", "message": "smuggled"}})
+    # A field of another action is dropped: code never reads it for this action.
+    smuggled = plan_from_model({"answer": "", "action": {"type": "acknowledge", "message": "smuggled"}})
+    assert (smuggled.action, smuggled.message) == ("acknowledge", "")
 
 
 # S5: coordinator attention ------------------------------------------------------------------------

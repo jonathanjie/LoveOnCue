@@ -553,7 +553,9 @@ class Assistant:
             summary = f"Send {'an URGENT' if urgent else 'a'} problem report to the coordinator and your team: {title}."
         if details != title:
             # The preview shows exactly what the command will send.
-            summary += f"\nYour words: \u201c{details}\u201d"
+            # Each message the report carries is quoted on its own line, as the person wrote it.
+            quoted = "\n".join(f"\u201c{line}\u201d" for line in details.splitlines() if line.strip())
+            summary += f"\nYour words: {quoted}" if "\n" not in details else f"\nYour words:\n{quoted}"
         if urgent:
             # The bot is never the emergency channel; say so before anything else.
             summary = emergency_line(snapshot) + "\n" + summary

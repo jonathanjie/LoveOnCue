@@ -218,7 +218,10 @@ def plan_from_model(data: dict) -> DeputyPlan:
     required, optional = ACTION_FIELDS.get(action, ([], []))
     unknown = set(chosen) - set(required) - set(optional)
     if unknown:
-        raise ValueError(f"Fields not allowed for {action}: {sorted(unknown)}")
+        # Code reads only the chosen action's fields, so stray ones are dropped, not trusted. Raising
+        # here sent the whole message to the old intent path for a harmless extra field.
+        logger.warning("Deputy plan had fields not allowed for %s: %s; dropped", action, sorted(unknown))
+        chosen = {name: value for name, value in chosen.items() if name not in unknown}
     plan = {name: data[name] for name in PLAN_FIELDS if name in data}
     return DeputyPlan.model_validate(plan | chosen | {"action": action})
 
@@ -344,6 +347,10 @@ class Deputy:
                     "message": f"I can't do that for your role. {ask_coordinator(snapshot)}"}
         if plan.action == "acknowledge" and not is_confirmation(text):
             logger.warning("Deputy chose acknowledge for a message that is not a confirmation; answering without it")
+            plan = plan.model_copy(update={"action": "none"})
+        if plan.action == "complete_task" and asks(text):
+            # A message that asks something never reports their own task as done.
+            logger.warning("Deputy chose complete_task for a question; answering without it")
             plan = plan.model_copy(update={"action": "none"})
         turn = Turn(text=text, words=self._their_words(text),
                     recent_words="\n".join([*earlier, text]), grounding=grounding,
@@ -507,8 +514,9 @@ class Deputy:
                 return self._question_button(actor, snapshot, turn)
             # The title is the model's; it may not add facts beyond the records and the person's words.
             title = plan.text if plan.text and not turn.unsupported(plan.text) else turn.text
+            words = turn.words if earlier else self._with_unsent_report(actor.member_id, turn.words)
             return self.assistant.tell_coordinator(
-                actor, turn.words, short_title(title), LEVEL_KIND[level], urgent=level == "urgent",
+                actor, words, short_title(title), LEVEL_KIND[level], urgent=level == "urgent",
                 updates_incident_id=earlier[1] if earlier and earlier[0] == "incident" else None, snapshot=snapshot)
         if plan.action == "draft_arrival" and not from_their_words(plan.text, turn.recent_words):
             return {"kind": "clarification", "data": [], "message": "Who arrived? Send their name as it is on the list."}
@@ -867,6 +875,25 @@ class Deputy:
                 ActionDraft.wedding_id == self.queries.wid, ActionDraft.member_id == member_id,
                 ActionDraft.consumed_at.is_(None), ActionDraft.expires_at > utcnow())).all()
         return (drafts[-1].id, drafts[-1].summary.splitlines()[0][:300]) if drafts else (None, None)
+
+    def _with_unsent_report(self, member_id: str, words: str) -> str:
+        """A new report replaces the person's unsent one, so it keeps that report's words too.
+
+        Without this, "FLAT TYRE" sent after an unsent "BRIDAL CAR GOT FLAT TYRE IN THE CAR PARK"
+        replaced it, and the tapped report said only "FLAT TYRE". Only an unsent full report is
+        carried; anything already sent stays where it is, and follow-ups go to it as updates.
+        """
+        with self.db.sessions() as s:
+            drafts = s.scalars(select(ActionDraft).where(
+                ActionDraft.wedding_id == self.queries.wid, ActionDraft.member_id == member_id,
+                ActionDraft.consumed_at.is_(None), ActionDraft.expires_at > utcnow(), ActionDraft.offer.is_(None),
+            ).order_by(ActionDraft.created_at)).all()
+        command = drafts[-1].command if drafts else {}
+        if (command.get("type") != "report_incident" or command.get("updates_incident_id")
+                or command.get("kind") == "question"):
+            return words
+        lines = list(dict.fromkeys([*command["details"].splitlines(), words]))
+        return self._their_words("\n".join(lines))
 
     def _last_offered(self, member_id: str) -> str | None:
         """The draft offered in the person's most recent reply, if any."""
