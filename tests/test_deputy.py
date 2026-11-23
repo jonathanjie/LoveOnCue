@@ -17,8 +17,9 @@ class StubPlanner:
     def __init__(self, plans: dict[str, DeputyPlan] | None = None, fail: bool = False):
         self.plans, self.fail, self.calls, self.actions = plans or {}, fail, [], []
 
-    def plan(self, messages: list[dict], actions: list[str]) -> DeputyPlan:
+    def plan(self, messages: list[dict], actions: list[str], *, lookups: bool = True) -> DeputyPlan:
         self.calls.append(messages)
+        self.lookups = lookups
         self.actions.append(actions)
         if self.fail:
             raise httpx.ConnectError("model offline")

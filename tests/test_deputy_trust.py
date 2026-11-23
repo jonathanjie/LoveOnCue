@@ -471,7 +471,7 @@ def test_a_withdrawal_targets_the_report_named(deputy_chat, db):
     arrival = chat.send("family-liaison", "/arrival Grace Tan")
     chat.tap("family-liaison", f"confirm:{arrival.telegram_draft_id}")
     withdraw = chat.send("family-liaison", "cancel the mei one")
-    assert "Withdraw your report: Mei Lee not found" in withdraw.message
+    assert "Take back your report: Mei Lee not found" in withdraw.message
 
 
 def test_guest_status_reads_in_plain_words(deputy_chat):

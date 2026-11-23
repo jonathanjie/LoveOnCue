@@ -235,7 +235,9 @@ def test_a_record_time_moved_by_the_persons_duration_is_supported():
 def test_only_a_confirmation_can_acknowledge_without_a_tap():
     for text in ["ok noted", "on it", "ok can \U0001f44d", "got it boss", "roger"]:
         assert is_confirmation(text), text
-    for text in ["eh where i stand ah", "eh what i need do ah", "ok but when?", "how many guests arrived so far"]:
+    # Live play v9: a short report or a thank-you is not a confirmation.
+    for text in ["eh where i stand ah", "eh what i need do ah", "ok but when?", "how many guests arrived so far",
+                 "help car spoil!!", "thanks ah", "car cannot move", "done"]:
         assert not is_confirmation(text), text
 
 

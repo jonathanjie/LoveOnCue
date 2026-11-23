@@ -50,6 +50,11 @@ def glance(text: str, limit: int = 80) -> str:
     return body if len(body) <= limit else body[:limit].rsplit(" ", 1)[0] + "\u2026"
 
 
+def names_list(names: list[str]) -> str:
+    """"Priya Rao", "Priya Rao and Sam Lee", "A, B and C"."""
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+
+
 def acknowledged_reply(notice: str) -> str:
     """What the person sees after acknowledging an update: which one, and that the coordinator sees it."""
     return f"Acknowledged\nThe coordinator can see that you saw: \u201c{glance(notice)}\u201d"

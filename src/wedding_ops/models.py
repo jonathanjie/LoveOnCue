@@ -441,6 +441,8 @@ class ConversationTurn(TenantRecord, Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime())
     # The draft this reply offered, so history can say later whether it was sent.
     draft_id: Mapped[str | None] = mapped_column(String(64))
+    # The run-sheet version the reply was written under, so history can mark an older one.
+    timeline_version: Mapped[int | None] = mapped_column(Integer)
     __table_args__ = (
         UniqueConstraint("wedding_id", "id"),
         ForeignKeyConstraint(["wedding_id", "member_id"], ["members.wedding_id", "members.id"]),

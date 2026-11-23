@@ -12,12 +12,13 @@ import httpx
 from pydantic import ValidationError
 
 from .clock import parse_time
+from .claims import is_confirmation
 from .config import Settings
 from .errors import OpsError
 from .operations import Operations
 from .policy import Actor
 from .schemas import Intent, PhotoReview, Strict
-from .telegram_ui import acknowledged_reply
+from .telegram_ui import acknowledged_reply, names_list
 from .views import Queries, incident_status
 
 logger = logging.getLogger(__name__)
@@ -230,7 +231,7 @@ class MistralParser:
         content = self._structured_completion(self.model, messages, Intent, "wedding_intent", MAX_INTENT_TOKENS)
         return Intent.model_validate_json(content, strict=True)
 
-    def plan(self, messages: list[dict], actions: list[str]):
+    def plan(self, messages: list[dict], actions: list[str], *, lookups: bool = True):
         """One deputy turn. The schema offers only this person's actions, each with only its own fields."""
         from .deputy import (  # Imported here: deputy.py imports this module.
             DeputyPlan,
@@ -238,7 +239,7 @@ class MistralParser:
             plan_schema,
         )
         content = self._structured_completion(self.model, messages, DeputyPlan, "deputy_plan", MAX_DEPUTY_TOKENS,
-                                              schema=plan_schema(actions))
+                                              schema=plan_schema(actions, lookups=lookups))
         return plan_from_model(json.loads(content))
 
     def review_photo(self, jpeg: bytes, caption: str) -> PhotoReview:
@@ -363,7 +364,7 @@ class Assistant:
                 summary = (f"Tell the family liaison and photographer that {p['name']}'s whereabouts are unconfirmed. "
                            "Their attendance record stays as it is.")
             draft = self.operations.draft(actor, command, summary)
-            return {"kind": "confirmation", "message": "Review my interpretation before recording it.", "draft": draft}
+            return {"kind": "confirmation", "message": "Check the name before it is recorded.", "draft": draft}
         if intent.kind == "schedule":
             items = snapshot["timeline"]
             if intent.query:
@@ -379,6 +380,10 @@ class Assistant:
             reports.sort(key=lambda r: r["at"], reverse=True)
             message = "Your recent reports and what happened to them:" if reports else "You have not sent any reports yet."
             return {"kind": "my_reports", "message": message, "data": reports[:8]}
+        if intent.kind == "acknowledge" and not text.startswith("/") and not is_confirmation(text):
+            # The intent path acknowledges only what the deputy would: a message that is a confirmation.
+            return {"kind": "help", "data": [],
+                    "message": "Tap Acknowledge under the update, or On it under a check-in, to confirm you saw it."}
         if intent.kind == "acknowledge":
             notice = None if intent.query else self.operations.acknowledge_latest(actor)
             if notice is not None:
@@ -400,9 +405,13 @@ class Assistant:
             report = self.operations.latest_report(actor, intent.query or None)
             if report is None:
                 return {"kind": "help", "message": "Nothing to withdraw. You have no recent report that is still open. Ask the coordinator to correct older records.", "data": []}
+            told = report["told"]
+            # Name who hears about it: a question reached only the coordinator.
+            who = f" {names_list(told)} will be told to ignore it." if told else ""
             draft = self.operations.draft(actor, {"type": "withdraw_report", "request_id": report["request_id"]},
-                                          f"Withdraw your report: {report['title']}. Everyone who was told will be told to ignore it.")
-            return {"kind": "confirmation", "message": "Check this before I withdraw it.", "draft": draft}
+                                          f"Take back your {report['noun']}: {report['title']}.{who}")
+            return {"kind": "confirmation", "message": f"Check that this is the {report['noun']} you mean.",
+                    "draft": draft}
         if intent.kind in {"incident", "urgent_incident"}:
             return self._incident_draft(actor, text, intent, snapshot)
         if intent.kind == "delay":
@@ -559,7 +568,9 @@ class Assistant:
         if urgent:
             # The bot is never the emergency channel; say so before anything else.
             summary = emergency_line(snapshot) + "\n" + summary
+        # Only problem reports can duplicate one: a question or a note is not a report (live play v9).
         recent = [i for i in snapshot["incidents"] if i["reported_by"] == actor.member_id and i["status"] == "open"
+                  and i["kind"] not in {"question", "note"}
                   and parse_time(snapshot["now"]) - parse_time(i["created_at"]) <= RECENT_REPORT_WINDOW]
         if recent and not updates:
             summary += f"\nYou already reported: {recent[-1]['title']}. Confirm only if this is a different problem."

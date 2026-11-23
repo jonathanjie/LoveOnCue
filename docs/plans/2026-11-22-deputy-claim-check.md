@@ -451,6 +451,131 @@ shape would be a patch for a single case.
   minutes or one word, so raters would mostly measure model randomness. The prompt did not
   change, so the replay metrics do not move either.
 
+## Live-play round v9 (23 November)
+
+Build 574823d. Four casts played at the same time, each in its own world: round 1 and round 2
+with Haiku players (Claude agents), and round 1 and round 2 with GPT-6-Luna players (Codex
+`codex exec -m gpt-6-luna`, workspace-write sandbox with network). 26 players, same persona
+prompts (`scripts/gate.py`). Live play finds new kinds of failure; it does not pass or fail.
+Reports, transcripts and records: scratchpad `live-v9/` (not kept in the repository).
+
+| Cast | Ease | Clarity | Trust |
+|---|---|---|---|
+| Haiku, 13 players | 3.8 | 3.6 | 2.5 |
+| Luna, 13 players | 3.2 | 3.4 | 3.1 |
+
+Luna players read tool output less closely: 6 reports say a reply "did not appear" where the
+transcript shows it. Haiku players check the records harder. Both found the same classes.
+
+### Findings, by cause
+Code-written text that is not true (each checked in a transcript):
+1. `is_confirmation` accepts any message of six words or fewer that asks nothing.
+   "help car spoil!!" acknowledged the driver's task, and "Thanks ah" acknowledged the
+   registration desk's task.
+2. "Arrival recorded. The family liaison and photographer have been told." is fixed text.
+   Only family members are announced, and only to family-cleared roles.
+3. "Withdrawn … Everyone who was told has been told to ignore it." is fixed text.
+4. "1 people get it with an Acknowledge button."
+5. A question is called a report: "You already reported: <question>. Confirm only if this is
+   a different problem", and "Withdraw your report: <question>".
+6. "It's 17:46 now. It's 17:46 now." Code writes the time, and the answer repeats it
+   (5 replies).
+7. A question's title is the first sentence of the message: "ok thanks" for "ok thanks. i
+   stand at entrance b till seating announce then i go where".
+8. "Guest seating is for the registration team and ushers." under most of the family
+   liaison's replies. The model fills find_guests to check parents' arrival, and code
+   refuses a lookup the person never asked for.
+
+Model statements:
+9. Stale run sheet after a change. At 18:26, one minute after version 2 moved the
+   ceremony, the usher was told "The run sheet still has the ceremony at 18:30 on the Garden
+   terrace". The bot's own earlier replies in the history said so, and nothing marks them
+   as older than the change.
+10. "The context" in 4 replies ("Nothing in the context says how the kitchen is doing"). The
+    prompt calls the records CONTEXT, so the model says that word to people.
+11. "The run sheet still shows dinner service at 19:00, so tell the kitchen it's not
+    approved." The request was pending. The status check needs a report noun beside the
+    status word, and "it" has none.
+
+Records tool (`simulate.py records`), which raters read as the truth:
+12. "acknowledged by nobody; not yet by nobody".
+13. "also shown to: Banquet" on an item under "What reached the coordinator". Two raters read
+    it as "only Banquet".
+14. `simulate.py transcript` replaces messages older than chat memory (10 turns) with
+    "(taps a button)".
+
+Not product faults: same-minute races with the coordinator's change; a persona premise
+("Grace Tay" is not in the seed); untapped "Ask the coordinator" buttons (nothing is sent
+without a tap, by design).
+
+### Design
+- 1: a confirmation is a message whose words all come from a small acknowledgement
+  vocabulary (ok, noted, on it, got it, can, will do, roger, received, 👍 …, with particles
+  such as lah, leh and liao), with at least one acknowledgement word. "thanks" alone is not
+  one.
+- 2, 3, 4: the reply names who was told, from the operation's result, as "Report sent"
+  already does. The arrival result returns the roles notified (none for a regular guest). The
+  withdrawal result returns the teams told to ignore it. The coordinator learns of a
+  withdrawal in the next update.
+- 5: the code text follows the record's kind: "Take back your question" for a question, and
+  the duplicate warning counts only problem reports.
+- 6: an answer sentence identical to a line code wrote in the same reply is dropped.
+- 7: a question's title skips leading sentences that are confirmations (finding 1's test).
+- 8: find_guests is in the plan schema only for roles that may look up seats, like actions.
+- 9: in the history, a reply sent before the person's latest run-sheet update (a
+  timeline_updated or schedule_info notice) carries a system note: it came before run sheet
+  version N at HH:MM, so its times and places may be out of date.
+- 10: the prompt calls the context RECORDS.
+- 11: a status sentence is also one that applies a status word as a predicate ("is not
+  approved", "still pending"), with or without a report noun. "approved times" and
+  "coordinator-approved" stay.
+- 12, 13, 14: records say "acknowledged by: …; not yet: …" and omit an empty side, and
+  "Teams that also see it". The simulator logs each send and tap to the world folder, and
+  the transcript uses that log.
+
+### Built, after Fable's review (23 November)
+Fable agreed with the causes and changed five fixes:
+- 1: a closed set of confirmation phrases (with address words such as "boss"), and the
+  model is offered `acknowledge` only for a message that passes it. Demoting the choice
+  afterwards lost the report: "help car spoil!!" became no action at all. The intent path
+  applies the same test.
+- 2 to 4: operations return who was told (`told`), and one renderer writes it, for every
+  reply that said it: arrivals (names, or "Nobody else is notified"), withdrawals
+  (the coordinator in the next update, and named people told to ignore it), messages
+  ("1 person gets it"), and approved changes (a count; "Everyone affected is being told" was
+  also fixed text). The drafts before the tap say the same. Decision notices say
+  "run-sheet request", not "report".
+- 6: the time is compared as a fact: the code line is left out when the answer already
+  states the current time.
+- 9: each reply in memory keeps its run-sheet version (`conversation_turns.timeline_version`,
+  migration 0008). A notice was the wrong marker: the coordinator who makes a change gets none.
+- 11: the predicate form covers decision words only (approved, rejected, declined, pending,
+  withdrawn, answered, unsent). "Registration is open" and "recorded as onsite" are not
+  statuses.
+- 8: find_guests guidance moved from the shared prompt into the RECORDS of roles that may
+  look up seats; other roles read that they cannot.
+Known gap (not fixed): "(moved from 18:30)" puts the old time in the grounding, so the claim
+check alone cannot catch a stale time; the history note addresses the cause.
+
+### Evidence for the v9 fixes (23 November)
+- Replay, 3 runs per case, against 574823d's v8 numbers:
+
+  | Measure | v8 | v9 |
+  |---|---|---|
+  | Outcome matches the label, tuned set | 163 of 189 | 169 of 189 |
+  | Outcome matches the label, held-out set | 64 of 69 | 65 of 69 |
+  | False full drafts, tuned set | 3 of 72 | 2 of 72 |
+  | Internal names or template lines | 0 | 0 |
+  | Missing a required fact | 0 | 0 |
+
+- The first v9 replay found a new failure: without `acknowledge` to choose, the model drafted
+  "Mark your task done" for "ok got it 👍 … the ceremony is inside now right" (6 of 6 runs of
+  two cases). Two causes, both fixed: `asks()` missed "where's" and question tags ("… now
+  right", "… anot"), and a task-done draft did not need the person to say anything was done
+  (`says_done`, the same rule as names for arrivals). After the fix: 0 of 6.
+- Tests: 274 passed. New: `tests/test_told.py`, `tests/test_deputy_live_play_v9.py`, the
+  confirmation cases in `tests/test_claims.py`, and the simulator transcript log.
+
 ## Checks
 - Unit: extractor (each token type, Singlish time forms); `unsupported` with
   cited and uncited lines; quoted spans do not ground; self-acts with and without
@@ -466,11 +591,13 @@ Success: fact removals in under 5% of answers; first-person acts well below v5's
 in 71; trust ≥ 3.5 with no fall in ease or clarity.
 
 ## Resume point
-Read this file, then `git log` on the branch. Fable's build order is done through gate v8
-(sections "Step 1" and "Steps 2 to 4"), and the open items from gate v8 are fixed (section
-"Open items after gate v8"). Evidence tools: `scripts/replay.py` (tuned and held-out cases),
-`scripts/ab.py` with `WEDDING_OPS_SRC` (paired comparison on exact rater chats),
-`scripts/gate.py` and `simulate.py records|transcript|realtime` (live play). Next: a
-live-play round with the new gate method to look for new kinds of failure; then decide on a
-staging deploy (message the Mini App session first, and tell it about the neutral badge for
-"withdrawn"). Staging runs release 406bf7c.
+Read this file, then `git log` on the branch. Done: Fable's build order through gate v8, the
+gate v8 open items, live-play round v9 (26 players, Haiku and GPT-6-Luna) and its fixes
+(sections "Live-play round v9" and "Built, after Fable's review"). Tools: `scripts/replay.py`
+(tuned and held-out cases), `scripts/ab.py` with `WEDDING_OPS_SRC` (paired comparison),
+`scripts/gate.py` and `simulate.py records|transcript|realtime` (live play; Luna players run as
+`codex exec -m gpt-6-luna -s workspace-write -c sandbox_workspace_write.network_access=true
+--add-dir <world>`). Next: a second live-play round on this build to look for new kinds of
+failure; then decide on a staging deploy (message the Mini App session first, and tell it about
+the neutral badge for "withdrawn"). Staging runs release 406bf7c; migrations 0007 and 0008 are
+new since then.

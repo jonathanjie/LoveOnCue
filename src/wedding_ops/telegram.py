@@ -20,7 +20,7 @@ from .models import InboundUpdate, new_id
 from .operations import Operations, audit, notify
 from .schemas import PhotoReview
 from .telegram_photo import MAX_PHOTO_BYTES, download_photo, render_photo
-from .telegram_ui import NAVIGATION, acknowledged_reply, attendance_label, render_brief
+from .telegram_ui import NAVIGATION, acknowledged_reply, attendance_label, names_list, render_brief
 from .views import row
 
 
@@ -148,8 +148,11 @@ def confirmation_reply(result: dict) -> str:
         return "Already recorded\nThis report was confirmed earlier. No new change was made."
     kind = result.get("command_type")
     if kind in {"propose_delay", "change_item"} and result.get("status") == "approved":
-        return (f"Run sheet updated\nVersion {result['timeline_version']}. Everyone affected is being told, "
-                "with an Acknowledge button.")
+        # Say how many were told: an approved change can reach nobody (no team affected).
+        told = result.get("told", 0)
+        return (f"Run sheet updated\nVersion {result['timeline_version']}. "
+                + (f"{told} {'person is' if told == 1 else 'people are'} told, with an Acknowledge button."
+                   if told else "Nobody else needed telling."))
     if kind in {"propose_delay", "change_item"}:
         return ("Report confirmed\nProposal awaiting approval from the coordinator. The run sheet does not change until "
                 "they approve it. I will tell you their decision.")
@@ -167,17 +170,27 @@ def confirmation_reply(result: dict) -> str:
         also = f" The {', '.join(teams)} team{'s' if len(teams) > 1 else ''} also got it." if teams else ""
         return f"Report sent\nThe coordinator has it.{also}"
     if kind == "arrival":
-        return "Arrival recorded\nThe family liaison and photographer have been told."
+        # Only family arrivals are announced, and only to the roles that act on them.
+        told = result.get("told") or []
+        return "Arrival recorded\n" + (f"{names_list(told)} {'has' if len(told) == 1 else 'have'} been told."
+                                        if told else "It is in the records. Nobody else is notified.")
     if kind == "set_deputy_enabled":
         return ("Check-ins are on. I will chase unacknowledged tasks again." if result["status"] == "on" else
                 "Check-ins are paused for everyone. Helpers get the plain reminders instead.")
     if kind == "broadcast":
-        return (f"Message sent\n{result.get('recipients', 'Everyone')} people get it with an Acknowledge button. "
-                "Ask me who has not acknowledged yet.")
+        count = result.get("recipients", 0)
+        return (f"Message sent\n{count} {'person gets' if count == 1 else 'people get'} it with an Acknowledge "
+                "button. Ask me who has not acknowledged yet.")
     if kind == "task_action":
         return "Marked done\nThe coordinator can see it."
     if kind == "withdraw_report":
-        return f"Withdrawn\nYour report ({result['title']}) is cancelled. Everyone who was told has been told to ignore it."
+        noun, told = result.get("noun", "report"), result.get("told") or []
+        lines = [f"Withdrawn\nYour {noun} ({result['title']}) is taken back."]
+        if result.get("coordinator_told", True):
+            lines.append("The coordinator sees this in their next update.")
+        if told:
+            lines.append(f"{names_list(told)} {'is' if len(told) == 1 else 'are'} told to ignore it.")
+        return " ".join(lines)
     return "Report confirmed."
 
 

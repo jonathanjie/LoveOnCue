@@ -117,6 +117,15 @@ CAPABILITY = {
 }
 
 
+def report_noun(target: dict) -> str:
+    """What a person calls the thing they sent: a question is not a "report" (live play v9)."""
+    if target["kind"] == "approval":
+        return "run-sheet request"
+    if target["kind"] == "arrival":
+        return "arrival report"
+    return {"question": "question", "note": "note"}.get(target["record"].kind, "report")
+
+
 class Operations:
     def __init__(self, db: Database, wedding_id: str, clock: Clock):
         self.db, self.wid, self.clock = db, wedding_id, clock
@@ -220,7 +229,7 @@ class Operations:
             return {"id": task.id, "status": task.state, "version": task.version}
 
         if cmd.type == "arrival":
-            changed, previous, resolved_incidents = [], {}, []
+            changed, previous, resolved_incidents, told = [], {}, [], set()
             for ident in dict.fromkeys(cmd.person_ids):
                 p = row(s, Person, wid, ident)
                 if p.attendance == cmd.status:
@@ -235,6 +244,8 @@ class Operations:
                 if p.relationship:
                     # Coordinators see arrivals in the brief; only the roles that act on them are interrupted.
                     for m in recipients(s, wid, roles={"photographer", "family_liaison"}, coordinators=False):
+                        if m.id != actor.member_id:
+                            told.add(row(s, Person, wid, m.person_id).name)
                         notify(s, wid, m.id, "family_arrival", f"Confirmed report: {p.name} ({p.relationship}) is {cmd.status}. Reported by the arrival team.",
                                f"arrival:{p.id}:{p.version}", now, permission="family:status")
                     if cmd.status == "onsite":
@@ -244,7 +255,7 @@ class Operations:
                                 resolved_incidents.append(incident.id)
                                 audit(s, w, actor.member_id, "incident_resolved_by_arrival", incident.id, {"person_id": p.id}, now)
             return {"status": "recorded", "changed": changed, "previous": previous,
-                    "set_to": cmd.status, "resolved_incidents": resolved_incidents}
+                    "set_to": cmd.status, "resolved_incidents": resolved_incidents, "told": sorted(told)}
 
         if cmd.type == "report_incident":
             if cmd.updates_incident_id:
@@ -640,10 +651,10 @@ class Operations:
                 if change.get("note"):
                     item.change_note = change["note"]
             w.timeline_version += 1
-            self._announce_change(s, w, a, approval, now)
+            told = self._announce_change(s, w, a, approval, now)
             approval.status = "approved"
         else:
-            approval.status = "rejected"
+            approval.status, told = "rejected", 0
         approval.decided_by, approval.decided_at, approval.decision_note = a.member.id, now, note
         if approval.proposed_by != a.member.id:
             decider = row(s, Person, wid, a.member.person_id).name
@@ -651,12 +662,14 @@ class Operations:
                        else "rejected. The run sheet is unchanged")
             extra = f"\nNote: {note}" if note else ""
             notify(s, wid, approval.proposed_by, "report_decision",
-                   f"Your report ({approval.title}) was {outcome}. Decided by {decider}.{extra}",
+                   f"Your run-sheet request ({approval.title}) was {outcome}. Decided by {decider}.{extra}",
                    f"decision:{approval.id}", now)
-        return {"id": approval.id, "status": approval.status}
+        return {"id": approval.id, "status": approval.status, "told": told}
 
-    def _announce_change(self, s: Session, w: Wedding, a: Access, approval: Approval, now) -> None:
-        """Tell people about an approved change, in words generated from the change itself."""
+    def _announce_change(self, s: Session, w: Wedding, a: Access, approval: Approval, now) -> int:
+        """Tell people about an approved change, in words generated from the change itself.
+        Returns how many people were told, so the reply can say it."""
+        told = 0
         zone, places = ZoneInfo(w.timezone), self._place_names(s)
         moved_place = any(c.get("new_location_id") for c in approval.changes)
         # A place change moves guests, which every helper handles; a time change concerns the affected teams.
@@ -675,11 +688,14 @@ class Operations:
                 notify(s, self.wid, member.id, "schedule_info",
                        f"Your coordinator updated the run sheet (version {w.timeline_version}):\n{lines}",
                        f"timeline:{w.timeline_version}", now, timeline_version=w.timeline_version)
+                told += 1
                 continue
             notify(s, self.wid, member.id, "timeline_updated",
                    f"Run sheet updated by the coordinator (version {w.timeline_version}):\n{lines}\n"
                    f"Check your tasks. {ACK_PROMPT}",
                    f"timeline:{w.timeline_version}", now, timeline_version=w.timeline_version)
+            told += 1
+        return told
 
     def _message(self, s: Session, w: Wedding, a: Access, cmd, now) -> dict:
         """A coordinator message to teams and named people. Answering a question closes it."""
@@ -786,8 +802,31 @@ class Operations:
                 if entity_id and receipt.result.get("id") != entity_id:
                     continue
                 if target and target["withdrawable"]:
-                    return {"request_id": receipt.request_id, "title": target["title"]}
+                    told = self._withdrawal_audience(s, actor.member_id, receipt, target)[3]
+                    return {"request_id": receipt.request_id, "title": target["title"], "noun": report_noun(target),
+                            "told": told}
             return None
+
+    def _withdrawal_audience(self, s, member_id: str, receipt: CommandReceipt, target: dict):
+        """Who hears that a report was taken back: the same people its first notice reached, so
+        nobody learns more than before. Returns the notice (title, permission, teams), the members
+        to notify, and their names for the reporter."""
+        if target["kind"] == "arrival":
+            people = [row(s, Person, self.wid, ident) for ident in receipt.result["previous"]]
+            family = [p.name for p in people if p.relationship]
+            notice = (f"Arrival of {', '.join(family)}" if family else None, "family:status", None)
+            audience = recipients(s, self.wid, roles={"photographer", "family_liaison"}) if family else []
+        elif target["kind"] == "approval":
+            notice, audience = (target["title"], "timeline:approve", None), []
+        else:
+            incident = target["record"]
+            permission = "family:status" if incident.kind == "location_unconfirmed" else None
+            notice = (target["title"], permission, incident.audience_team_ids)
+            audience = recipients(s, self.wid, teams=incident.audience_team_ids)
+        # Coordinators read withdrawals in the next update; the others are told at once.
+        audience = [m for m in audience if m.id != member_id and notice[0] and "coordinator" not in m.roles]
+        names = sorted({row(s, Person, self.wid, m.person_id).name for m in audience})
+        return notice, audience, notice[0] is not None, names
 
     def _report_target(self, s, receipt: CommandReceipt) -> dict | None:
         """Describe what a confirmed report created, from its stored result."""
@@ -821,6 +860,7 @@ class Operations:
         private = target["kind"] == "incident" and target["record"].kind in {"question", "note"}
         a.require("coordinator:ask" if private else WITHDRAW_CAPABILITY[target["kind"]])
         reporter = row(s, Person, self.wid, a.member.person_id).name
+        notice, audience, tell, told = self._withdrawal_audience(s, a.member.id, receipt, target)
         if target["kind"] == "arrival":
             people = {ident: row(s, Person, self.wid, ident) for ident in receipt.result["previous"]}
             for ident, before in receipt.result["previous"].items():
@@ -833,34 +873,24 @@ class Operations:
             for incident_id in receipt.result.get("resolved_incidents", []):
                 incident = row(s, Incident, self.wid, incident_id)
                 incident.status, incident.resolved_at = "open", None
-            # Match the original arrival notice: family members only, to family-cleared roles.
-            family = [p.name for p in people.values() if p.relationship]
-            notice = (f"Arrival of {', '.join(family)}" if family else None, "family:status", None)
-            audience = recipients(s, self.wid, roles={"photographer", "family_liaison"}) if family else []
         elif target["kind"] == "approval":
             target["record"].status, target["record"].decided_at = "withdrawn", now
             target["record"].decision_note = f"Withdrawn by {reporter}."
-            notice = (target["title"], "timeline:approve", None)
-            audience = recipients(s, self.wid, coordinators=True)
         else:
-            incident = target["record"]
             # Not "resolved": nobody fixed it, and the records and the deputy must say what happened.
-            incident.status = "withdrawn"
-            permission = "family:status" if incident.kind == "location_unconfirmed" else None
-            notice = (target["title"], permission, incident.audience_team_ids)
-            audience = recipients(s, self.wid, teams=incident.audience_team_ids)
+            target["record"].status = "withdrawn"
         audit(s, w, a.member.id, "report_withdrawn", request_id, {"kind": target["kind"]}, now)
         title, permission, teams = notice
-        if title:
+        if tell:
             # The coordinator reads withdrawals in the next digest; they need no decision.
             tell_coordinators(s, w, f"report:{request_id}", f"Withdrawn by {reporter}: {one_line(title, 160)}.", now)
         for member in audience:
-            if member.id != a.member.id and title and "coordinator" not in member.roles:
-                # Same restrictions as the original notice, so nobody learns more than before.
-                notify(s, self.wid, member.id, "report_withdrawn",
-                       f"Withdrawn by {reporter}: {one_line(title, 160)}. Ignore the earlier report.",
-                       f"withdrawn:{request_id}", now, teams=teams, permission=permission)
-        return {"id": request_id, "status": "withdrawn", "title": target["title"]}
+            # Same restrictions as the original notice, so nobody learns more than before.
+            notify(s, self.wid, member.id, "report_withdrawn",
+                   f"Withdrawn by {reporter}: {one_line(title, 160)}. Ignore the earlier report.",
+                   f"withdrawn:{request_id}", now, teams=teams, permission=permission)
+        return {"id": request_id, "status": "withdrawn", "title": target["title"], "noun": report_noun(target),
+                "told": told, "coordinator_told": tell}
 
     def draft(self, actor: Actor, command: dict, summary: str, *, offer: str | None = None) -> dict:
         """The model may propose only an already-authorized command; no mutation occurs."""

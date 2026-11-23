@@ -122,6 +122,11 @@ class World:
         self.state["update_id"] = self.state.get("update_id", 0) + 1
         return self.state["update_id"]
 
+    def log(self, member_id: str, update_id: int, text: str) -> None:
+        """Keep what the member sent, by update, for `transcript`. Telegram payloads are deleted
+        once processed, and the deputy's memory keeps only its last 10 turns."""
+        self.state.setdefault("log", {}).setdefault(member_id, {})[str(update_id)] = text
+
     def sender(self, member_id: str) -> int:
         senders = self.state.get("senders", {})
         if member_id not in senders:
@@ -223,7 +228,9 @@ def message_update(world: World, member_id: str, text: str) -> dict:
 def command_send(world: World, member_id: str, text: str) -> None:
     # Messages pushed since the user last looked appear first, as they would in the chat.
     world.print_unread(member_id, quiet=True)
-    world.ingress().accept(WEBHOOK_SECRET, message_update(world, member_id, text))
+    update = message_update(world, member_id, text)
+    world.log(member_id, update["update_id"], text)
+    world.ingress().accept(WEBHOOK_SECRET, update)
     world.run_background_work()
     world.print_unread(member_id)
 
@@ -237,6 +244,7 @@ def command_tap(world: World, member_id: str, label: str) -> None:
     update = {"update_id": world.next_update_id(), "callback_query": {
         "id": f"sim-{world.state['update_id']}", "data": match, "from": {"id": sender},
         "message": {"chat": {"id": sender, "type": "private"}, "from": {"id": SIMULATED_BOT_ID, "is_bot": True}}}}
+    world.log(member_id, update["update_id"], f"(taps {label.strip()})")
     world.print_unread(member_id, quiet=True)
     world.ingress().accept(WEBHOOK_SECRET, update)
     world.run_background_work()
@@ -274,6 +282,7 @@ def chat_turns(world: World, member_id: str) -> list[tuple[str, str]]:
 def command_transcript(world: World, member_id: str) -> None:
     """What the member saw, in the order they saw it: each message, then its reply, and any notices."""
     turns = chat_turns(world, member_id)
+    sent = world.state.get("log", {}).get(member_id, {})
     zone = ZoneInfo(world.queries.snapshot(Actor(WEDDING_ID, member_id))["wedding"]["timezone"])
     with world.db.sessions() as s:
         # Rows are numbered in the order they were written, which is the order the member saw them.
@@ -286,8 +295,15 @@ def command_transcript(world: World, member_id: str) -> None:
             print(f"\n[{at}] notice ({notification.topic}): {notification.message}")
             print_action_button(world, notification)
             continue
-        # A reply that starts with the deputy's next answer answers a message: the user turn just
-        # before that answer, when the deputy kept it. Any other reply answers a button tap.
+        # A reply's key names the update it answers ("telegram-reply:<update>:<member>").
+        update_id = notification.dedupe_key.split(":")[1]
+        if update_id in sent:
+            print(f"\n[{at}] {member_id}: {sent[update_id]}")
+            print(f"[{at}] bot: {notification.message}")
+            print_action_button(world, notification)
+            continue
+        # Worlds made before the log: a reply that starts with the deputy's next answer answers
+        # the user turn just before it, when the deputy kept it. Any other reply answers a tap.
         answer = next((i for i, (role, _) in enumerate(turns) if role == "assistant"), None)
         if answer is not None and notification.message.startswith(turns[answer][1][:60]):
             message = turns[answer - 1][1] if answer and turns[answer - 1][0] == "user" else "(message not kept)"
@@ -343,7 +359,8 @@ def command_records(world: World, member_id: str) -> None:
     with world.db.sessions() as s:
         tasks = s.scalars(select(Task).where(Task.wedding_id == WEDDING_ID, Task.owner_id == member_id)).all()
         incidents = s.scalars(select(Incident).where(Incident.wedding_id == WEDDING_ID)).all()
-        guests = s.scalars(select(Person).where(Person.wedding_id == WEDDING_ID, Person.is_guest)).all()
+        people = s.scalars(select(Person).where(Person.wedding_id == WEDDING_ID)).all()
+    guests = [p for p in people if p.is_guest]
     tables = {table["id"]: table["label"] for table in snapshot["tables"]}
     if tasks:
         print(f"\nTasks of {names[member_id]}:")
@@ -356,9 +373,11 @@ def command_records(world: World, member_id: str) -> None:
     print("\nWhat reached the coordinator" + ("" if is_coordinator else f" from {names[member_id]}") + ":")
     teams = {team["id"]: team["name"] for team in snapshot["teams"]}
     for incident in sorted(reports, key=lambda i: i.created_at):
-        shared = ", ".join(teams.get(t, t) for t in incident.audience_team_ids) or "no team"
+        shared = ", ".join(teams.get(t, t) for t in incident.audience_team_ids)
+        # Raters read "also shown to: Banquet" as "only Banquet"; every item here reached the coordinator.
+        audience = f"the coordinator and the {shared} team" if shared else "the coordinator only"
         print(f"  {local(incident.created_at)} {incident.severity} {incident.kind} from {names.get(incident.reported_by)}: "
-              f"“{incident.title}” — {incident.status}; also shown to: {shared}. Details: {incident.details[:600]}")
+              f"“{incident.title}” — {incident.status}; seen by {audience}. Details: {incident.details[:600]}")
     for request in requests:
         note = f" ({request['decision_note']})" if request.get("decision_note") else ""
         print(f"  {local(request['created_at'])} run-sheet request from {names.get(request['proposed_by'])}: "
@@ -387,9 +406,11 @@ def command_records(world: World, member_id: str) -> None:
         for group in sorted(by_key.values(), key=lambda g: g[0].created_at, reverse=True):
             done = [names.get(n.recipient_id, n.recipient_id) for n in group if n.acknowledged_at]
             waiting = [names.get(n.recipient_id, n.recipient_id) for n in group if not n.acknowledged_at]
-            print(f"  {local(group[0].created_at)} {group[0].topic} “{group[0].message[:80]}”: "
-                  f"acknowledged by {', '.join(done) or 'nobody'}; not yet by {', '.join(waiting) or 'nobody'}")
-    words = " ".join(text for role, text in chat_turns(world, member_id) if role == "user").casefold()
+            sides = ([f"acknowledged by {', '.join(done)}"] if done else []) + \
+                    ([f"not acknowledged by {', '.join(waiting)}"] if waiting else [])
+            print(f"  {local(group[0].created_at)} {group[0].topic} “{group[0].message[:80]}”: {'; '.join(sides)}")
+    logged = world.state.get("log", {}).get(member_id, {}).values()
+    words = " ".join([*logged, *(text for role, text in chat_turns(world, member_id) if role == "user")]).casefold()
     asked = [g for g in guests if g.name.casefold() in words or re.search(rf"\b{g.name.split()[0].casefold()}\b", words)]
     if asked:
         print("\nGuests named in your messages (full name or first name):")
@@ -397,6 +418,11 @@ def command_records(world: World, member_id: str) -> None:
             table = f"Table {tables[guest.table_id]}" if guest.table_id in tables else "no table"
             print(f"  {guest.name}: {table}, {attendance_label(guest.attendance)}")
         print("Guests named only by surname or title (\"Mr Lee\") are not matched here.")
+    family = [p for p in people if p.relationship and p.name.casefold() in words]
+    if family:
+        print("\nFamily named in your messages:")
+        for person in sorted(family, key=lambda p: p.name):
+            print(f"  {person.name} ({person.relationship}): {attendance_label(person.attendance)}")
 
 
 def command_desk(world: World, action: str, target: str | None, note: str) -> None:

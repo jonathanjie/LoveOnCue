@@ -42,3 +42,16 @@ def test_records_show_the_run_sheet_and_a_realistic_emergency_contact(tmp_path, 
     assert "18:30 Garden ceremony at Garden terrace" in records
     assert f"Emergency contact: {simulate.SIMULATED_EMERGENCY_CONTACT}" in records
     assert "Tasks of Jamie Lim:" in records and "What reached the coordinator from Jamie Lim:" in records
+
+
+def test_the_transcript_keeps_every_message_and_records_name_family(tmp_path, capsys):
+    run(tmp_path, "init")
+    # More messages than the deputy's 10-turn memory keeps: the log still has the first one.
+    for number in range(12):
+        run(tmp_path, "send", "--as", "registration-a", f"message {number}, Robert Tan here")
+    capsys.readouterr()
+    run(tmp_path, "transcript", "--as", "registration-a")
+    transcript = capsys.readouterr().out
+    assert "registration-a: message 0, Robert Tan here" in transcript and "(taps a button)" not in transcript
+    run(tmp_path, "records", "--as", "registration-a")
+    assert "Robert Tan (father of bride): not checked in yet" in capsys.readouterr().out

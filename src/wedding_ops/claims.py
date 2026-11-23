@@ -123,8 +123,17 @@ def sentences(text: str) -> list[str]:
     return [part for part in SENTENCE_END.split(text.strip()) if part.strip()]
 
 
+# A decision word used as a predicate states a status even without a report noun: "so tell the
+# kitchen it's not approved" sat above a code line saying the request was pending (live play v9).
+# Only decision words: "registration is open" or "he is recorded as onsite" are not statuses.
+DECISION_PREDICATE = re.compile(
+    r"\b(?:is|was|are|were|be|been|being|'s|isn't|wasn't|aren't|not|still|already|yet|now)\s+(?:not\s+|yet\s+|still\s+)?"
+    r"(?:approved|rejected|declined|pending|withdrawn|answered|unsent)\b", re.IGNORECASE)
+
+
 def states_report_status(sentence: str) -> bool:
-    return bool(REPORT_NOUN.search(sentence) and REPORT_STATUS.search(sentence))
+    return bool(REPORT_NOUN.search(sentence) and REPORT_STATUS.search(sentence)) or bool(
+        DECISION_PREDICATE.search(sentence))
 
 
 @dataclass
@@ -177,16 +186,54 @@ def from_their_words(argument: str, words: str) -> bool:
     return bool(mine & theirs) or not mine
 
 
+# A tag at the end that turns a statement into a question ("inside now right", "can anot").
+QUESTION_TAGS = re.compile(r"\b(?:(?<!all )right|anot|or not|is it|izzit|issit|correct)\W*$")
+
+
 def asks(text: str) -> bool:
-    """The message asks something: a question mark, or a question word in English or Singlish."""
-    lowered = f" {text.casefold().strip()} "
-    return "?" in lowered or any(f" {word} " in lowered for word in QUESTION_WORDS)
+    """The message asks something: a question mark, a question word in English or Singlish
+    ("where's" counts as "where"), or a question tag at the end."""
+    lowered = text.casefold().replace("\u2019", "'").strip()
+    words = f" {re.sub(r"'s\b", '', re.sub(r'[^\w\s\']', ' ', lowered))} "
+    return ("?" in lowered or any(f" {word} " in words for word in QUESTION_WORDS)
+            or bool(QUESTION_TAGS.search(lowered)))
+
+
+# Words that say a task is finished. A draft that marks a task done must rest on the person's own
+# words: without "acknowledge" to choose, the model drafted "Mark your task done" for "ok got it 👍
+# cedar ballroom. wait so the ceremony is inside now right" (replay v9).
+DONE_WORDS = re.compile(r"\b(?:done|finish|finished|finishing|complete|completed|siap|settled|sorted|ready)\b",
+                        re.IGNORECASE)
+
+
+def says_done(text: str) -> bool:
+    return bool(DONE_WORDS.search(text))
+
+
+# What a confirmation is made of. Acknowledging changes a record without a tap, so the set is
+# closed: a message outside it keeps its Acknowledge or On it button, which is safe. "Any short
+# message that asks nothing" let "help car spoil!!" acknowledge the driver's task (live play v9).
+CONFIRMATION_PHRASES = re.compile(
+    r"ok+|okay|okie|oki|k+|noted|note|on it|got it|gotcha|roger|received|copy|copied|sure|yes|yep|yup|ya|yeah|"
+    r"can|will do|alright|all right|understood|seen|ack|acknowledged|confirm|confirmed")
+# Particles and address words that may come with one ("ok can lah boss").
+CONFIRMATION_FILLER = re.compile(r"lah|la|leh|ah|liao|lor|boss|sir|maam|ma'am|bro|sis|already|alr|then|thanks|"
+                                 r"thank you|thx|ty|with thanks|sorry")
+CONFIRMATION_EMOJI = "👍👌✅🙏✔️"
 
 
 def is_confirmation(text: str) -> bool:
-    """A short message that confirms ("ok noted", "on it", a thumbs up) and asks nothing.
-
-    Acknowledging changes a record without a tap, so code, not the model alone, decides that a
-    message is a confirmation.
-    """
-    return len(text.split()) <= 6 and not asks(text)
+    """A message made only of confirmation phrases ("ok noted", "on it", a thumbs up), with at
+    least one of them, that asks nothing. "thanks" alone is not one: it does not say "seen"."""
+    if asks(text):
+        return False
+    words = re.sub(rf"[^\w\s'{CONFIRMATION_EMOJI}]", " ", text.casefold())
+    words = re.sub(rf"([{CONFIRMATION_EMOJI}])", r" \1 ", words)
+    remaining, confirmed = f" {' '.join(words.split())} ", False
+    for pattern, counts in ((CONFIRMATION_PHRASES, True), (CONFIRMATION_FILLER, False)):
+        remaining, found = re.subn(rf"(?<= )(?:{pattern.pattern})(?= )", " ", remaining)
+        remaining = f" {' '.join(remaining.split())} "
+        confirmed |= counts and found > 0
+    emoji = sum(remaining.count(mark) for mark in CONFIRMATION_EMOJI)
+    remaining = "".join(ch for ch in remaining if ch not in CONFIRMATION_EMOJI)
+    return (confirmed or emoji > 0) and not remaining.strip()
