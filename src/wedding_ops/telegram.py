@@ -144,6 +144,16 @@ def render_reply(result: dict) -> str:
     return message[:3900]
 
 
+def overtaken_line(result: dict) -> str:
+    """Name the pending requests that a change just closed, so the coordinator is not left
+    approving one that no longer fits."""
+    closed = result.get("overtaken") or []
+    if not closed:
+        return ""
+    return (f"\nClosed, because they no longer fit the new run sheet: {'; '.join(closed)}. "
+            f"{'The requester is' if len(closed) == 1 else 'The requesters are'} told.")
+
+
 def confirmation_reply(result: dict) -> str:
     """Tell the reporter what their confirmed report did, in plain words."""
     if result.get("replayed"):
@@ -151,10 +161,15 @@ def confirmation_reply(result: dict) -> str:
     kind = result.get("command_type")
     if kind in {"propose_delay", "change_item"} and result.get("status") == "approved":
         # Say how many were told: an approved change can reach nobody (no team affected).
-        told = result.get("told", 0)
+        told, informed = result.get("told", 0), result.get("informed", 0)
+        lines = []
+        if told:
+            lines.append(f"{told} {'person is' if told == 1 else 'people are'} told, with an Acknowledge button.")
+        if informed:
+            # The couple see the new times but have nothing to acknowledge (live play v11).
+            lines.append("The couple see the new times too." if told else "Only the couple needed telling.")
         return (f"Run sheet updated\nVersion {result['timeline_version']}. "
-                + (f"{told} {'person is' if told == 1 else 'people are'} told, with an Acknowledge button."
-                   if told else "Nobody else needed telling."))
+                + (" ".join(lines) if lines else "Nobody else needed telling.") + overtaken_line(result))
     if kind in {"propose_delay", "change_item"}:
         return ("Report confirmed\nProposal awaiting approval from the coordinator. The run sheet does not change until "
                 "they approve it. I will tell you their decision.")
@@ -233,12 +248,15 @@ class TelegramIngress:
         """Opt-out, the coordinator's on/off switch, and the On it button on a deputy ping."""
         if command.startswith("taskack"):
             task_id = command.split()[1]
-            version = next(t["version"] for t in self.assistant.queries.snapshot(actor)["tasks"] if t["id"] == task_id)
+            task = next(t for t in self.assistant.queries.snapshot(actor)["tasks"] if t["id"] == task_id)
+            version = task["version"]
             self.operations.execute(actor, {"type": "task_action", "task_id": task_id, "action": "acknowledge",
                                             "expected_version": version}, f"taskack:{task_id}:{version}")
             from .deputy import Heartbeat
             Heartbeat(self.db, self.wid, self.clock).record_answer(actor.member_id, "On it", acknowledged=True, task_id=task_id)
-            return "Thanks, marked as acknowledged. The coordinator can see it."
+            # Name what was acknowledged: "marked as acknowledged" read as acknowledging the
+            # coordinator's message beside it (live play v11, three raters).
+            return f"Acknowledged\nThe coordinator can see that you are on \u201c{task['title']}\u201d."
         if command in {"quiet", "unquiet"}:
             self.operations.set_deputy_quiet(actor, command == "quiet")
             return ("Okay, I won't message you unprompted for the rest of the event, except urgent items. "
@@ -256,7 +274,7 @@ class TelegramIngress:
             f"telegram-decision:{approval_id}")
         if decision == "approve":
             return (f"Approved\nTimeline version {outcome['timeline_version']}. "
-                    "Affected teams are being told, and the reporter knows.")
+                    "Affected teams are being told, and the reporter knows." + overtaken_line(outcome))
         return "Rejected\nThe run sheet is unchanged. The reporter has been told."
 
     def _announce(self, actor, message: str) -> tuple[str, str | None]:

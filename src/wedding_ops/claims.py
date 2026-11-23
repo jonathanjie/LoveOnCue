@@ -47,6 +47,22 @@ GAP = r"(?:(?!no\b|not\b|never\b)\w+\s+){0,2}?"
 SELF_ACT = re.compile(
     r"\b(?:I'll|I will|I'm going to|I am going to|I'm gonna|let me)\b"
     r"|\b(?:I'm|I am|I've|I have|I just|I already)\s+" + GAP + OUTBOUND_VERBS, re.IGNORECASE)
+# A first-person completed act with any verb: the outbound list above is closed, and the model
+# finds others ("I've noted Grace Tan's arrival", "I've set that change for you to confirm": live
+# play v11). Only an adverb may stand before the participle, so "I have two tasks listed" and
+# "I've only been given the run sheet" are not acts. Reading the records is not an act.
+IRREGULAR_PARTICIPLES = r"sent|told|put|set|made|done|given|taken|kept|left|let|passed|written|brought|sorted"
+READING_VERBS = r"checked|looked|found|seen|read|searched|noticed|got|drafted|prepared|listed|been|heard"
+COMPLETED_ACT = re.compile(
+    r"\bI(?:'ve|’ve| have| just| already)\s+(?:(?:just|already|now|also)\s+)?"
+    rf"(?!(?:{READING_VERBS})\b)(?:\w+ed|{IRREGULAR_PARTICIPLES})\b", re.IGNORECASE)
+# Beside a draft, a sentence that says the draft's own object is already done: "Noted, Robert Tan
+# is marked as arrived." above the Record arrival draft (live play v11). Scoped to the draft's
+# object, because "43 of 180 guests are recorded as onsite" is a true record.
+PASSIVE_DONE = re.compile(
+    r"\b(?:is|are|was|were|has been|have been|been|now|already)\s+(?:\w+\s+)?"
+    r"(?:marked|recorded|logged|noted|sent|passed on|forwarded|flagged|told|notified|updated|added|saved|"
+    r"registered|checked in|acknowledged|closed|done)\b", re.IGNORECASE)
 # An offer to act ("I can pass it on", "want me to ask Alex?") is false only beside a draft or
 # button, which is the offer itself; without one, "I can't send messages" style lines are honest.
 OFFER = re.compile(r"\b(?:I can|I could|I would|I'd|want me to|shall I|should I)\s+" + GAP + OUTBOUND_VERBS,
@@ -194,8 +210,19 @@ class Checked:
     internal: list[str]          # sentences that name the system's own vocabulary
 
 
+def acts_claimed(sentence: str, *, offered: bool = False, objects: tuple[str, ...] = ()) -> bool:
+    """The sentence says the deputy did, or will do, something only a tap can do."""
+    if SELF_ACT.search(sentence) or COMPLETED_ACT.search(sentence):
+        return True
+    if not offered:
+        return False
+    lowered = sentence.casefold()
+    return bool(OFFER.search(sentence)) or (
+        bool(PASSIVE_DONE.search(sentence)) and any(thing and thing.casefold() in lowered for thing in objects))
+
+
 def check_answer(text: str, support: Support, names: set[str], internal: re.Pattern | None = None, *,
-                 offered: bool = False) -> Checked:
+                 offered: bool = False, objects: tuple[str, ...] = ()) -> Checked:
     """Keep the sentences whose facts are supported and that do not state report status.
 
     `internal` matches words from the system's closed vocabulary (action and field names). A
@@ -209,7 +236,7 @@ def check_answer(text: str, support: Support, names: set[str], internal: re.Patt
     for sentence in sentences(text):
         if internal is not None and internal.search(sentence):
             internals.append(sentence)
-        elif SELF_ACT.search(sentence) or (offered and OFFER.search(sentence)):
+        elif acts_claimed(sentence, offered=offered, objects=objects):
             acts.append(sentence)
         elif states_report_status(sentence):
             status.append(sentence)
@@ -227,7 +254,7 @@ def without_quotes(text: str) -> str:
 
 
 def self_acts(text: str, *, offered: bool = False) -> int:
-    return len(SELF_ACT.findall(text)) + (len(OFFER.findall(text)) if offered else 0)
+    return sum(acts_claimed(sentence, offered=offered) for sentence in sentences(text))
 
 
 def from_their_words(argument: str, words: str) -> bool:
@@ -257,8 +284,45 @@ DONE_WORDS = re.compile(r"\b(?:done|finish|finished|finishing|complete|completed
                         re.IGNORECASE)
 
 
+# A word that a write action rests on counts only when the person states it, not when they ask
+# about it or deny it. "can you log it and confirm?" is a request, while "what is Grace Tan status
+# now? arrived or not" is a question: a test of the whole message's form ("does it ask?") vetoed
+# the request and kept the model's "I've noted Grace Tan's arrival" (live play v11).
+QUESTIONED_AFTER = re.compile(r"\s*(?:\?|or not\b|anot\b|(?:yet|already|alr|liao|or)\s*\?)", re.IGNORECASE)
+# A request to record it states it ("mark him arrived pls", "can mark my task done?").
+REQUESTED_BEFORE = {"mark", "record", "log", "tick", "set", "update", "put"}
+# A denial or a future does not state it ("haven't arrive", "not ready yet", "will reach soon").
+NEGATED_BEFORE = {"not", "never", "no", "belum", "havent", "hasnt", "didnt", "isnt", "wasnt", "arent", "dont",
+                  "doesnt", "cannot", "cant", "yet", "will", "gonna", "going", "about", "nearly", "almost"}
+
+
+def stated(vocabulary: re.Pattern, text: str) -> bool:
+    """Some word from the vocabulary is stated: not questioned right after it, and not denied or
+    put in the future by the three words before it in its clause."""
+    for match in vocabulary.finditer(text):
+        clause = re.split(r"[.!?;,\n]", text[:match.start()])[-1]
+        before = [word.replace("'", "").replace("\u2019", "") for word in clause.casefold().split()[-3:]]
+        if any(word in REQUESTED_BEFORE for word in before):
+            return True
+        if any(word in NEGATED_BEFORE for word in before):
+            continue
+        if QUESTIONED_AFTER.match(text, match.end()):
+            continue
+        return True
+    return False
+
+
 def says_done(text: str) -> bool:
-    return bool(DONE_WORDS.search(text))
+    return stated(DONE_WORDS, text)
+
+
+# Words that say someone is here. A recorded arrival rests on the person saying it.
+ARRIVAL_WORDS = re.compile(r"\b(?:arrived|arrive|arriving|reach|reached|here|came|onsite|on site|checked in|"
+                           r"check in|sampai|in already|reach liao)\b", re.IGNORECASE)
+
+
+def says_arrived(text: str) -> bool:
+    return stated(ARRIVAL_WORDS, text)
 
 
 # Words that say the person is late. "not yet lol going there now", in answer to a check-in,
@@ -268,7 +332,7 @@ LATE_WORDS = re.compile(r"\b(?:late|later|delay|delayed|stuck|jam|jammed|traffic
 
 
 def says_late(text: str) -> bool:
-    return bool(LATE_WORDS.search(text))
+    return stated(LATE_WORDS, text)
 
 
 # What a confirmation is made of. Acknowledging changes a record without a tap, so the set is

@@ -433,8 +433,9 @@ def test_the_coordinator_can_state_team_task_times(deputy_chat):
 
 def test_a_blocked_change_is_explained_not_drafted(deputy_chat):
     planner = StubPlanner({"dinner 30 late": DeputyPlan(answer="Drafted.", action="run_sheet_change", text="dinner", minutes=30)})
-    reply = deputy_chat(planner).send("banquet", "dinner 30 late")
-    assert not reply.telegram_draft_id and "can't go through as it is" in reply.message and "Couple's toast" in reply.message
+    # The coordinator gets the reason; a helper gets a report draft instead (live play v11 test file).
+    reply = deputy_chat(planner).send("coordinator", "dinner 30 late")
+    assert not reply.telegram_draft_id and "can't go through" in reply.message and "Couple's toast" in reply.message
 
 
 def test_a_promised_draft_that_does_not_exist_is_corrected(deputy_chat):
@@ -502,10 +503,19 @@ def test_a_live_older_button_says_what_it_sends(deputy_chat):
 
 
 def test_a_message_action_without_a_message_keeps_the_answer_and_asks_for_the_words(deputy_chat):
-    planner = StubPlanner({"who never ack": DeputyPlan(answer="Jamie and Jordan have not acknowledged yet.",
-                                                       action="send_message", to="Jamie")})
-    assert deputy_chat(planner).send("coordinator", "who never ack").message == (
+    planner = StubPlanner({"who never ack? chase jamie": DeputyPlan(
+        answer="Jamie and Jordan have not acknowledged yet.", action="send_message", to="Jamie")})
+    assert deputy_chat(planner).send("coordinator", "who never ack? chase jamie").message == (
         "Jamie and Jordan have not acknowledged yet.\nWhat should the message to Jamie say?")
+
+
+def test_a_message_goes_only_to_people_the_coordinator_named(deputy_chat):
+    # Live play v11: "Who is late and what is the current car situation?" drafted a message to
+    # Chris and Asha. A question that names nobody gets its answer and no draft.
+    planner = StubPlanner({"who never ack": DeputyPlan(answer="Jamie and Jordan have not acknowledged yet.",
+                                                       action="send_message", to="Jamie", message="Please acknowledge.")})
+    reply = deputy_chat(planner).send("coordinator", "who never ack")
+    assert reply.message == "Jamie and Jordan have not acknowledged yet."
 
 
 def test_the_coordinator_sees_who_has_not_acknowledged_as_a_record(deputy_chat, ops):

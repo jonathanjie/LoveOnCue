@@ -490,9 +490,18 @@ class Assistant:
             parts.append("Later items move too, so that nothing overlaps.")
         if preview["blockers"]:
             # A change that cannot be approved is not offered as a draft at all.
-            return {"kind": "help", "data": [],
-                    "message": "That change can't go through as it is: " + "; ".join(preview["blockers"])
-                               + ". Try a smaller change, or adjust the run sheet in LoveOnCue."}
+            blocked = "That run-sheet change can't go through: " + "; ".join(preview["blockers"]) + "."
+            if coordinator:
+                return {"kind": "help", "data": [], "message": blocked + " Try a smaller change, or adjust the run sheet in LoveOnCue."}
+            # The delay is still real, so a helper is not left with nothing to send: "kitchen say 10
+            # min more" was refused with no way to tell the coordinator (live play v11). Their words
+            # go to the coordinator as a problem report, who decides what to change.
+            direction = "late" if shift > 0 else "early"
+            title = (f"{item['title']} {abs(shift)} minutes {direction}" if shift else f"Change needed to {item['title']}")
+            draft = self.tell_coordinator(actor, command["reason"], title, "other", urgent=False,
+                                          updates_incident_id=None, snapshot=snapshot)
+            return draft | {"message": blocked + " Send it to the coordinator as a report instead. "
+                                       + draft.get("message", "")}
         if preview["replaces"]:
             parts.append(f"This replaces your pending request: {preview['replaces']}.")
         parts.append(f"Reason: \u201c{command['reason']}\u201d")

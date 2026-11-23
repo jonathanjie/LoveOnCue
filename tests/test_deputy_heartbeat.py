@@ -45,7 +45,8 @@ def test_on_it_button_acknowledges_the_task(heartbeat_chat, db):
     with db.sessions() as s:
         task = s.scalars(select(Task).where(Task.id == "usher-ready")).one()
     reply = chat.tap("usher", f"taskack:{task.id}")
-    assert reply.message.startswith("Thanks")
+    # The reply names the task, so it cannot be read as acknowledging a message beside it.
+    assert reply.message.startswith("Acknowledged") and task.title in reply.message
     with db.sessions() as s:
         assert s.get(Task, task.id).acknowledged_at is not None
         assert s.scalars(select(DeputyPing).where(DeputyPing.recipient_id == "usher")).one().answered_at is not None

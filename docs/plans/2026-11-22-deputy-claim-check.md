@@ -683,6 +683,114 @@ Now a status word counts only when it is said of something ("was sent", "request
 the predicate form excludes "be" and "pending", and the "no reports" line appears only when a
 removed sentence named a report. Tests: 283 passed.
 
+## Live-play round v11 (23 November)
+
+Build b692516, same method as v10: four casts at once (rounds 1 and 2 with 13 Haiku players and
+13 GPT-6-Luna players).
+
+| Cast | Ease | Clarity | Trust |
+|---|---|---|---|
+| Haiku, 13 players (v10) | 3.6 | 3.5 | 2.6 |
+| Haiku, 13 players (v11) | 3.5 | 3.5 | 2.8 |
+| Luna, 13 players (v10) | 3.6 | 3.3 | 3.1 |
+| Luna, 13 players (v11) | 3.0 | 3.0 | 2.6 |
+
+Some Luna scores are player artefacts: one player typed the world path wrongly ("no such table:
+weddings"), and several reported "no visible reply" where the transcript shows a reply. The v10
+fixes held: no stale "still 19:00" answer after a change, no half sentence, no lateness report
+without "late", replaced drafts and left-out people were named.
+
+### Findings, by cause (each checked in a transcript)
+1. A code veto kept the answer written for the vetoed action, and the v10 arrival guard (any
+   question mark vetoes an arrival) was too broad. "Grace Tan just arrived at the registration
+   desk, can you log it and confirm?" drafted nothing and said "I've noted Grace Tan's arrival"
+   (both registration players and one family liaison, in both casts); the undo then said
+   "Nothing to withdraw".
+2. The self-act check was a closed list of outbound verbs: "I've noted …" and "I've set that
+   change for you to confirm" (no change existed) passed. Beside a draft, "Noted, Robert Tan is
+   marked as arrived." passed (not first person).
+3. Messages nobody asked for. "Who is late and what is the current car situation?" drafted a
+   message to Chris and Asha that "answers Asha's question 'Has my Ah Ma Tan arrived yet?' and
+   closes it". A helper's "did the coordinator get my message? Did you tell them already?" became
+   a note quoting itself.
+4. A run-sheet change sent as a message only: "garden ceremony move into Cedar Ballroom and start
+   6:40 pm. Please announce this to everyone now." The run sheet, tasks and reminders kept 18:30
+   at the Garden terrace; four raters flagged the contradiction.
+5. A helper's +20 request, made on version 1, could never be approved after the coordinator's
+   rain change: "The timeline changed. Regenerate this proposal before approval". The helper's
+   chat still listed it as pending.
+6. Code text: "10 people are told, with an Acknowledge button" (the couple's copy has no button);
+   On it said "Thanks, marked as acknowledged" without naming the task (three raters read it as
+   acknowledging the coordinator's message); "This replaces your unsent draft: Message to
+   everyone:" (a heading); "would exceed its hard latest-end constraint"; a not-found guest
+   lookup with no next step; a blocked helper delay with no way to send it.
+
+Residuals (no general check): an unsent report keeps collecting later messages when the model
+drafts it again with a new title ("Okay send that problem report now please" was added to the
+MC's late report); "nothing is scheduled there now" for the garden terrace, which holds the
+portrait alcove; the model's own word "incident".
+
+### Built, after Fable's review (v11)
+Fable: causes 1 to 3 share two roots. The answer is written for a state that code then
+changes, and code tested the message's form ("does it ask?") instead of what the action rests on.
+- 1: one helper, `stated(vocabulary, text)`: a word counts when it is not questioned right after
+  it ("arrived or not", "done?") and not denied or put in the future by the three words before it
+  ("haven't arrive", "will reach"); a request to record it states it ("mark him arrived pls").
+  Arrival, done and late all use it, over the person's recent messages. When code vetoes an
+  action, the model plans again without it and writes the answer for what is true (one more call
+  on a rare path); the act check stays as the backstop.
+- 2: any first-person completed act counts ("I've/I have/I just/I already" + any participle),
+  with only an adverb between, except reading verbs (checked, found, seen, read …). Beside a
+  draft, a passive done-claim ("is marked as arrived") counts only when it names the draft's own
+  object, because "43 of 180 guests are recorded as onsite" is a true record.
+- 3: Fable rejected a list of directive words (it breaks "Can Chris's team hold the food 10
+  min?" and passes "What should I tell Chris?"). A message goes only to people the coordinator
+  named (a person by first or full name, a team by name, everyone by a word for everyone), or to
+  people from the records when the person asked for something to be sent ("nudge the 8 who never
+  acked"); otherwise the model plans again with no action. A message closes a question only when the
+  coordinator's words name the asker or share words with the question. A note made only of
+  questions goes by the question button.
+- 4: when a coordinator's message gives a run-sheet item a time that is in their message but not
+  in the run sheet, the model plans again with only the run-sheet change offered, and the reply
+  says "This changes the run sheet, so tasks and reminders follow it. To send a message only, say
+  so." A message with no new time stays a message. Not covered: a place-only move.
+- 5: Fable: closing every pending request on any version change would drop a kitchen delay when an
+  unrelated item moves. A request is computed again on the current run sheet; it is approvable
+  when it moves the same items from the same times to the same times, and its blockers are
+  computed again. After any change is applied, the requests it no longer fits are closed, their
+  requesters are told ("Check the new times, and tell me again if it still applies"), and the
+  coordinator's reply names them.
+- 6: two counts from the announcement ("9 people are told, with an Acknowledge button. The couple
+  see the new times too."); On it names the task; the replaced line includes the line after a
+  heading; blockers in plain words ("Couple's toast would run past its latest allowed end time");
+  a not-found lookup says "Check the spelling, or ask for the name on the invitation"; a helper's
+  blocked change becomes a problem report draft with their words.
+
+### Evidence for the v11 fixes (23 November)
+| Measure | v9 | v10 | v11 |
+|---|---|---|---|
+| Outcome matches the label, tuned set | 169 of 189 | 165 of 189 | 162 of 189 |
+| Outcome matches the label, held-out set | 65 of 69 | 65 of 69 | 66 of 69 |
+| False full drafts, tuned set | 2 of 72 | 2 of 72 | 3 of 72 |
+| False full drafts, held-out set | | 1 of 24 | 0 of 24 |
+| Internal names or template lines | 0 | 0 | 0 |
+| Missing a required fact | 0 | 0 | 0 |
+
+The tuned score moves about ±4 between runs of the same code (158 to 169 across v9 and v10
+runs). The three false full drafts are the model's first choice for "is the ceremony still
+outdoors? its raining. where do I send arriving guests" (a note to the coordinator), as in v10.
+Three intermediate v11 replays found problems, all fixed:
+- The first two runs had 24 and 68 connection timeouts: the model API's TLS handshake took 1.2 to
+  1.9 seconds from this machine, against a 2-second connect limit. Later runs used
+  a replay wrapper with a 10-second connect limit; the product setting is unchanged.
+- A second plan offered every other action chose one anyway: "kitchen ok anot? dinner 7pm still
+  on?" became a run-sheet change. Then, offered the answer and the question buttons, "ok got it,
+  the ceremony is inside now right" became a report (v11c) or a question button in every run
+  (v11d). The second plan now offers no action.
+- "Ok nudge the 8 who never acked" was refused, because the recipients came from the records. A
+  request to send now allows them.
+Tests: 299 passed.
+
 ## Checks
 - Unit: extractor (each token type, Singlish time forms); `unsupported` with
   cited and uncited lines; quoted spans do not ground; self-acts with and without
@@ -699,13 +807,16 @@ in 71; trust ≥ 3.5 with no fall in ease or clarity.
 
 ## Resume point
 Read this file, then `git log` on the branch. Done: Fable's build order through gate v8, the
-gate v8 open items, live-play rounds v9 and v10 (26 players each, Haiku and GPT-6-Luna) and
+gate v8 open items, live-play rounds v9, v10 and v11 (26 players each, Haiku and GPT-6-Luna) and
 their fixes. Tools: `scripts/replay.py` (tuned and held-out cases), `scripts/ab.py` with
 `WEDDING_OPS_SRC` (paired comparison), `scripts/gate.py` and
 `simulate.py records|transcript|realtime` (live play; Luna players run as `codex exec -m
 gpt-6-luna -s workspace-write -c sandbox_workspace_write.network_access=true --add-dir <world>`).
-Residual model behaviours with no general check: hearsay restated as fact, a missed record
-("nothing mentions a car"), the model choosing "Ask the coordinator" beside a full answer.
+On a slow network the replay needs a longer connect limit than the product's 2 seconds.
+Residual model behaviours with no general check: hearsay restated as fact, a missed record, the
+model choosing "Ask the coordinator" beside a full answer, an unsent report that collects later
+messages when the model drafts it again under a new title, and a place-only move sent as a
+message (only a new time redirects to a run-sheet change).
 Next: decide on a staging deploy (message the Mini App session first, and tell it about the
 neutral badge for "withdrawn"). Staging runs release 406bf7c; migrations 0007 and 0008 are new
 since then.

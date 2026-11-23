@@ -34,8 +34,10 @@ from .claims import (
     Support,
     asks,
     check_answer,
+    facts,
     from_their_words,
     is_confirmation,
+    says_arrived,
     says_done,
     says_late,
     sentences,
@@ -359,27 +361,50 @@ class Deputy:
             return {"kind": "help", "data": [], "engine": "deputy", "degraded": False,
                     "timezone": snapshot["wedding"]["timezone"],
                     "message": f"I can't do that for your role. {ask_coordinator(snapshot)}"}
-        if plan.action == "acknowledge" and not is_confirmation(text):
-            logger.warning("Deputy chose acknowledge for a message that is not a confirmation; answering without it")
-            plan = plan.model_copy(update={"action": "none"})
-        if plan.action == "report_late" and not says_late(text):
-            # A lateness report rests on the person saying they are late (live play v10).
-            logger.warning("Deputy chose report_late without the person saying they are late; answering without it")
-            plan = plan.model_copy(update={"action": "none"})
-        if plan.action == "draft_arrival" and asks(text):
-            # A question never records anything: "what is Grace Tan status now? arrived or not"
-            # drafted her arrival (replay v10).
-            logger.warning("Deputy chose draft_arrival for a question; answering without it")
-            plan = plan.model_copy(update={"action": "none"})
-        if plan.action == "complete_task" and (asks(text) or not says_done(text)):
-            # A message that asks something, or does not say something is done, never marks a task done.
-            logger.warning("Deputy chose complete_task for a question; answering without it")
-            plan = plan.model_copy(update={"action": "none"})
+        recent = "\n".join([*earlier, text])
+        vetoed = self._veto(plan, text, recent, snapshot)
+        if vetoed:
+            # The answer was written for the action, so keeping it after a veto kept "I've noted
+            # Grace Tan's arrival" with nothing recorded (live play v11). The model plans again
+            # without that action and writes the answer for what is true.
+            logger.warning("Deputy chose %s, but %s; planning again without it", plan.action, vetoed)
+            first = plan
+            # The second plan only answers. Offered other actions, the refused model chose one anyway:
+            # "kitchen ok anot? dinner 7pm still on?" became a run-sheet change, and "ok got it, the
+            # ceremony is inside now right" a report, then a question button (replay v11). Code still
+            # offers the question button on its own rule (_question_wanted).
+            actions = ["none"]
+            try:
+                plan = self.planner.plan(messages, actions, lookups=can_look_up(snapshot["me"]))
+            except (httpx.HTTPError, ValidationError, ValueError, KeyError, TypeError) as error:
+                logger.warning("Deputy model call failed again (%s); answering without the action", type(error).__name__)
+                plan = first.model_copy(update={"action": "none"})
+            if plan.action not in actions or self._veto(plan, text, recent, snapshot):
+                plan = plan.model_copy(update={"action": "none"})
         turn = Turn(text=text, words=self._their_words(text),
-                    recent_words="\n".join([*earlier, text]), grounding=grounding,
+                    recent_words=recent, grounding=grounding,
                     refs=refs, names=self._names(snapshot))
+        moved = self._moved_by_message(plan, actions, snapshot, turn)
+        if moved is not None:
+            # A message that moves a run-sheet item leaves the run sheet, tasks and reminders on the
+            # old time: "garden ceremony move into Cedar Ballroom and start 6:40 pm. Please announce
+            # this" was sent as a message only (live play v11). The change itself is drafted instead;
+            # approving it tells everyone affected, with an Acknowledge button.
+            logger.warning("Deputy messaged a run-sheet change for %s; planning the change instead", moved["title"])
+            change_actions = [action for action in ("none", "run_sheet_change") if action in actions]
+            try:
+                change = self.planner.plan(messages, change_actions, lookups=False)
+            except (httpx.HTTPError, ValidationError, ValueError, KeyError, TypeError):
+                change = None
+            if change is not None and change.action == "run_sheet_change":
+                plan = change
+            else:
+                moved = None
         lookups = self._lookups(actor, plan, snapshot, turn)
         result = self._act(actor, plan, snapshot, turn)
+        if moved is not None and result.get("draft"):
+            result = result | {"message": result.get("message", "") + " This changes the run sheet, so tasks and "
+                               "reminders follow it. To send a message only, say so."}
         # The answer may state only facts that the records (and new lookups) support. Beside a
         # draft or the question button, an offer to act is the draft's job, so it is removed too.
         # The current time is supported only when the model also has code state it (say_time):
@@ -388,7 +413,9 @@ class Deputy:
         clock = f"{now:%H:%M}" if plan.say_time else ""
         support = Support("\n".join([grounding, *lookups, clock]), turn.names, set(refs), extra_names=text)
         offered = bool(result.get("draft")) or plan.action == "ask_coordinator"
-        checked = check_answer(plan.answer, support, turn.names, INTERNAL_NAMES, offered=offered)
+        # What the draft acts on: a sentence that says it is already done is false until the tap.
+        objects = (plan.text, plan.to, "report", "request", "arrival", "draft") if offered else ()
+        checked = check_answer(plan.answer, support, turn.names, INTERNAL_NAMES, offered=offered, objects=objects)
         logger.info("Claim check: sentences=%d removed=%d status=%d self_acts=%d internal=%d",
                     len(sentences(plan.answer)), len(checked.removed), len(checked.status), len(checked.acts),
                     len(checked.internal))
@@ -439,6 +466,46 @@ class Deputy:
         self._remember(actor.member_id, text, seen, (result.get("draft") or {}).get("id"),
                        snapshot["wedding"]["timeline_version"])
         return result | {"engine": "deputy", "degraded": False, "timezone": zone}
+
+    @staticmethod
+    def _moved_by_message(plan: DeputyPlan, actions: list[str], snapshot: dict, turn: Turn) -> dict | None:
+        """The run-sheet item that a coordinator's message gives a new time, when the time is the
+        person's own (in this message) and not the run sheet's. None for any other message."""
+        if plan.action != "send_message" or "run_sheet_change" not in actions:
+            return None
+        records = Support(turn.grounding, turn.names, set(turn.refs))
+        theirs = Support(turn.text, turn.names, set())
+        for sentence in sentences(plan.message):
+            new_times = [fact.shown for fact in facts(sentence, turn.names)
+                         if any(form.startswith("time:") for form in fact.forms)
+                         and records.missing(fact.shown, turn.names) and not theirs.missing(fact.shown, turn.names)]
+            item = match_timeline_item(snapshot["timeline"], sentence) if new_times else None
+            if item is not None:
+                return item
+        return None
+
+    @staticmethod
+    def _veto(plan: DeputyPlan, text: str, recent: str, snapshot: dict) -> str | None:
+        """Why code refuses the model's action, or None. A write rests on what the person said:
+        that they are late, that someone arrived, that a task is done; a message goes only to
+        people they named."""
+        if plan.action == "acknowledge" and not is_confirmation(text):
+            return "the message is not a confirmation"
+        if plan.action == "report_late" and not says_late(recent):
+            # "not yet lol going there now" drafted a lateness report (live play v10).
+            return "the person did not say they are late"
+        if plan.action == "draft_arrival" and not says_arrived(recent):
+            # "what is Grace Tan status now? arrived or not" drafted her arrival (replay v10).
+            return "the person did not say anyone arrived"
+        if plan.action == "complete_task" and not says_done(recent):
+            return "the person did not say a task is done"
+        if plan.action == "send_message" and not (recipients_named(plan.to, snapshot, recent) or SENDING.search(text)):
+            # "Who is late and what is the current car situation?" drafted a message to Chris and
+            # Asha that nobody asked for (live play v11). A message goes to people the person named,
+            # or to people from the records when the person asked for something to be sent ("nudge
+            # the 8 who never acked").
+            return "the person neither named its recipients nor asked to send anything"
+        return None
 
     def _compose(self, plan: DeputyPlan, answer: str, result: dict, snapshot: dict, turn: Turn,
                  checked: Checked, lookups: list[str], pending: str | None) -> str:
@@ -561,6 +628,11 @@ class Deputy:
         if plan.action == "tell_coordinator":
             earlier = turn.refs.get(plan.about.upper().strip())
             level = plan.level
+            if level == "fyi" and not earlier and all(asks(part) for part in sentences(turn.text)):
+                # A note made only of questions is a question: "did the coordinator get my message? Did
+                # you tell them already?" became a note quoting itself (live play v11). The question
+                # button carries the same words and asks for an answer.
+                return self._question_button(actor, snapshot, turn)
             if level != "fyi" and "incidents:report" not in snapshot["me"]["grants"] and "*" not in snapshot["me"]["grants"]:
                 # Roles without problem reports (the couple) pass anything that needs the coordinator
                 # as their own words, through the question button.
@@ -642,17 +714,24 @@ class Deputy:
             # A message goes to other people, so it may not carry a fact the coordinator never gave.
             return {"kind": "clarification", "data": [],
                     "message": "I'm not sure of some details in that message. Tell me the exact wording."}
-        refs = turn.refs
-        question = refs.get(plan.about.upper().strip())
+        names = {m["id"]: m["name"] for m in snapshot["members"]}
+        teams = {t["id"]: t["name"] for t in snapshot["teams"]}
+        question = turn.refs.get(plan.about.upper().strip())
         answers = question[1] if question and question[0] == "question" else None
+        question_record = next((i for i in snapshot["incidents"] if i["id"] == answers), None) if answers else None
+        if question_record and not (
+                recipients_named(names.get(question_record["reported_by"], ""), snapshot, turn.recent_words)
+                or from_their_words(question_record["title"], turn.recent_words)):
+            # Closing a question rests on the coordinator's words: naming who asked, or what was
+            # asked. A message about dinner "answered" Asha's "Has my Ah Ma Tan arrived yet?" and
+            # closed it (live play v11).
+            logger.warning("Deputy linked a message to a question whose asker the person did not name; not closing it")
+            question_record, answers = None, None
         team_ids, member_ids, unknown = resolve_recipients(plan.to, snapshot)
         if unknown or not (team_ids or member_ids or answers):
             known = ", ".join(t["name"] for t in snapshot["teams"])
             return {"kind": "clarification", "data": [],
                     "message": f"Who should get it? Say everyone, a person's name, or a team ({known})."}
-        names = {m["id"]: m["name"] for m in snapshot["members"]}
-        teams = {t["id"]: t["name"] for t in snapshot["teams"]}
-        question_record = next((i for i in snapshot["incidents"] if i["id"] == answers), None) if answers else None
         if question_record and question_record["reported_by"] not in member_ids:
             # The person who asked always gets the answer, so the preview must name them.
             member_ids.append(question_record["reported_by"])
@@ -722,7 +801,8 @@ class Deputy:
             elif found:
                 lines.append(f"\u2022 {name}: {len(found)} guests match; send the full name")
             else:
-                lines.append(f"\u2022 {name}: not on the guest list")
+                # Say what to do next: the answer's own sentences about a looked-up guest are removed.
+                lines.append(f"\u2022 {name}: not on the guest list. Check the spelling, or ask for the name on the invitation")
         return lines
 
     @staticmethod
@@ -1084,6 +1164,29 @@ def resolve_recipients(to: str, snapshot: dict) -> tuple[list[str], list[str], l
         else:
             unknown.append(part)
     return list(dict.fromkeys(team_ids)), list(dict.fromkeys(member_ids)), unknown
+
+
+# Words that ask for something to be sent to other people.
+SENDING = re.compile(r"\b(?:tell|ask|send|message|msg|nudge|chase|remind|ping|inform|announce|broadcast|reply|"
+                     r"answer|let (?:\w+ )?know|follow up|update (?:them|everyone|all|the))\b", re.IGNORECASE)
+
+
+def recipients_named(to: str, snapshot: dict, words: str) -> bool:
+    """Every recipient of a message is named in the person's words: a person by first or full
+    name, a team by its name, everyone by a word for everyone (or "announce")."""
+    team_ids, member_ids, unknown = resolve_recipients(to, snapshot)
+    if unknown:
+        return True  # _send_message asks who should get it
+    lowered = f" {re.sub(r'[^a-z0-9 ]', ' ', words.casefold())} "
+    if team_ids and len(team_ids) == len(snapshot["teams"]):
+        return any(f" {word} " in lowered for word in EVERYONE | {"announce", "everyone's", "broadcast"})
+    names = {m["id"]: m["name"] for m in snapshot["members"]}
+    teams = {t["id"]: t["name"] for t in snapshot["teams"]}
+    for member_id in member_ids:
+        name = names.get(member_id, "").casefold()
+        if not name or not (f" {name} " in lowered or f" {name.split()[0]} " in lowered):
+            return False
+    return all(from_their_words(teams.get(team_id, ""), words) for team_id in team_ids)
 
 
 TITLE_LIMIT = 90  # characters; a title is read at a glance in a notice or the brief

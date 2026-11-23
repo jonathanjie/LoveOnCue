@@ -40,6 +40,17 @@ def one_line(text: str, limit: int) -> str:
     return " ".join(text.split())[:limit]
 
 
+def first_line(summary: str) -> str:
+    """A draft summary's first line, with the line after it when the first is only a heading:
+    "This replaces your unsent draft: Message to everyone:" named no content (live play v11)."""
+    lines = [line.strip() for line in summary.splitlines() if line.strip()]
+    if not lines:
+        return ""
+    if lines[0].endswith(":") and len(lines) > 1:
+        return f"{lines[0]} {lines[1]}"
+    return lines[0]
+
+
 def describe_change(change: dict, zone: ZoneInfo, places: dict[str, str]) -> str:
     """One run-sheet change in plain words, for previews, approval requests and notices."""
     def local(value: str) -> str:
@@ -624,20 +635,25 @@ class Operations:
 
     def _decide(self, s: Session, w: Wedding, a: Access, approval: Approval, decision: str, note: str, now) -> dict:
         wid = self.wid
+        if approval.status == "superseded":
+            raise conflict(f"This request is no longer open. {approval.decision_note or ''}".strip())
         if approval.status != "pending":
             raise conflict("This proposal has already been decided")
         if approval.expires_at <= now:
             raise conflict("This proposal expired. Request a fresh proposal")
         if decision == "approve":
-            if approval.base_timeline_version != w.timeline_version:
-                raise conflict("The timeline changed. Regenerate this proposal before approval")
-            if approval.blockers:
-                raise conflict("Hard constraints block this proposal: " + "; ".join(approval.blockers))
+            # A change made since this request does not stop it on its own: only a change to what
+            # this request moves does. Checking the version alone left a kitchen delay unapprovable
+            # after the coordinator moved the ceremony ("The timeline changed. Regenerate this
+            # proposal before approval", live play v11).
+            fits, blockers = self._still_fits(s, approval)
+            if not fits:
+                raise conflict("The run sheet changed after this request, so it no longer fits. "
+                               "Reject it, and ask for it again if it still applies")
+            if blockers:
+                raise conflict("This change can't go through: " + "; ".join(blockers))
             for change in approval.changes:
                 item = row(s, TimelineItem, wid, change["item_id"])
-                moved_since = "old_location_id" in change and item.location_id != change["old_location_id"]
-                if iso(item.current_start) != change["old_start"] or item.status != "scheduled" or moved_since:
-                    raise conflict("An affected item changed. Request a fresh proposal")
                 item.current_start = parse_time(change["new_start"])
                 for task in rows(s, Task, wid):
                     if task.timeline_item_id == item.id and task.state not in {"done", "cancelled"}:
@@ -651,10 +667,11 @@ class Operations:
                 if change.get("note"):
                     item.change_note = change["note"]
             w.timeline_version += 1
-            told = self._announce_change(s, w, a, approval, now)
+            told, informed = self._announce_change(s, w, a, approval, now)
             approval.status = "approved"
+            overtaken = self._close_overtaken(s, w, a, approval, now)
         else:
-            approval.status, told = "rejected", 0
+            approval.status, told, informed, overtaken = "rejected", 0, 0, []
         approval.decided_by, approval.decided_at, approval.decision_note = a.member.id, now, note
         if approval.proposed_by != a.member.id:
             decider = row(s, Person, wid, a.member.person_id).name
@@ -664,12 +681,55 @@ class Operations:
             notify(s, wid, approval.proposed_by, "report_decision",
                    f"Your run-sheet request ({approval.title}) was {outcome}. Decided by {decider}.{extra}",
                    f"decision:{approval.id}", now)
-        return {"id": approval.id, "status": approval.status, "told": told}
+        return {"id": approval.id, "status": approval.status, "told": told, "informed": informed,
+                "overtaken": overtaken}
 
-    def _announce_change(self, s: Session, w: Wedding, a: Access, approval: Approval, now) -> int:
+    def _still_fits(self, s: Session, approval: Approval) -> tuple[bool, list[str]]:
+        """The request computed again on the run sheet as it is now: whether it moves the same items
+        from the same times to the same times, and what blocks it now."""
+        main = approval.changes[0]
+        item = row(s, TimelineItem, self.wid, main["item_id"])
+        if item.status != "scheduled":
+            return False, []
+        try:
+            changes, _, blockers, _ = self._change_set(s, item, main.get("delta_minutes", 0),
+                                                       main.get("new_location_id"), main.get("note", ""))
+        except OpsError:
+            return False, []
+
+        def moves(change_list: list[dict]) -> list[tuple]:
+            return [(c["item_id"], c["old_start"], c["new_start"], c.get("old_location_id"), c.get("new_location_id"))
+                    for c in change_list]
+        return moves(changes) == moves(approval.changes), blockers
+
+    def _close_overtaken(self, s: Session, w: Wedding, a: Access, applied: Approval, now) -> list[str]:
+        """Close the pending requests that the change just applied no longer fits, and tell their
+        requesters. Without this a helper's request stayed "pending" though it could never be
+        approved (live play v11). Returns "title (requester)" for the coordinator's reply."""
+        closed = []
+        for other in rows(s, Approval, self.wid):
+            if other.id == applied.id or other.status != "pending" or other.expires_at <= now:
+                continue
+            if self._still_fits(s, other)[0]:
+                continue
+            other.status, other.decided_at = "superseded", now
+            other.decision_note = f"Closed because the run sheet changed to version {w.timeline_version} after it was sent."
+            requester = row(s, Member, self.wid, other.proposed_by)
+            closed.append(f"{other.title} ({row(s, Person, self.wid, requester.person_id).name})")
+            if other.proposed_by != a.member.id:
+                notify(s, self.wid, other.proposed_by, "report_decision",
+                       f"Your run-sheet request ({other.title}) is closed: the run sheet changed to version "
+                       f"{w.timeline_version} after you sent it. Check the new times, and tell me again if it still applies.",
+                       f"overtaken:{other.id}", now)
+        return closed
+
+    def _announce_change(self, s: Session, w: Wedding, a: Access, approval: Approval, now) -> tuple[int, int]:
         """Tell people about an approved change, in words generated from the change itself.
-        Returns how many people were told, so the reply can say it."""
-        told = 0
+
+        Returns how many were asked to acknowledge and how many were only informed (the couple), so
+        the reply can say both: "10 people are told, with an Acknowledge button" was false for the
+        couple's copy, which has no button (live play v11)."""
+        told, informed = 0, 0
         zone, places = ZoneInfo(w.timezone), self._place_names(s)
         moved_place = any(c.get("new_location_id") for c in approval.changes)
         # A place change moves guests, which every helper handles; a time change concerns the affected teams.
@@ -688,14 +748,14 @@ class Operations:
                 notify(s, self.wid, member.id, "schedule_info",
                        f"Your coordinator updated the run sheet (version {w.timeline_version}):\n{lines}",
                        f"timeline:{w.timeline_version}", now, timeline_version=w.timeline_version)
-                told += 1
+                informed += 1
                 continue
             notify(s, self.wid, member.id, "timeline_updated",
                    f"Run sheet updated by the coordinator (version {w.timeline_version}):\n{lines}\n"
                    f"Check your tasks. {ACK_PROMPT}",
                    f"timeline:{w.timeline_version}", now, timeline_version=w.timeline_version)
             told += 1
-        return told
+        return told, informed
 
     def _message(self, s: Session, w: Wedding, a: Access, cmd, now) -> dict:
         """A coordinator message to teams and named people. Answering a question closes it."""
@@ -919,7 +979,7 @@ class Operations:
             # A report that replaces an unsent report carries its words (Deputy._with_unsent_report).
             carried = replaced is not None and cmd.type == "report_incident" == replaced.command["type"]
             return {"id": draft.id, "summary": summary, "expires_at": iso(draft.expires_at), "command_type": cmd.type,
-                    "replaced": replaced.summary.splitlines()[0][:200] if replaced is not None and not carried else None}
+                    "replaced": first_line(replaced.summary)[:200] if replaced is not None and not carried else None}
 
     def drop_unsent_offers(self, actor: Actor) -> None:
         """A one-tap offer (the question button, or the Undo after a question) is about one message.

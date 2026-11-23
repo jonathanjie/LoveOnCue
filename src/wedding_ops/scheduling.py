@@ -54,7 +54,7 @@ def propose_shift(items: list[TimelineItem], edges: list[TimelineDependency], it
         if item.status != "scheduled":
             blockers.append(f"{item.title}: already {item.status}")
         if item.latest_end and end > item.latest_end:
-            blockers.append(f"{item.title}: would exceed its hard latest-end constraint")
+            blockers.append(f"{item.title} would run past its latest allowed end time")
         teams.update(item.team_ids)
         changes.append({"item_id": ident, "title": item.title, "old_start": iso(item.current_start),
                         "new_start": iso(starts[ident]), "delta_minutes": int((starts[ident] - item.current_start).total_seconds() / 60),
