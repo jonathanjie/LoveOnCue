@@ -68,12 +68,23 @@ class TelegramTransport:
 
 
 def draft_type(s, wedding_id: str, draft_id: str | None) -> str | None:
-    """The command type of a draft, so its button can say what it does."""
+    """What a draft does, so its button can say it: the command type, or a question, an addition
+    to an open question, or the Undo of a question just sent."""
     from .models import ActionDraft
     if not draft_id:
         return None
     draft = s.scalar(select(ActionDraft).where(ActionDraft.wedding_id == wedding_id, ActionDraft.id == draft_id))
-    return draft.command["type"] if draft else None
+    if draft is None:
+        return None
+    command = draft.command
+    if command["type"] == "report_incident" and command.get("kind") == "question":
+        return "question_update" if command.get("updates_incident_id") else "question"
+    if command["type"] == "withdraw_report":
+        withdrawn = s.scalar(select(ActionDraft).where(
+            ActionDraft.wedding_id == wedding_id, ActionDraft.id == command["request_id"].removeprefix("draft:")))
+        if withdrawn is not None and withdrawn.command.get("kind") == "question":
+            return "undo"
+    return command["type"]
 
 
 def deputy_ping_markup(s, wedding_id: str, notice: Notification) -> dict | None:

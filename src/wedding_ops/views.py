@@ -15,7 +15,8 @@ from .models import (
     Notification, Person, SeatingTable, Task, TaskDependency, Team, TimelineItem, Vendor, Wedding,
 )
 from .policy import Access, Actor, load_access, require_human
-from .telegram_ui import ACK_TOPICS
+from .telegram_ui import ACK_TOPICS, glance
+from zoneinfo import ZoneInfo
 
 
 def row(session: Session, cls, wedding_id: str, record_id: str):
@@ -196,26 +197,43 @@ class Queries:
                 followups.append(("Emergency contact not set",
                                   "Urgent reports tell people to call venue security or the duty manager. "
                                   "Set a name and number in LoveOnCue."))
-            pending_ack = self._latest_unacknowledged(session, owners)
-            if pending_ack:
-                followups.insert(0, pending_ack)  # First, so the short brief always shows it.
+            # First, so the short brief always shows them.
+            followups[:0] = self._unacknowledged(session, owners, ZoneInfo(wedding.timezone))
             return {"urgent": urgent, "followups": followups, "notes": notes}
 
-    def _latest_unacknowledged(self, session, owners: dict[str, str]) -> tuple[str, str] | None:
-        """Who has not acknowledged the newest announcement or timeline update."""
+    # Updates whose acknowledgements the brief lists, newest first. A count with no name for its
+    # update was misread (gate v7: "0 of 1 acknowledged" after a message to one person was read as
+    # the count for the run-sheet change), so each line names the update it counts.
+    UNACKNOWLEDGED_SHOWN = 3
+
+    def _unacknowledged(self, session, owners: dict[str, str], zone: ZoneInfo) -> list[tuple[str, str]]:
+        """Who has not acknowledged each of the newest announcements, messages and timeline updates."""
         notices = [n for n in rows(session, Notification, self.wid)
                    if n.topic in ACK_TOPICS and n.state in {"queued", "sending", "sent", "simulated"}]
-        if not notices:
-            return None
+        groups: dict[str, list[Notification]] = {}
         # notify() stores keys as "<update key>:<recipient>", so one update shares a prefix.
-        newest = max(notices, key=lambda n: (n.created_at, n.id)).dedupe_key.rsplit(":", 1)[0]
-        group = [n for n in notices if n.dedupe_key.rsplit(":", 1)[0] == newest]
-        missing = sorted(owners.get(n.recipient_id, "Unknown member") for n in group if n.acknowledged_at is None)
-        if not missing:
-            return None
-        label = "announcement" if group[0].topic == "coordinator_message" else "timeline update"
-        return (f"Not acknowledged: latest {label} ({len(group) - len(missing)} of {len(group)} acknowledged)",
-                ", ".join(missing[:12]) + (" and others" if len(missing) > 12 else ""))
+        for notice in notices:
+            groups.setdefault(notice.dedupe_key.rsplit(":", 1)[0], []).append(notice)
+        lines = []
+        for group in sorted(groups.values(), key=lambda g: max((n.created_at, n.id) for n in g), reverse=True):
+            missing = sorted(owners.get(n.recipient_id, "Unknown member") for n in group if n.acknowledged_at is None)
+            if not missing:
+                continue
+            first = group[0]
+            label = ("timeline update" if first.topic == "timeline_updated" else
+                     "announcement" if first.message.startswith("Announcement") else "message")
+            sent = first.created_at.astimezone(zone).strftime("%H:%M")
+            lines.append((f"Not acknowledged: {label} sent {sent} \u201c{glance(first.message, 60)}\u201d "
+                          f"({len(group) - len(missing)} of {len(group)} acknowledged)",
+                          ", ".join(missing[:12]) + (" and others" if len(missing) > 12 else "")))
+            if len(lines) == self.UNACKNOWLEDGED_SHOWN:
+                break
+        return lines
+
+    def open_question_count(self) -> int:
+        """How many helper questions wait for the coordinator. A number only: no titles or askers."""
+        with self.db.sessions() as s:
+            return sum(1 for i in rows(s, Incident, self.wid) if i.kind == "question" and i.status == "open")
 
     def names(self) -> list[str]:
         """Every person's name in this wedding. Used only to find names in model-written text; never shown."""

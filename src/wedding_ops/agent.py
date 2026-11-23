@@ -17,6 +17,7 @@ from .errors import OpsError
 from .operations import Operations
 from .policy import Actor
 from .schemas import Intent, PhotoReview, Strict
+from .telegram_ui import acknowledged_reply
 from .views import Queries
 
 logger = logging.getLogger(__name__)
@@ -381,7 +382,7 @@ class Assistant:
         if intent.kind == "acknowledge":
             notice = None if intent.query else self.operations.acknowledge_latest(actor)
             if notice is not None:
-                return {"kind": "help", "message": f"Acknowledged\n{notice[:120]}", "data": []}
+                return {"kind": "help", "message": acknowledged_reply(notice), "data": []}
             return self._acknowledge_task(actor, intent.query, snapshot)
         if intent.kind == "late":
             name = snapshot["me"]["name"]
@@ -552,7 +553,7 @@ class Assistant:
             summary = f"Send {'an URGENT' if urgent else 'a'} problem report to the coordinator and your team: {title}."
         if details != title:
             # The preview shows exactly what the command will send.
-            summary += f"\nYour words, as sent: \u201c{details}\u201d"
+            summary += f"\nYour words: \u201c{details}\u201d"
         if urgent:
             # The bot is never the emergency channel; say so before anything else.
             summary = emergency_line(snapshot) + "\n" + summary
@@ -561,7 +562,7 @@ class Assistant:
         if recent and not updates:
             summary += f"\nYou already reported: {recent[-1]['title']}. Confirm only if this is a different problem."
         draft = self.operations.draft(actor, command, summary)
-        return {"kind": "confirmation", "message": "Check this report before I send it.", "draft": draft}
+        return {"kind": "confirmation", "message": "Nothing is sent until you tap the button.", "draft": draft}
 
     def _family(self, actor: Actor, query: str) -> list[dict]:
         family = self.queries.family(actor)

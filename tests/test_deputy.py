@@ -22,7 +22,7 @@ class StubPlanner:
         self.actions.append(actions)
         if self.fail:
             raise httpx.ConnectError("model offline")
-        text = re.sub(r"^\[U\d+\] ", "", messages[-1]["content"])  # Strip the message number.
+        text = messages[-1]["content"]
         return self.plans.get(text, DeputyPlan(answer="Sorry, I am not sure. Please ask Alex Morgan (coordinator)."))
 
 
@@ -65,8 +65,8 @@ def test_conversation_memory_carries_the_last_turns(deputy_chat):
     chat.send("mc", "hi im the mc")
     chat.send("mc", "what did i just say")
     second_call = planner.calls[1]
-    assert any(m["content"] == "[U1] hi im the mc" and m["role"] == "user" for m in second_call)
-    assert second_call[-1]["content"] == "[U2] what did i just say"
+    assert any(m["content"] == "hi im the mc" and m["role"] == "user" for m in second_call)
+    assert second_call[-1]["content"] == "what did i just say"
 
 
 def test_memory_is_capped_and_expires(deputy_chat, db, clock):
@@ -132,30 +132,31 @@ def test_context_has_family_status_counts_and_recent_updates_for_the_right_roles
     assert "rejected" in planner.calls[-1][1]["content"]
 
 
-def test_a_report_carries_the_persons_own_words_including_quoted_earlier_messages(deputy_chat, db):
+def test_a_report_carries_only_the_latest_message_in_the_persons_words(deputy_chat, db):
     from wedding_ops.models import Incident
-    planner = StubPlanner({"yes send it": DeputyPlan(
-        action="tell_coordinator", text="Two vegetarian meals missing", quote=["U1"])})
+    planner = StubPlanner({"2 veg meals missing for table 12": DeputyPlan(
+        action="tell_coordinator", text="Two vegetarian meals missing")})
     chat = deputy_chat(planner)
-    chat.send("banquet", "aiyo 2 veg meals missing for table 12")
-    draft = chat.send("banquet", "yes send it")
-    assert "Your words, as sent: \u201caiyo 2 veg meals missing for table 12 / yes send it\u201d" in draft.message
+    chat.send("banquet", "aiyo kitchen so busy")
+    draft = chat.send("banquet", "2 veg meals missing for table 12")
+    assert "Your words: \u201c2 veg meals missing for table 12\u201d" in draft.message
     chat.tap("banquet", f"confirm:{draft.telegram_draft_id}")
     with db.sessions() as s:
-        assert s.scalars(select(Incident)).one().details == "aiyo 2 veg meals missing for table 12 / yes send it"
+        assert s.scalars(select(Incident)).one().details == "2 veg meals missing for table 12"
 
 
-def test_words_from_a_report_already_sent_are_not_carried_into_the_next(deputy_chat, db):
+def test_a_follow_up_is_added_to_the_open_report_with_its_own_words(deputy_chat, db):
     from wedding_ops.models import Incident
     planner = StubPlanner({
         "mic spoil": DeputyPlan(action="tell_coordinator", text="Mic broken"),
-        "now the projector also": DeputyPlan(action="tell_coordinator", text="Projector broken", quote=["U1"]),
+        "still spoil leh": DeputyPlan(action="tell_coordinator", text="Mic still broken", about="R1"),
     })
     chat = deputy_chat(planner)
     chat.tap("mc", f"confirm:{chat.send('mc', 'mic spoil').telegram_draft_id}")
-    chat.tap("mc", f"confirm:{chat.send('mc', 'now the projector also').telegram_draft_id}")
+    chat.tap("mc", f"confirm:{chat.send('mc', 'still spoil leh').telegram_draft_id}")
     with db.sessions() as s:
-        assert sorted(i.details for i in s.scalars(select(Incident))) == ["mic spoil", "now the projector also"]
+        details = s.scalars(select(Incident)).one().details
+    assert details.startswith("mic spoil\nUpdate ") and details.endswith(": still spoil leh")
 
 
 def test_a_title_with_an_invented_fact_falls_back_to_their_words(deputy_chat, db):
@@ -256,16 +257,15 @@ def test_draft_buttons_say_what_they_do():
     assert markup["inline_keyboard"][0] == [{"text": "Send", "callback_data": "confirm:d1"}]
 
 
-def test_context_lists_only_the_actions_this_role_may_use(deputy_chat):
+def test_the_schema_offers_only_this_roles_actions(deputy_chat):
     planner = StubPlanner()
     chat = deputy_chat(planner)
-    chat.send("couple", "hi")
-    couple = planner.calls[-1][1]["content"]
-    assert "Actions you may offer" in couple and "send_message" not in couple and "run_sheet_change" not in couple
-    # The couple may ask the coordinator something, but not message others or change the run sheet.
-    assert "send_message" not in planner.actions[-1] and "tell_coordinator" in planner.actions[-1]
-    chat.send("coordinator", "hi")
-    assert "send_message" in planner.calls[-1][1]["content"] and "tell_coordinator" not in planner.actions[-1]
+    for member in ("couple", "coordinator"):
+        chat.send(member, "hi")
+        assert "Actions you may offer" not in planner.calls[-1][1]["content"], member
+    # The couple may tell the coordinator something, but not message others or change the run sheet.
+    assert "send_message" not in planner.actions[0] and "tell_coordinator" in planner.actions[0]
+    assert "send_message" in planner.actions[1] and "tell_coordinator" not in planner.actions[1]
 
 
 def test_context_shows_the_persons_recent_recorded_actions(deputy_chat):

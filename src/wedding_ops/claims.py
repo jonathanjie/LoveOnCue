@@ -24,21 +24,24 @@ QUOTED = re.compile(r"“[^”]*”")
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
 
 # A sentence states the status of a report when it names a report and a status together.
-REPORT_NOUN = re.compile(r"\b([RQ]\d{1,2}|requests?|reports?|questions?|alerts?|drafts?|notes?|nudges?)\b",
+REPORT_NOUN = re.compile(r"\b([RQ]\d{1,2}|requests?|reports?|questions?|alerts?|drafts?|notes?|nudges?|arrivals?|"
+                         r"changes?)\b",
                          re.IGNORECASE)
 REPORT_STATUS = re.compile(r"\b(sent|unsent|pending|approved|rejected|declined|open|answered|resolved|withdrawn|"
                            r"waiting|logged|recorded|flagged|received)\b", re.IGNORECASE)
 
 # The deputy answers once per message and has no outbound effect of its own: only a tapped
 # draft acts. So a first-person promise about the future ("I'll ...", "let me ...") is never
-# true, whatever the verb, and neither is a claim to be doing or to have done something only a
-# draft can do ("I'm flagging", "I've sent"). Code writes every outcome sentence instead.
+# true, whatever the verb, and neither is a claim, in any mood, to do or have done something
+# only a draft can do ("I'm flagging", "I've sent", "I've taken back", "I can pass it on", "want
+# me to ask"): the draft under the answer says what a tap does. Code writes every outcome sentence.
 # Gate v6 measured these in 15% of answers when only the prompt forbade them.
+OUTBOUND_VERBS = (r"(?:flag|ask|tell|told|send|sent|message|notif|nudg|pass|forward|escalat|report|log|record|updat|"
+                  r"remind|chas|contact|call|cancel|withdr|arrang|put|let|tak|took|mark)\w*")
 SELF_ACT = re.compile(
     r"\b(?:I'll|I will|I'm going to|I am going to|I'm gonna|let me)\b"
-    r"|\b(?:I'm|I am|I've|I have|I just|I already)\s+(?:\w+\s+){0,2}?"
-    r"(?:flag|ask|tell|told|send|sent|message|notif|nudg|pass|forward|escalat|report|log|record|updat|remind|"
-    r"chas|contact|call|cancel|withdr|arrang|put|let)\w*", re.IGNORECASE)
+    r"|\b(?:I'm|I am|I've|I have|I just|I already|I can|I could|I would|I'd|want me to|shall I|should I)\s+"
+    r"(?:\w+\s+){0,2}?" + OUTBOUND_VERBS, re.IGNORECASE)
 
 # Words that make a message a question, in English and common Singlish spellings.
 QUESTION_WORDS = {"what", "wat", "where", "when", "who", "whom", "which", "why", "how", "izzit", "issit", "can i",
@@ -124,13 +127,21 @@ class Checked:
     status: list[str]            # sentences stating a report's status, which code states instead
     status_references: set[str]  # references named in those status sentences
     acts: list[str]              # first-person acts the deputy cannot do
+    internal: list[str]          # sentences that name the system's own vocabulary
 
 
-def check_answer(text: str, support: Support, names: set[str]) -> Checked:
-    """Keep the sentences whose facts are supported and that do not state report status."""
-    kept, removed, status, references, acts = [], [], [], set(), []
+def check_answer(text: str, support: Support, names: set[str], internal: re.Pattern | None = None) -> Checked:
+    """Keep the sentences whose facts are supported and that do not state report status.
+
+    `internal` matches words from the system's closed vocabulary (action and field names). A
+    sentence that uses one was written about the system, not for the person, so it is removed.
+    The prompt keeps these names out of its prose; this is the backstop.
+    """
+    kept, removed, status, references, acts, internals = [], [], [], set(), [], []
     for sentence in sentences(text):
-        if SELF_ACT.search(sentence):
+        if internal is not None and internal.search(sentence):
+            internals.append(sentence)
+        elif SELF_ACT.search(sentence):
             acts.append(sentence)
         elif states_report_status(sentence):
             status.append(sentence)
@@ -139,7 +150,7 @@ def check_answer(text: str, support: Support, names: set[str]) -> Checked:
             removed.append(sentence)
         else:
             kept.append(sentence)
-    return Checked(" ".join(kept), removed, status, references, acts)
+    return Checked(" ".join(kept), removed, status, references, acts, internals)
 
 
 def without_quotes(text: str) -> str:

@@ -35,10 +35,23 @@ def approval_markup(approval_id: str, *, blocked: bool) -> dict:
     return {"inline_keyboard": [buttons]}
 
 
-# What the button under a draft does, in plain words.
+# What the button under a draft does, in plain words. Keys are worker.draft_type values.
 DRAFT_BUTTONS = {"propose_delay": "Send to coordinator", "change_item": "Send change", "report_incident": "Send",
+                 "question": "Ask the coordinator", "question_update": "Add to my question", "undo": "Undo",
                  "arrival": "Record arrival", "withdraw_report": "Withdraw it", "broadcast": "Send message",
                  "set_deputy_enabled": "Confirm switch", "task_action": "Mark done"}
+
+
+def glance(text: str, limit: int = 80) -> str:
+    """The first line of a message that is not a heading, cut at a word, for quoting it back."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    body = next((line for line in lines if not line.endswith(":")), lines[0] if lines else "")
+    return body if len(body) <= limit else body[:limit].rsplit(" ", 1)[0] + "\u2026"
+
+
+def acknowledged_reply(notice: str) -> str:
+    """What the person sees after acknowledging an update: which one, and that the coordinator sees it."""
+    return f"Acknowledged\nThe coordinator can see that you saw: \u201c{glance(notice)}\u201d"
 
 
 def reply_markup(*, coordinator: bool, guest_lookup: bool, draft_id: str | None,

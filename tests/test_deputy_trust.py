@@ -159,19 +159,19 @@ def test_a_follow_up_adds_to_the_open_report(deputy_chat, db):
 def test_a_question_reaches_the_coordinator_and_the_answer_comes_back(deputy_chat, db):
     planner = StubPlanner({
         "where i put guests now, raining": DeputyPlan(
-            answer="I don't know yet. I'll ask Alex.", action="tell_coordinator", level="question",
-            text="Where should guests wait during the rain?"),
+            answer="The run sheet does not say where guests wait in the rain.", action="ask_coordinator"),
         "tell jamie foyer until 18:35": DeputyPlan(answer="Here's the answer.", action="send_message", to="",
                                                    about="Q1", message="Keep guests in the foyer until 18:35."),
     })
     chat = deputy_chat(planner)
     question = chat.send("usher", "where i put guests now, raining")
-    assert "Ask the coordinator: Where should guests wait during the rain?" in question.message
+    assert question.message == ("The run sheet does not say where guests wait in the rain.\n"
+                                "Tap Ask the coordinator to send them this message.")
     chat.tap("usher", f"confirm:{question.telegram_draft_id}")
     assert "Question from Jamie Lim" in chat.last("coordinator", "question").message  # Pushed: it needs an answer.
     answer = chat.send("coordinator", "tell jamie foyer until 18:35")
     assert "Message to Jamie Lim" in answer.message
-    assert "This answers Jamie Lim's question \u201cWhere should guests wait during the rain?\u201d" in answer.message
+    assert "This answers Jamie Lim's question \u201cwhere i put guests now, raining\u201d" in answer.message
     chat.tap("coordinator", f"confirm:{answer.telegram_draft_id}")
     assert "Keep guests in the foyer until 18:35." in chat.last("usher", "coordinator_message").message
     with db.sessions() as s:
@@ -511,7 +511,8 @@ def test_the_coordinator_sees_who_has_not_acknowledged_as_a_record(deputy_chat, 
     chat.worker.tick()
     chat.send("coordinator", "who never ack yet")
     trusted_part = context_of(planner).split("Coordinator brief")[0]
-    assert "[record] Not acknowledged: latest announcement (0 of 2 acknowledged). Not yet: Jamie Lim, Jordan Tay" in trusted_part
+    assert ("[record] Not acknowledged: announcement sent 17:45 \u201cCeremony moves inside\u201d (0 of 2 acknowledged). "
+            "Not yet: Jamie Lim, Jordan Tay") in trusted_part
 
 
 def test_lookups_a_role_may_not_run_are_explained(deputy_chat):

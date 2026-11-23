@@ -16,6 +16,11 @@ Expected outcomes (`expect`, one or more):
     arrival   A guest arrival to confirm.
     withdraw  Taking back the person's own earlier report.
 
+For the coordinator, "message" is also right for five questions that a helper could answer
+("kitchen ok anot?"): the coordinator's context tells the model to offer a message to the right
+helper. These labels were corrected on 23 November, after the first replay; scores before then
+are rescored with `replay.py --score FILE`.
+
 `must` lists words a correct reply contains (case-insensitive). `before` lists earlier steps
 in the same world: (member, text) sends a message, and (member, "tap", label) taps a button
 on that member's latest message ("confirm" taps the draft button).
@@ -74,13 +79,13 @@ CASES = [
          "answer", "v7 r1b"),
     case("family-phone", "r1", "family-liaison", "Can give me Mei Lee's phone number? I want to call her directly to "
          "check where she is.", "answer|question", "v7 r1a"),
-    case("coord-kitchen", "r1", "coordinator", "kitchen ok anot? dinner 7pm still on?", "answer", "v7 r1a",
+    case("coord-kitchen", "r1", "coordinator", "kitchen ok anot? dinner 7pm still on?", "answer|message", "v7 r1a",
          must=("19:00",)),
     case("coord-next", "r1", "coordinator", "ok what is the next thing i must do before 6.30 ceremony", "answer",
          "v7 r1b"),
     case("coord-who-ack", "r1", "coordinator", "who still hasnt acknowledge the tasks? and is father of bride here "
-         "already", "answer", "v7 r1b"),
-    case("coord-find-mei", "r1", "coordinator", "find mei lee for me, is she checked in? what is her number", "answer",
+         "already", "answer|message", "v7 r1b"),
+    case("coord-find-mei", "r1", "coordinator", "find mei lee for me, is she checked in? what is her number", "answer|message",
          "v7 r1a"),
 
     # Round 1: questions only a person can answer ---------------------------------------------
@@ -167,7 +172,7 @@ CASES = [
          "I haven't tapped it yet", "answer", "v7 r2c"),
     case("usher-got-it", "r2-moved", "usher", "ok got it 👍 cedar ballroom. wait so the ceremony is inside now right",
          "answer", "v7 r2a", must=("Cedar Ballroom",)),
-    case("coord-who-not-ack", "r2-moved", "coordinator", "who never ack the ceremony change yet?", "answer", "v7 r2c"),
+    case("coord-who-not-ack", "r2-moved", "coordinator", "who never ack the ceremony change yet?", "answer|message", "v7 r2c"),
     case("coord-tell-michelle", "r2-moved", "coordinator", "Michelle: Ben Wu not on the list. Dont hold him, dont seat "
          "him. Ask him to wait while I check the guest list. Tell Michelle that.", "message", "v7 r2c"),
     case("coord-tell-asha", "r2-moved", "coordinator", "Tell Asha: no, speeches stay after dinner. Dinner first, then "
@@ -175,7 +180,7 @@ CASES = [
     case("coord-tell-jordan", "r2-moved", "coordinator", "Tell Jordan Tay: bridal car flat tyre, get backup car now. "
          "Bride must arrive by 6.40pm. Confirm back to me.", "message", "v7 r2a"),
     case("coord-backup-car", "r2-moved", "coordinator", "Bridal car: is there any backup car on the list? If not, say so "
-         "plainly and tell me the next step.", "answer", "v7 r2c"),
+         "plainly and tell me the next step.", "answer|message", "v7 r2c"),
 
     # Round 2, follow-ups ---------------------------------------------------------------------
     case("banquet-correction", "r2", "banquet", "chef say only 10 minutes now lah, not 20. so dinner 10 min late only",

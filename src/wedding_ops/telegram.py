@@ -20,7 +20,7 @@ from .models import InboundUpdate, new_id
 from .operations import Operations, audit, notify
 from .schemas import PhotoReview
 from .telegram_photo import MAX_PHOTO_BYTES, download_photo, render_photo
-from .telegram_ui import NAVIGATION, attendance_label, render_brief
+from .telegram_ui import NAVIGATION, acknowledged_reply, attendance_label, render_brief
 from .views import row
 
 
@@ -103,6 +103,9 @@ def render_reply(result: dict) -> str:
     zone = result.get("timezone")
     if result.get("degraded"):
         message = "Model unavailable; using deterministic commands.\n" + message
+    if (result.get("draft") or {}).get("light"):
+        # A question button: the reply already says what the tap sends.
+        return message[:3900]
     if result.get("draft"):
         draft = result["draft"]
         note = ("\nTimeline changes still need the coordinator's approval."
@@ -150,10 +153,19 @@ def confirmation_reply(result: dict) -> str:
     if kind in {"propose_delay", "change_item"}:
         return ("Report confirmed\nProposal awaiting approval from the coordinator. The run sheet does not change until "
                 "they approve it. I will tell you their decision.")
+    question = result.get("kind") == "question"
     if kind == "report_incident" and result.get("status") == "updated":
-        return "Update added\nThe coordinator will see it with your earlier report."
+        return ("Added to your question\nThe coordinator will see it with your earlier message." if question else
+                "Update added\nThe coordinator will see it with your earlier report.")
+    if kind == "report_incident" and question:
+        return "Question sent\nThe coordinator has your message. Their answer will come to this chat. Tap Undo to take it back."
+    if kind == "report_incident" and result.get("kind") == "note":
+        return "Note sent\nThe coordinator has it, for their information."
     if kind == "report_incident":
-        return "Report sent\nThe coordinator has it. Problem reports also go to your team."
+        # Say exactly who received it: the operation reports the teams it told.
+        teams = result.get("teams") or []
+        also = f" The {', '.join(teams)} team{'s' if len(teams) > 1 else ''} also got it." if teams else ""
+        return f"Report sent\nThe coordinator has it.{also}"
     if kind == "arrival":
         return "Arrival recorded\nThe family liaison and photographer have been told."
     if kind == "set_deputy_enabled":
@@ -316,7 +328,14 @@ class TelegramIngress:
                 member_id = actor.member_id
                 confirmation = re.fullmatch(r"/confirm\s+([a-zA-Z0-9_-]{1,64})", text)
                 if confirmation:
-                    result = confirmation_reply(self.operations.confirm(actor, confirmation[1]))
+                    outcome = self.operations.confirm(actor, confirmation[1])
+                    result = confirmation_reply(outcome)
+                    if (outcome.get("kind") == "question" and outcome.get("status") == "open"
+                            and not outcome.get("replayed")):
+                        # A question just sent can be taken back with one tap.
+                        draft_id = self.operations.draft(
+                            actor, {"type": "withdraw_report", "request_id": f"draft:{confirmation[1]}"},
+                            "Take back your question.")["id"]
                 elif decision := re.fullmatch(r"/(approve|reject)\s+([A-Za-z0-9_-]{1,64})(?:\s+(.+))?", text, re.S):
                     result = self._decide(actor, decision[1], decision[2], (decision[3] or "").strip())
                 elif deputy_command := re.fullmatch(r"/(quiet|unquiet|deputy\s+(?:on|off)|taskack\s+[A-Za-z0-9_-]{1,64})", text):
@@ -325,7 +344,7 @@ class TelegramIngress:
                     result, draft_id = self._announce(actor, text[len("/announce"):].strip())
                 elif re.fullmatch(r"/ack(\s+[A-Za-z0-9_-]{1,64})?", text):
                     notice = self.operations.acknowledge_latest(actor, text[len("/ack"):].strip() or None)
-                    result = (f"Acknowledged\n{notice[:120]}" if notice else
+                    result = (acknowledged_reply(notice) if notice else
                               "Nothing to acknowledge. You have no update waiting for acknowledgement.")
                 elif text in {"/brief", "/brief_more"}:
                     brief = self.assistant.queries.coordinator_brief(actor)

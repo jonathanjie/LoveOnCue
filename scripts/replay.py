@@ -2,6 +2,7 @@
 """Replay the labelled deputy cases (scripts/replay_cases.py) and score each reply.
 
     replay.py --key D/model.key --out OUT [--runs 3] [--only id,id] [--workers 6]
+    replay.py --score OUT/results.jsonl      Score earlier results again with the current labels.
 
 Each case runs in a fresh copy of its stage world, so runs do not affect each other. The
 model is called for real: put the provider key in a file (mode 600) and pass it with --key.
@@ -11,7 +12,8 @@ What is scored, per reply:
     outcome     What the reply drafted: none, question, report, urgent, late, change, message,
                 arrival, withdraw, task or control.
     ok          The outcome is one of the case's expected outcomes.
-    false draft The case expects an answer only, and the reply drafted something.
+    false draft The case expects an answer only, and the reply drafted something: a full draft,
+                or a question button (counted apart, since it is lighter).
     leaks       Internal action names or template lines that a person should never see.
     missing     Words from the case's `must` list that the reply does not contain.
 """
@@ -37,12 +39,12 @@ from simulate import (
 )
 from sqlalchemy import select
 
-from wedding_ops.deputy import DeputyAction
+from wedding_ops.deputy import DeputyAction, DeputyPlan
 from wedding_ops.models import ActionDraft, Notification
 from wedding_ops.policy import Actor
 
 # Words that come from code's own vocabulary and mean nothing to a person at a wedding.
-INTERNAL_NAMES = [name for name in get_args(DeputyAction) if "_" in name]
+INTERNAL_NAMES = [name for name in [*get_args(DeputyAction), *DeputyPlan.model_fields] if "_" in name]
 TEMPLATE_LINES = ["After that, tell me about"]
 
 # Minutes from the seeded start (17:45) to each stage.
@@ -174,6 +176,18 @@ def run_case(case: Case, run: int, stage: Path, root: Path) -> dict:
     return result
 
 
+def rescore(result: dict) -> dict:
+    """A stored result judged against the current label of its case."""
+    case = next((c for c in CASES if c.id == result["case"]), None)
+    if case is None or "outcome" not in result:
+        return result
+    outcome = result["outcome"]
+    return result | {"expect": sorted(case.expect),
+                     "ok": outcome in case.expect or (outcome == "none" and "answer" in case.expect),
+                     "false_draft": case.expect == {"answer"} and outcome != "none",
+                     "missing": [word for word in case.must if word.casefold() not in result["reply"].casefold()]}
+
+
 def summarise(results: list[dict]) -> None:
     scored = [r for r in results if "outcome" in r]
     failed = [r for r in results if "outcome" not in r]
@@ -181,8 +195,9 @@ def summarise(results: list[dict]) -> None:
     question_cases = [r for r in scored if "question" in r["expect"]]
     print(f"Replies scored: {len(scored)} · setup failures or errors: {len(failed)}")
     print(f"Outcome matches the label: {sum(r['ok'] for r in scored)} of {len(scored)}")
-    print(f"False drafts (answer-only cases that drafted): {sum(r['false_draft'] for r in answer_only)} of "
-          f"{len(answer_only)}")
+    full = sum(r["false_draft"] and r["outcome"] != "question" for r in answer_only)
+    buttons = sum(r["false_draft"] and r["outcome"] == "question" for r in answer_only)
+    print(f"False drafts in {len(answer_only)} answer-only replies: {full} full drafts, {buttons} question buttons")
     print(f"Question cases that drafted a question: {sum(r['outcome'] == 'question' for r in question_cases)} of "
           f"{len(question_cases)}")
     print(f"Replies with internal names or template lines: {sum(bool(r['leaks']) for r in scored)}")
@@ -202,12 +217,18 @@ def summarise(results: list[dict]) -> None:
 def main(argv: list[str]) -> None:
     import logging
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--key", type=Path, required=True, help="File with the model provider key (mode 600)")
-    parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--key", type=Path, help="File with the model provider key (mode 600)")
+    parser.add_argument("--out", type=Path)
+    parser.add_argument("--score", type=Path, help="Score an earlier results file with the current labels")
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--only", default="", help="Comma-separated case IDs")
     parser.add_argument("--workers", type=int, default=6)
     args = parser.parse_args(argv)
+    if args.score:
+        summarise([rescore(json.loads(line)) for line in args.score.read_text().splitlines()])
+        return
+    if not (args.key and args.out):
+        parser.error("--key and --out are needed to run the cases")
     args.out.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(level=logging.WARNING, handlers=[logging.FileHandler(args.out / "app.log")])
     logging.getLogger("httpx").setLevel(logging.ERROR)

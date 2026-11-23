@@ -118,9 +118,11 @@ def test_status_asked_by_reference_is_stated_from_the_record(deputy_chat):  # no
     assert "“Bridal car flat tyre”: open." in chat.send("driver", "my report how").message
 
 
-def test_an_answer_with_nothing_supported_says_so(deputy_chat):  # noqa: F811
+def test_an_answer_with_nothing_supported_says_so_and_offers_to_ask(deputy_chat):  # noqa: F811
     planner = StubPlanner({"which table uncle lee": DeputyPlan(answer="He is at Table 99.")})
-    assert deputy_chat(planner).send("usher", "which table uncle lee").message == CANNOT_CONFIRM
+    reply = deputy_chat(planner).send("usher", "which table uncle lee")
+    assert reply.message == CANNOT_CONFIRM + "\nTap Ask the coordinator to send them this message."
+    assert reply.telegram_draft_id
 
 
 def test_a_table_from_this_messages_lookup_supports_the_answer(deputy_chat):  # noqa: F811
@@ -129,12 +131,39 @@ def test_a_table_from_this_messages_lookup_supports_the_answer(deputy_chat):  # 
     assert message.startswith("Sarah Tan is at Table 18.") and "• Sarah Tan: Table 18" in message
 
 
-def test_a_drafts_introduction_and_next_step_are_written_by_code(deputy_chat):  # noqa: F811
-    planner = StubPlanner({"mic spoil": DeputyPlan(answer="I'm flagging it to the coordinator now.",
-                                                   action="tell_coordinator", text="Mic broken", also="the projector")})
+def test_an_outcome_claim_beside_a_draft_is_removed_and_nothing_replaces_it(deputy_chat):  # noqa: F811
+    planner = StubPlanner({"mic spoil": DeputyPlan(answer="Noted, the mic report is recorded.",
+                                                   action="tell_coordinator", text="Mic broken")})
     message = deputy_chat(planner).send("mc", "mic spoil").message
-    assert "flagging" not in message and "Check this report before I send it." in message
-    assert "After that, tell me about: the projector." in message
+    # The draft under the reply is its status; a claim about it before the tap is never true.
+    assert "recorded" not in message and "no reports" not in message
+    assert message.startswith("Nothing is sent until you tap the button.")
+
+
+def test_an_answer_stays_beside_a_report_but_not_beside_a_run_sheet_change(deputy_chat):  # noqa: F811
+    planner = StubPlanner({
+        "who i call, car spoil": DeputyPlan(answer="The emergency contact is on record below.", action="tell_coordinator",
+                                            level="urgent", text="Bridal car broken"),
+        "kitchen late, dinner 15 min later": DeputyPlan(answer="Dinner service is at 19:00.", action="run_sheet_change",
+                                                        text="dinner", minutes=15),
+    })
+    chat = deputy_chat(planner)
+    assert chat.send("driver", "who i call, car spoil").message.startswith("The emergency contact is on record below.")
+    change = chat.send("banquet", "kitchen late, dinner 15 min later").message
+    # The preview says 19:00 → 19:15; an answer saying "19:00" beside it would read as a contradiction.
+    assert not change.startswith("Dinner service is at 19:00.") and "19:00 \u2192 19:15" in change
+
+
+def test_offers_to_act_in_any_mood_are_first_person_acts():
+    assert self_acts("I can flag this to the coordinator. Want me to ask Alex? I've taken back that report.") == 3
+    assert self_acts("I can look up a guest's seat if you give me a name.") == 0
+
+
+def test_a_sentence_naming_an_action_is_removed(deputy_chat):  # noqa: F811
+    planner = StubPlanner({"where i stand": DeputyPlan(
+        answer="Stand at Ballroom Entrance B. I can use tell_coordinator if you need more.")})
+    message = deputy_chat(planner).send("usher", "where i stand").message
+    assert message == "Stand at Ballroom Entrance B."
 
 
 def test_a_message_with_an_unsupported_table_is_not_drafted(deputy_chat):  # noqa: F811

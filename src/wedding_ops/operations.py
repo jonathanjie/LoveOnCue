@@ -501,7 +501,10 @@ class Operations:
                               f"Problem from {reporter}: {one_line(cmd.title, 160)}", now,
                               push=urgent or cmd.kind == "location_unconfirmed", key=f"incident:{incident.id}",
                               permission=permission)
-        return {"id": incident.id, "status": "open"}
+        # Who else received it, so the reply after the tap says exactly that and nothing more.
+        team_names = {team.id: team.name for team in rows(s, Team, wid)}
+        return {"id": incident.id, "status": "open", "kind": cmd.kind,
+                "teams": [team_names[t] for t in audience if t in team_names] if team_targets else []}
 
     def _update_incident(self, s: Session, w: Wedding, a: Access, cmd, now) -> dict:
         """Add a follow-up to an open report. Escalating to urgent pushes; anything else waits for the digest."""
@@ -516,7 +519,7 @@ class Operations:
                 f"\u201c{one_line(cmd.details, 300)}\u201d")
         tell_coordinators(s, w, f"incident:{incident.id}", text, now, push=escalated,
                           key=f"incident-update:{incident.id}:{at}")
-        return {"id": incident.id, "status": "updated"}
+        return {"id": incident.id, "status": "updated", "kind": incident.kind}
 
     def _change_set(self, s: Session, item: TimelineItem, shift: int, location_id: str | None, note: str):
         """Every item a change moves, its blockers, and a short title. Reads only."""
@@ -879,6 +882,23 @@ class Operations:
                                 summary=summary, created_at=now, expires_at=now + timedelta(minutes=5))
             s.add(draft)
             return {"id": draft.id, "summary": summary, "expires_at": iso(draft.expires_at), "command_type": cmd.type}
+
+    def drop_unsent_questions(self, actor: Actor) -> None:
+        """A question button, or the Undo after a question, offers one tap about one message.
+        The person's next message makes it stale."""
+        with self.db.transaction(self.wid, write=True) as (s, _):
+            now = utcnow()
+            drafts = {draft.id: draft for draft in rows(s, ActionDraft, self.wid) if draft.member_id == actor.member_id}
+
+            def is_question(draft) -> bool:
+                return draft.command.get("type") == "report_incident" and draft.command.get("kind") == "question"
+
+            for draft in drafts.values():
+                if draft.consumed_at is not None or draft.expires_at <= now:
+                    continue
+                undoes = drafts.get(draft.command.get("request_id", "").removeprefix("draft:"))
+                if is_question(draft) or (draft.command.get("type") == "withdraw_report" and undoes and is_question(undoes)):
+                    draft.expires_at = now
 
     def confirm(self, actor: Actor, draft_id: str) -> dict:
         require_human(actor)
