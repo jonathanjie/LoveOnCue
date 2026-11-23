@@ -15,6 +15,9 @@ calls to the model provider when a key file is present.
     simulate.py --dir D clock                Show the simulated time.
     simulate.py --dir D metrics              Fallback rate, pings, coordinator load (for the gate).
     simulate.py --dir D advance 10           Move the clock and run reminders.
+    simulate.py --dir D realtime             From now on, the simulated clock runs at real speed.
+    simulate.py --dir D records --as usher   The true records a rater scores against (after playing).
+    simulate.py --dir D transcript --as usher   What this member saw, in order.
     simulate.py --dir D desk view            Coordinator web desk: approvals, incidents.
     simulate.py --dir D desk approve ID [--note TEXT]
     simulate.py --dir D desk reject ID [--note TEXT]
@@ -30,11 +33,11 @@ import fcntl
 import json
 import re
 import sys
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from wedding_ops.agent import Assistant, MistralParser
@@ -48,7 +51,7 @@ from wedding_ops.operations import Operations
 from wedding_ops.policy import Actor, load_access
 from wedding_ops.seed import DEMO_TIME, seed_demo
 from wedding_ops.telegram import TelegramIngress
-from wedding_ops.telegram_ui import approval_markup, notice_markup, reply_markup
+from wedding_ops.telegram_ui import approval_markup, attendance_label, notice_markup, reply_markup
 from wedding_ops.views import Queries
 from wedding_ops.worker import Worker, deputy_ping_markup, draft_type
 
@@ -60,6 +63,8 @@ SIMULATED_BOT_TOKEN = f"{SIMULATED_BOT_ID}:simulated-token"
 WEBHOOK_SECRET = "local-simulation-webhook-secret"
 # Fictional Telegram user IDs start here, one per member.
 FIRST_SENDER_ID = 700001
+# Fictional, but written like a real contact: raters read the seeded placeholder as a defect.
+SIMULATED_EMERGENCY_CONTACT = "Venue duty manager Lee, +65 6555 0142"
 
 
 class World:
@@ -78,11 +83,22 @@ class World:
             mistral_model=DEFAULT_MISTRAL_MODEL, deputy=bool(self.state.get("deputy")) and bool(key),
         )
         self.db = Database(self.settings.database_url)
-        self.clock = DemoClock(parse_time(self.state["now"]) if "now" in self.state else DEMO_TIME)
+        self.clock = DemoClock(self.simulated_now())
         self.queries = Queries(self.db, WEDDING_ID, self.clock)
         self.operations = Operations(self.db, WEDDING_ID, self.clock)
         self.auth = Auth(self.db, self.settings)
         self.parser = MistralParser(self.settings) if key else None
+
+    def simulated_now(self) -> datetime:
+        """The stored time, or with `realtime`, the anchor time plus the real time since then.
+
+        Gate raters play in real time. A clock that ticks on its own schedule drifts away from
+        the time their persona states, and raters then report the clock as wrong.
+        """
+        anchor = self.state.get("realtime")
+        if anchor:
+            return parse_time(anchor["simulated"]) + (datetime.now(UTC) - parse_time(anchor["real"]))
+        return parse_time(self.state["now"]) if "now" in self.state else DEMO_TIME
 
     def close(self) -> None:
         if self.parser is not None:
@@ -180,6 +196,8 @@ def command_init(world: World, deputy: bool = False) -> None:
         invitation = world.auth.issue_invite(coordinator, member_id)
         senders[member_id] = FIRST_SENDER_ID + offset
         world.auth.redeem(invitation["token"], str(senders[member_id]))
+    world.operations.execute(coordinator, {"type": "set_emergency_contact", "contact": SIMULATED_EMERGENCY_CONTACT},
+                             "sim-emergency-contact")
     world.state = {"senders": senders, "seen": {}, "update_id": 0, "deputy": deputy}
     print(f"Created a fictional wedding with {len(senders)} enrolled members at {iso(world.clock.now())}.")
     print("Model parsing: " + ("on" if world.parser else "off (commands only)") + ("; deputy on" if deputy else ""))
@@ -227,9 +245,124 @@ def command_advance(world: World, minutes: int) -> None:
     if not 0 < minutes <= 240:
         raise SystemExit("Advance between 1 and 240 minutes at a time.")
     world.clock = DemoClock(world.clock.now() + timedelta(minutes=minutes))
+    if "realtime" in world.state:
+        anchor = world.state["realtime"]
+        anchor["simulated"] = iso(parse_time(anchor["simulated"]) + timedelta(minutes=minutes))
     world.queries.clock = world.operations.clock = world.clock
     world.run_background_work()
     print(f"Simulated time is now {iso(world.clock.now())}.")
+
+
+def command_realtime(world: World) -> None:
+    world.state["realtime"] = {"real": iso(datetime.now(UTC)), "simulated": iso(world.clock.now())}
+    print(f"The simulated clock now runs at real speed from {iso(world.clock.now())}.")
+
+
+def chat_turns(world: World, member_id: str) -> list[tuple[str, str]]:
+    """The member's chat with the deputy as (role, text), in order. Telegram payloads are
+    redacted once processed, so the deputy's short-lived conversation memory is the record."""
+    from wedding_ops.models import ConversationTurn
+    with world.db.sessions() as s:
+        turns = s.scalars(select(ConversationTurn).where(
+            ConversationTurn.wedding_id == WEDDING_ID, ConversationTurn.member_id == member_id
+        ).order_by(text("conversation_turns.rowid"))).all()
+    return [(turn.role, turn.text) for turn in turns]
+
+
+def command_transcript(world: World, member_id: str) -> None:
+    """What the member saw, in the order they saw it: each message, then its reply, and any notices."""
+    turns = chat_turns(world, member_id)
+    zone = ZoneInfo(world.queries.snapshot(Actor(WEDDING_ID, member_id))["wedding"]["timezone"])
+    with world.db.sessions() as s:
+        # Rows are numbered in the order they were written, which is the order the member saw them.
+        rows = s.scalars(select(Notification).where(
+            Notification.wedding_id == WEDDING_ID, Notification.recipient_id == member_id
+        ).order_by(text("notifications.rowid"))).all()
+    for notification in rows:
+        at = notification.created_at.astimezone(zone).strftime("%H:%M")
+        if notification.topic != "bot_reply":
+            print(f"\n[{at}] notice ({notification.topic}): {notification.message}")
+            continue
+        # A reply that starts with the deputy's next answer answers the member's next message.
+        # Any other reply answers a button tap.
+        if len(turns) >= 2 and turns[0][0] == "user" and notification.message.startswith(turns[1][1][:60]):
+            print(f"\n[{at}] {member_id}: {turns[0][1]}")
+            turns = turns[2:]
+        else:
+            print(f"\n[{at}] {member_id}: (taps a button)")
+        print(f"[{at}] bot: {notification.message}")
+
+
+def command_records(world: World, member_id: str) -> None:
+    """The records a rater checks the bot against, after the chat: run sheet, places, tasks, what reached
+    the coordinator, and guests the member asked about. Raters see this only when they have finished."""
+    from wedding_ops.models import Incident, Person, Task
+    snapshot = world.queries.snapshot(Actor(WEDDING_ID, COORDINATOR_ID))
+    zone = ZoneInfo(snapshot["wedding"]["timezone"])
+    places = {place["id"]: place for place in snapshot["locations"]}
+    names = {member["id"]: member["name"] for member in snapshot["members"]}
+
+    def local(value) -> str:
+        if value is None:
+            return "-"
+        moment = parse_time(value) if isinstance(value, str) else value
+        return moment.astimezone(zone).strftime("%H:%M")
+
+    print(f"Records at {local(snapshot['now'])}.")
+    print("\nRun sheet (approved):")
+    for item in snapshot["timeline"]:
+        place = places.get(item["location_id"], {}).get("name", "-")
+        moved = "" if item["current_start"] == item["planned_start"] else f" (planned {local(item['planned_start'])})"
+        print(f"  {local(item['current_start'])} {item['title']} at {place}{moved}")
+    print("\nPlaces:")
+    for place in snapshot["locations"]:
+        print(f"  {place['name']}: {place['directions']}")
+    print(f"\nEmergency contact: {snapshot['wedding']['emergency_contact']}")
+    with world.db.sessions() as s:
+        tasks = s.scalars(select(Task).where(Task.wedding_id == WEDDING_ID, Task.owner_id == member_id)).all()
+        incidents = s.scalars(select(Incident).where(Incident.wedding_id == WEDDING_ID)).all()
+        guests = s.scalars(select(Person).where(Person.wedding_id == WEDDING_ID, Person.is_guest)).all()
+    tables = {table["id"]: table["label"] for table in snapshot["tables"]}
+    if tasks:
+        print(f"\nTasks of {names[member_id]}:")
+        for task in sorted(tasks, key=lambda t: t.due_at):
+            seen = "acknowledged" if task.acknowledged_at else "not acknowledged"
+            print(f"  due {local(task.due_at)} {task.title} ({task.state}, {seen}): {task.instructions}")
+    is_coordinator = member_id == COORDINATOR_ID
+    reports = [i for i in incidents if is_coordinator or i.reported_by == member_id]
+    requests = [a for a in snapshot["approvals"] if is_coordinator or a["proposed_by"] == member_id]
+    print("\nWhat reached the coordinator" + ("" if is_coordinator else f" from {names[member_id]}") + ":")
+    for incident in sorted(reports, key=lambda i: i.created_at):
+        print(f"  {local(incident.created_at)} {incident.severity} {incident.kind} from {names.get(incident.reported_by)}: "
+              f"“{incident.title}” — {incident.status}. Details: {incident.details[:200]}")
+    for request in requests:
+        note = f" ({request['decision_note']})" if request.get("decision_note") else ""
+        print(f"  {local(request['created_at'])} run-sheet request from {names.get(request['proposed_by'])}: "
+              f"“{request['title']}” — {request['status']}{note}")
+    if not reports and not requests:
+        print("  nothing")
+    if is_coordinator:
+        print("\nAcknowledgements of updates and messages (latest first):")
+        with world.db.sessions() as s:
+            notices = s.scalars(select(Notification).where(
+                Notification.wedding_id == WEDDING_ID,
+                Notification.topic.in_(("timeline_updated", "coordinator_message")))).all()
+        by_key: dict[str, list[Notification]] = {}
+        for notice in notices:
+            by_key.setdefault(notice.dedupe_key.rsplit(":", 1)[0], []).append(notice)
+        for group in sorted(by_key.values(), key=lambda g: g[0].created_at, reverse=True):
+            done = [names.get(n.recipient_id, n.recipient_id) for n in group if n.acknowledged_at]
+            waiting = [names.get(n.recipient_id, n.recipient_id) for n in group if not n.acknowledged_at]
+            print(f"  {local(group[0].created_at)} {group[0].topic} “{group[0].message[:80]}”: "
+                  f"acknowledged by {', '.join(done) or 'nobody'}; not yet by {', '.join(waiting) or 'nobody'}")
+    words = " ".join(text for role, text in chat_turns(world, member_id) if role == "user").casefold()
+    asked = [g for g in guests if g.name.casefold() in words or re.search(rf"\b{g.name.split()[0].casefold()}\b", words)]
+    if asked:
+        print("\nGuests named in your messages (full name or first name):")
+        for guest in sorted(asked, key=lambda g: g.name)[:15]:
+            table = f"Table {tables[guest.table_id]}" if guest.table_id in tables else "no table"
+            print(f"  {guest.name}: {table}, {attendance_label(guest.attendance)}")
+        print("Guests named only by surname or title (\"Mr Lee\") are not matched here.")
 
 
 def command_desk(world: World, action: str, target: str | None, note: str) -> None:
@@ -328,6 +461,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     sub.add_parser("members")
     sub.add_parser("clock")
     sub.add_parser("metrics")
+    sub.add_parser("realtime")
+    for name in ("records", "transcript"):
+        sub.add_parser(name).add_argument("--as", dest="member", required=True)
     for name in ("send", "tap"):
         action = sub.add_parser(name)
         action.add_argument("--as", dest="member", required=True)
@@ -365,6 +501,12 @@ def main(argv: list[str]) -> None:
                 command_members(world)
             elif args.command == "metrics":
                 command_metrics(world)
+            elif args.command == "realtime":
+                command_realtime(world)
+            elif args.command == "records":
+                command_records(world, args.member)
+            elif args.command == "transcript":
+                command_transcript(world, args.member)
             elif args.command == "clock":
                 print(iso(world.clock.now()))
             elif args.command == "send":
