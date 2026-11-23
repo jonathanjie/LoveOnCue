@@ -383,6 +383,74 @@ The v7 complaint classes that are gone in v8 transcripts: "Problem reports also 
 team" after a question, "Your words, as sent" before the tap, cut-off acknowledgements, the
 "After that" line, internal action names, merged quotes that included unrelated messages.
 
+## Open items after gate v8: design (23 November)
+
+### 1. A withdrawn report has its own status
+Cause: `incidents.status` allows only open and resolved, so `_withdraw` stores "resolved".
+Every reader then reports the wrong fact: the records say "resolved", and the deputy's
+"Their reports" context says "answered" for an undone question (deputy.py `_reports`).
+Fix: allow `withdrawn` in the check constraint (migration 0007, like 0003 for approvals),
+and set it in `_withdraw`. The migration also marks earlier withdrawals: each left a
+report_withdrawn audit event whose receipt names the incident. Readers that test
+`== "open"` stay correct. The Mini App shows any status that is not open with the green
+badge. It works, but green reads as success; a neutral badge is a Mini App change, for the
+Mini App session.
+
+### 2. What still waits on the person follows the reply
+Cause: the context lists updates with "(not acknowledged yet)", but whether to mention them
+is the model's choice, and it answers only what was asked. The heartbeat chases each
+unacknowledged update once by ping, but only 5 minutes after it was sent, and never in
+answer to a message the person sends.
+
+First design: a code-written line in the reply, raised once, detected by finding the same
+line in an earlier assistant turn. Fable's review (23 November) found it unsound:
+- Memory keeps 10 turns and cuts replies at 2000 characters, so "once" did not hold.
+- The line went back to the model as history, so the model could copy it.
+- The instructions were not reliably true. "On it" in words acknowledges the latest update
+  first (agent.py `acknowledge`). "Reply ok" acknowledges only the newest update. A task due
+  in 40 minutes has no On it button.
+- The snapshot is taken before the action, so a message that acknowledges an item would
+  still raise it.
+
+Built instead: after a reply to the person's message (not a slash command), with no draft,
+the heartbeat runs at once for that person only (`Heartbeat.run(active=...)`):
+- An unacknowledged update is chased without the 5-minute wait, because the person is in
+  the chat now.
+- Tasks keep the heartbeat's window (from 5 minutes before due). PING_GAP still limits
+  chasing to once per 10 minutes. The coordinator and the couple are never chased.
+The chase is the existing ping, so the existing parts apply:
+- its button (Acknowledge, or On it for a task);
+- the DeputyPing record, so each item is chased once;
+- the answer and silence handling.
+It is stamped just after the reply, so it is delivered after it. It runs after the action,
+so an "ok" that acknowledges the update chases nothing. Beside a draft, a second button would
+compete with the preview's, so the chase waits for the regular heartbeat.
+
+Status labels: an incident's status reads through one function (`views.incident_status`),
+used by the deputy and the menu's report list.
+
+### 3. Wrong recipient: no code change
+"Tell Taylor: cover is Priya Rao" was drafted to Priya. Both names are in the person's
+words, so no grounding check can tell them apart without parsing the sentence. The preview
+names the recipient first, and nothing is sent before the tap. A rule for this one sentence
+shape would be a patch for a single case.
+
+### Evidence (23 November)
+- Tests: an undone question reads "withdrawn" in the deputy's context; migration 0007 marks
+  a withdrawal that an earlier release stored as resolved; an unacknowledged update follows
+  the reply at once and only once, with its Acknowledge button; no chase beside a draft or
+  after an "ok" that acknowledged it; the coordinator is never chased. Suite: 263 passed.
+- The 13 v7 rater chats replayed through v8 (254d714) and this build (`scripts/ab.py`; 0
+  model fallbacks). The round 1 family liaison's records now say "withdrawn" for the report
+  they took back. Of the 7 chats with a chase, 2 now get it right after their reply: the round 2
+  banquet captain at 18:27, not 18:30, and the round 2 MC, who asked "What did I miss?", at
+  18:29, and then tapped Acknowledge. In the other 5, the update was acknowledged, or a task
+  ping a few minutes earlier holds the next chase back for PING_GAP (10 minutes), which is
+  kept on purpose: two chases a minute apart is nagging.
+- No blind rating: in these fixed scripts the two versions differ in 3 chats by a few
+  minutes or one word, so raters would mostly measure model randomness. The prompt did not
+  change, so the replay metrics do not move either.
+
 ## Checks
 - Unit: extractor (each token type, Singlish time forms); `unsupported` with
   cited and uncited lines; quoted spans do not ground; self-acts with and without
@@ -399,10 +467,10 @@ in 71; trust ≥ 3.5 with no fall in ease or clarity.
 
 ## Resume point
 Read this file, then `git log` on the branch. Fable's build order is done through gate v8
-(sections "Step 1" and "Steps 2 to 4"). Evidence tools: `scripts/replay.py` (tuned and held-out
-cases), `scripts/ab.py` with `WEDDING_OPS_SRC` (paired comparison on exact rater chats),
-`scripts/gate.py` and `simulate.py records|transcript|realtime` (live play). Open items, in
-order: surface open items to helpers (unacknowledged task or update, a coordinator
-instruction); show withdrawn reports as withdrawn in records and the brief; a live-play round
-with the new gate method to look for new kinds of failure; then decide on a staging deploy
-(message the Mini App session first).
+(sections "Step 1" and "Steps 2 to 4"), and the open items from gate v8 are fixed (section
+"Open items after gate v8"). Evidence tools: `scripts/replay.py` (tuned and held-out cases),
+`scripts/ab.py` with `WEDDING_OPS_SRC` (paired comparison on exact rater chats),
+`scripts/gate.py` and `simulate.py records|transcript|realtime` (live play). Next: a
+live-play round with the new gate method to look for new kinds of failure; then decide on a
+staging deploy (message the Mini App session first, and tell it about the neutral badge for
+"withdrawn"). Staging runs release 406bf7c.

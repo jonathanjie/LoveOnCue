@@ -181,7 +181,7 @@ def test_withdraw_closes_my_open_incident_and_cannot_repeat(chat_factory, db):
     withdraw = chat.send("driver", "/withdraw")
     chat.tap("driver", f"confirm:{withdraw.telegram_draft_id}")
     with db.sessions() as s:
-        assert s.scalars(select(Incident)).one().status == "resolved"
+        assert s.scalars(select(Incident)).one().status == "withdrawn"
     assert "nothing to withdraw" in chat.send("driver", "/withdraw").message.lower()
 
 

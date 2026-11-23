@@ -307,6 +307,7 @@ class TelegramIngress:
             item.attempts += 1
             ident, lease, payload, provider_id = item.id, item.lease_token, item.payload, item.provider_update_id
         member_id, result, permission, draft_id = None, None, None, None
+        chase = False  # whether the deputy may chase this person right after its reply
         try:
             text = payload.get("text", "").strip()
             match = re.fullmatch(r"/start\s+([A-Za-z0-9_-]{20,64})", text)
@@ -362,6 +363,8 @@ class TelegramIngress:
                     result = render_reply(response)
                     if response.get("draft"):
                         draft_id = response["draft"]["id"]
+                    # Beside a draft, a second button would compete with the one the preview is for.
+                    chase = self.deputy is not None and draft_id is None
                     permission = {"guests": "guests:seating", "family": "family:status",
                                   "knowledge": "knowledge:read"}.get(response["kind"])
             failure, retry = None, False
@@ -386,4 +389,8 @@ class TelegramIngress:
                 w.state_version += 1
                 audit(s,w,"system","telegram_processed",item.id,{"status":item.state,"error_code":failure},self.clock.now())
             item.last_error, item.lease_token, item.lease_until = failure, None, None
+        if chase and result and failure is None:
+            # What still waits for them (an unacknowledged update, a task due) follows the reply.
+            from .deputy import Heartbeat
+            Heartbeat(self.db, self.wid, self.clock).run(active=member_id)
         return True

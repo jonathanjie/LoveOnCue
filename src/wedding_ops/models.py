@@ -251,7 +251,8 @@ class Incident(TenantRecord, Base):
         ForeignKeyConstraint(["wedding_id", "subject_person_id"], ["people.wedding_id", "people.id"]),
         ForeignKeyConstraint(["wedding_id", "task_id"], ["tasks.wedding_id", "tasks.id"]),
         ForeignKeyConstraint(["wedding_id", "reported_by"], ["members.wedding_id", "members.id"]),
-        CheckConstraint("status IN ('open','resolved')", name="status"),
+        # withdrawn: the reporter took the report back; nobody resolved it.
+        CheckConstraint("status IN ('open','resolved','withdrawn')", name="status"),
     )
 
 

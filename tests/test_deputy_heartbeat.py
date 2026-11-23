@@ -178,3 +178,52 @@ def test_replies_beyond_one_digest_carry_into_the_next(heartbeat_chat, db):
     tick(chat, 15)
     text = "\n".join(n.message for n in chat.notices("coordinator", "deputy_digest") if "Update from the floor" in n.message)
     assert all(f"{member} ok" in text for member in answered)
+
+
+# What still waits for the person follows a reply to their message (gate v8) ---------------------------
+
+def chat_with_announcement(db, settings, clock, queries, ops, plans: dict) -> Chat:
+    """The usher has acknowledged their task, and one announcement waits for their acknowledgement."""
+    chat = Chat(db, replace(settings, deputy=True), clock, queries, ops)
+    chat.ingress.deputy = Deputy(queries, ops, chat.ingress.assistant, StubPlanner(plans), db, clock)
+    with db.transaction(WEDDING, write=True) as (s, _):
+        s.get(Task, "usher-ready").acknowledged_at = clock.now()
+    ops.execute(Actor(WEDDING, "coordinator"), {"type": "broadcast", "team_ids": ["ushers"],
+                "message": "Ceremony moves inside"}, "open-item-broadcast")
+    chat.worker.tick()  # delivered, so the usher has seen it
+    return chat
+
+
+def chases(chat: Chat) -> list:
+    return [n for n in chat.notices("usher", "deputy_ping") if "did you see the coordinator's update" in n.message]
+
+
+def test_an_unacknowledged_update_follows_the_reply_once(db, settings, clock, queries, ops):
+    from wedding_ops.worker import deputy_ping_markup
+    chat = chat_with_announcement(db, settings, clock, queries, ops, {})
+    reply = chat.send("usher", "where do i stand now")
+    # No five-minute wait: the person is in the chat now, and the update is still unacknowledged.
+    [chase] = chases(chat)
+    assert "Ceremony moves inside" in chase.message and chase.created_at > reply.created_at
+    with db.sessions() as s:
+        assert deputy_ping_markup(s, WEDDING, chase)["inline_keyboard"][0][0]["text"] == "Acknowledge"
+    clock.advance(11)
+    chat.send("usher", "and after that?")
+    assert len(chases(chat)) == 1  # raised once; nobody is chased twice for one update
+
+
+def test_no_chase_beside_a_draft_or_after_the_update_is_acknowledged(db, settings, clock, queries, ops):
+    from wedding_ops.deputy import DeputyPlan
+    chat = chat_with_announcement(db, settings, clock, queries, ops, {
+        "mic spoil": DeputyPlan(action="tell_coordinator", text="Mic broken"),
+        "ok": DeputyPlan(action="acknowledge")})
+    assert chat.send("usher", "mic spoil").telegram_draft_id
+    assert chases(chat) == []  # the draft's button is the only one under that reply
+    chat.send("usher", "ok")
+    assert chases(chat) == []  # the message acknowledged the update, so nothing waits
+
+
+def test_the_coordinator_is_never_chased_after_a_reply(db, settings, clock, queries, ops):
+    chat = chat_with_announcement(db, settings, clock, queries, ops, {})
+    chat.send("coordinator", "what is next")
+    assert chat.notices("coordinator", "deputy_ping") == []

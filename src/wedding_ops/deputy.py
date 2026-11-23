@@ -45,7 +45,7 @@ from .operations import Operations
 from .policy import Actor
 from .schemas import Intent, Strict
 from .telegram_ui import ACK_PROMPT, ACK_TOPICS, attendance_label, glance
-from .views import Queries
+from .views import Queries, incident_status
 
 logger = logging.getLogger(__name__)
 
@@ -801,9 +801,8 @@ class Deputy:
             if incident["reported_by"] != me:
                 continue
             kind = {"question": "question", "note": "note"}.get(incident["kind"], f"{incident['severity']} problem report")
-            status = "answered" if incident["kind"] == "question" and incident["status"] == "resolved" else incident["status"]
             reports.append((incident["created_at"], "incident", incident["id"],
-                            f"{local(incident['created_at'])} {kind} “{incident['title']}”: {status}"))
+                            f"{local(incident['created_at'])} {kind} “{incident['title']}”: {incident_status(incident)}"))
         reports.sort(key=lambda report: report[0])
         return [(kind, ident, line) for _, kind, ident, line in reports[-8:]]
 
@@ -1043,8 +1042,15 @@ class Heartbeat:
     def __init__(self, db: Database, wedding_id: str, clock: Clock):
         self.db, self.wid, self.clock = db, wedding_id, clock
 
-    def run(self) -> int:
-        """Send due pings and silence notes. Returns how many pings or digest items were queued."""
+    def run(self, *, active: str | None = None) -> int:
+        """Send due pings and silence notes. Returns how many pings or digest items were queued.
+
+        With `active`, only that member is chased, right after a reply to their message: they are
+        in the chat now, so an unacknowledged update is chased at once instead of after
+        ACK_CHASE_AFTER (gate v8: replies never said what was still waiting for them). Tasks keep
+        their usual window, and PING_GAP still limits how often anyone is chased. The ping is
+        stamped just after the reply, so it is delivered after it.
+        """
         from .models import Location, Member, Notification, Person, Task
         from .operations import audit, notify, one_line
         from .views import rows
@@ -1053,8 +1059,9 @@ class Heartbeat:
         with self.db.transaction(self.wid, write=True) as (s, w):
             if w.status != "live" or not w.deputy_enabled:
                 return 0
-            now = self.clock.now()
+            now = self.clock.now() + (timedelta(microseconds=1) if active else timedelta(0))
             zone = ZoneInfo(w.timezone)
+            chase_after = timedelta(0) if active else ACK_CHASE_AFTER
             names = {p.id: p.name for p in rows(s, Person, self.wid)}
             members = {m.id: m for m in rows(s, Member, self.wid)}
             pings = rows(s, DeputyPing, self.wid)
@@ -1062,7 +1069,7 @@ class Heartbeat:
 
             def may_ping(member: Member | None) -> bool:
                 # The couple are guests at their own wedding: the deputy never chases them.
-                if (member is None or not member.active or member.deputy_quiet
+                if (member is None or not member.active or member.deputy_quiet or (active and member.id != active)
                         or "coordinator" in member.roles or "couple" in member.roles):
                     return False
                 return not any(p.recipient_id == member.id and now - p.created_at < PING_GAP for p in pings)
@@ -1095,7 +1102,7 @@ class Heartbeat:
             newest: dict[str, Notification] = {}
             for notice in rows(s, Notification, self.wid):
                 if (notice.topic in ACK_TOPICS and notice.state in {"sent", "simulated"} and notice.acknowledged_at is None
-                        and ACK_CHASE_AFTER <= now - notice.created_at <= ACK_CHASE_LIMIT):
+                        and chase_after <= now - notice.created_at <= ACK_CHASE_LIMIT):
                     current = newest.get(notice.recipient_id)
                     if current is None or notice.created_at > current.created_at:
                         newest[notice.recipient_id] = notice
@@ -1109,7 +1116,7 @@ class Heartbeat:
                              "Tap Acknowledge, or reply “ok”.", "unacknowledged_update",
                      notification_id=notice.id)
                 queued += 1
-            for ping in pings:
+            for ping in [] if active else pings:  # silence notes keep the regular schedule
                 task = s.get(Task, ping.task_id) if ping.task_id else None
                 silent = ping.answered_at is None and now - ping.created_at >= SILENCE_AFTER
                 still_open = task is not None and not task.acknowledged_at and task.state not in {"done", "cancelled"}

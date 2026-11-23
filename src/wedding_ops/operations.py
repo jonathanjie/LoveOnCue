@@ -844,7 +844,8 @@ class Operations:
             audience = recipients(s, self.wid, coordinators=True)
         else:
             incident = target["record"]
-            incident.status, incident.resolved_at = "resolved", now
+            # Not "resolved": nobody fixed it, and the records and the deputy must say what happened.
+            incident.status = "withdrawn"
             permission = "family:status" if incident.kind == "location_unconfirmed" else None
             notice = (target["title"], permission, incident.audience_team_ids)
             audience = recipients(s, self.wid, teams=incident.audience_team_ids)

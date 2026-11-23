@@ -49,6 +49,12 @@ def approval_view(item: Approval) -> dict:
             "decided_by": item.decided_by, "decided_at": iso(item.decided_at), "decision_note": item.decision_note}
 
 
+def incident_status(incident: dict) -> str:
+    """How a report's status reads to people. One place, so the chat and the menus agree: a
+    question that was closed was answered; a report the reporter took back is withdrawn."""
+    return "answered" if incident["kind"] == "question" and incident["status"] == "resolved" else incident["status"]
+
+
 def knowledge_search(session: Session, wid: str, access: Access, query: str, now) -> list[dict]:
     access.require("knowledge:read")
     terms = set(re.findall(r"[a-z0-9]+", query.lower())) - {"where", "what", "is", "the", "a", "are", "can", "i", "how", "to", "of", "do"}

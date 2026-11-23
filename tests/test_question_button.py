@@ -34,7 +34,18 @@ def test_the_button_sends_the_persons_own_message_and_can_be_undone(deputy_chat,
     assert button(db, sent) == "Undo"
     chat.tap("mc", f"confirm:{sent.telegram_draft_id}")
     with db.sessions() as s:
-        assert s.scalars(select(Incident)).one().status == "resolved"
+        assert s.scalars(select(Incident)).one().status == "withdrawn"
+
+
+def test_a_question_taken_back_is_withdrawn_not_answered(deputy_chat):  # noqa: F811
+    planner = StubPlanner({"how to say groom surname ah": UNKNOWN})
+    chat = deputy_chat(planner)
+    sent = chat.tap("mc", f"confirm:{chat.send('mc', 'how to say groom surname ah').telegram_draft_id}")
+    chat.tap("mc", f"confirm:{sent.telegram_draft_id}")
+    chat.send("mc", "did the coordinator answer?")
+    context = planner.calls[-1][1]["content"]
+    # Before migration 0007 an undone question was stored as resolved, and the deputy said "answered".
+    assert "question “how to say groom surname ah”: withdrawn" in context
 
 
 def test_each_tap_asks_a_new_question_until_the_persons_limit(deputy_chat, db):  # noqa: F811

@@ -18,7 +18,7 @@ from .operations import Operations
 from .policy import Actor
 from .schemas import Intent, PhotoReview, Strict
 from .telegram_ui import acknowledged_reply
-from .views import Queries
+from .views import Queries, incident_status
 
 logger = logging.getLogger(__name__)
 MISTRAL_CHAT_URL = "https://api.mistral.ai/v1/chat/completions"
@@ -374,7 +374,7 @@ class Assistant:
             me = actor.member_id
             reports = ([{"title": a["title"], "status": a["status"], "note": a.get("decision_note"), "at": a["created_at"]}
                         for a in snapshot["approvals"] if a.get("proposed_by") == me] +
-                       [{"title": i["title"], "status": i["status"], "note": None, "at": i["created_at"]}
+                       [{"title": i["title"], "status": incident_status(i), "note": None, "at": i["created_at"]}
                         for i in snapshot["incidents"] if i["reported_by"] == me])
             reports.sort(key=lambda r: r["at"], reverse=True)
             message = "Your recent reports and what happened to them:" if reports else "You have not sent any reports yet."
