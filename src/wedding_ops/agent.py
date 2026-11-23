@@ -474,8 +474,18 @@ class Assistant:
         preview = self.operations.preview_change(actor, command)
         zone, places = ZoneInfo(snapshot["wedding"]["timezone"]), {p["id"]: p["name"] for p in snapshot["locations"]}
         lines = ["\u2022 " + describe_change(change, zone, places) for change in preview["changes"]]
-        head = "Change the run sheet:" if coordinator else "Ask the coordinator to approve this run-sheet change:"
-        parts = [head, *lines]
+        if coordinator:
+            parts = ["Change the run sheet:", *lines]
+        else:
+            # A helper reports; the coordinator decides. Live play v9 and v10: "Ask the coordinator to
+            # approve this run-sheet change" above every later item read as "I never said change the
+            # whole schedule".
+            if shift and not location_id and not note:
+                direction = "late" if shift > 0 else "early"
+                report = f"Report to the coordinator: {item['title']} starts {abs(shift)} minutes {direction}."
+            else:
+                report = f"Ask the coordinator to approve a change to {item['title']}."
+            parts = [report, "If they approve, the run sheet becomes:", *lines]
         if len(preview["changes"]) > 1:
             parts.append("Later items move too, so that nothing overlaps.")
         if preview["blockers"]:
@@ -490,7 +500,7 @@ class Assistant:
                      "Nothing changes until the coordinator approves it.")
         draft = self.operations.draft(actor, command, "\n".join(parts))
         message = ("Check the change before it goes out." if coordinator else
-                   "Confirm the report to create a proposal, not to change the schedule.")
+                   "Check this before it goes to the coordinator.")
         return {"kind": "confirmation", "message": message, "draft": draft}
 
     def _acknowledge_task(self, actor: Actor, which: str, snapshot: dict) -> dict:

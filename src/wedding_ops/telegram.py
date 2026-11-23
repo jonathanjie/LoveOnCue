@@ -112,7 +112,9 @@ def render_reply(result: dict) -> str:
                 if draft.get("command_type") == "propose_delay" else "")
         if draft.get("command_type") == "change_item":
             note = ""  # The preview itself says who approves the change.
-        return f"{message}\n\n{draft['summary']}\n\nTap the button below within five minutes to send it.{note}"
+        replaced = f"\n\nThis replaces your unsent draft: {draft['replaced']}" if draft.get("replaced") else ""
+        return (f"{message}\n\n{draft['summary']}\n\nTap the button below within five minutes to send it.{note}"
+                f"{replaced}")
     for item in result.get("data", [])[:8]:
         if result["kind"] == "tasks":
             message += f"\n• {item['title']} · due {local_time(item['due_at'], zone)} · {item['state']}"

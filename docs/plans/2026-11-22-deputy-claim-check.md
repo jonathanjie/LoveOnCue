@@ -576,6 +576,113 @@ check alone cannot catch a stale time; the history note addresses the cause.
 - Tests: 274 passed. New: `tests/test_told.py`, `tests/test_deputy_live_play_v9.py`, the
   confirmation cases in `tests/test_claims.py`, and the simulator transcript log.
 
+## Live-play round v10 (23 November)
+
+Build 8c81ed1, same method as v9: four casts at once (rounds 1 and 2 with 13 Haiku players and
+13 GPT-6-Luna players).
+
+| Cast | Ease | Clarity | Trust |
+|---|---|---|---|
+| Haiku, 13 players (v9) | 3.8 | 3.6 | 2.5 |
+| Haiku, 13 players (v10) | 3.6 | 3.5 | 2.6 |
+| Luna, 13 players (v9) | 3.2 | 3.4 | 3.1 |
+| Luna, 13 players (v10) | 3.6 | 3.3 | 3.1 |
+
+Scores move about 0.3 between rounds with the same code, so they find failures; they do not
+measure the fixes. Classes fixed in v9 did not come back: no task was acknowledged by a
+non-confirmation, no "1 people", no repeated time, no "the context", no seat-refusal line under
+unrelated replies, and code text named who was told.
+
+### Findings, by cause (each checked in a transcript)
+1. Stale run-sheet times passed the claim check. After version 2 moved dinner to 19:10, the
+   coordinator was told "The run sheet I have shows dinner service at 19:00 … moved from
+   19:00 — I don't have a version 2", and an usher "still lists the garden ceremony at 18:30".
+   The context was right ("19:10 Dinner service (moved from 19:00)"), but the old time in
+   that parenthesis, and in update notices ("19:00 → 19:10"), supported the sentence.
+2. Half a sentence: "I don't have a seat listed for" above a lookup line. The model's
+   sentence crossed a line break; the check split it there and removed only the second half.
+3. "not yet lol going there now", in answer to a check-in, drafted "Jamie Lim is running
+   late". Nothing in the person's words said late.
+4. A question titled "Ok, saw the coordinator's message": the title skips only leading
+   confirmations, and that sentence is not one.
+5. A new draft silently replaced an unsent one: the coordinator's reply to Taylor was never
+   sent, and nothing said so.
+6. "tell Chris: … tell Taylor: …" made one draft; the answer then said the second part was
+   "covered", which was false.
+7. "Can undo the arrival for Grace Tan?" became a problem report, not a withdrawal: the
+   prompt describes taking back "a report" only.
+8. A helper's delay report reads as a schedule change: "Ask the coordinator to approve this
+   run-sheet change:" above every later item ("I never say change the whole schedule";
+   both rounds).
+
+Model statements left as residuals (no general check exists): hearsay restated as fact ("Mei
+Lee is here, just not at the foyer"), "Nothing in the records mentions a car" beside an urgent
+car report, "Grace Tay is noted as arrived". Timing artefacts: a reply before a change in the
+same minute, read against the final records.
+
+### Design
+- 1: in `Support`, a time that the records give only as an item's earlier time ("moved from
+  19:00", "19:00 → 19:10") supports a sentence only when that sentence also states the
+  item's current time. "Dinner moved from 19:00 to 19:10" passes; "dinner is still 19:00"
+  is removed. (Built and tested.)
+- 2: when the check removes a piece, the kept piece just before it goes too if it has no end
+  punctuation. (Built.)
+- 3: a lateness report needs the person to say they are late (a closed set: late, delay,
+  stuck, jam, traffic, behind, lambat, "won't make it", minutes away), as a task-done draft
+  needs "done".
+- 4: a question's title is the first sentence that asks; else the first that is not a
+  confirmation.
+- 5: when a new draft replaces an unsent one, code adds "This replaces your unsent draft: …".
+- 6: the prompt says: one action per message; when they ask for several, act on the first
+  and say in the answer which one is still to do.
+- 7: the prompt says withdraw_last also undoes an arrival they recorded.
+- 8: a helper's plain delay reads "Report to the coordinator: <item> starts N minutes late.
+  If they approve, the run sheet becomes:", with the button "Send to coordinator".
+
+### Built, after Fable's review (v10)
+- 1: as designed, plus: an earlier time is also supported as the past ("was at 19:00",
+  "moved from 19:00"); after a second move, the older notice's new time is old too; a
+  bracket in a title no longer hides "(moved from …)". Not covered: an old place ("was
+  Garden terrace") is still a current place name, so it stays supported.
+- 2: instead of dropping pieces, a line with no end punctuation is joined to the next line
+  before the check, unless the next line is a list item.
+- 3: `says_late` (late, delay, stuck, jam, traffic, lambat, ETA, "won't make it").
+- 4: the title is the first sentence that asks.
+- 5: `Operations.draft` returns the replaced unsent draft's first line, and the reply says
+  "This replaces your unsent draft: …", except when a report carries the earlier report's words.
+- 6: Fable: the prompt already says one action per message, and prompt-only rules failed 15% of
+  the time (gate v6). Code instead names anyone the message names whom the draft does not
+  reach: "This message is not to Taylor Ng. Send me what Taylor Ng should get next."
+- 7: the action and field descriptions say withdraw_last also undoes an arrival.
+- 8: keyed on the role, not the command: a helper's change reads "Report to the coordinator:
+  Dinner service starts 20 minutes late. If they approve, the run sheet becomes: …", and its
+  intro is "Check this before it goes to the coordinator."
+- Found while building: the model answers before a guest lookup runs, so "Lucas Tan isn't on
+  the guest list I can see" sat above "Lucas Tan: Table 3". The lookup line states seat facts;
+  answer sentences that name a looked-up guest are removed, and no question button is offered
+  under a lookup.
+- Found by the replay: "what is Grace Tan status now? arrived or not" drafted her arrival
+  (2 of 3 runs). A question never records an arrival, as it never marks a task done.
+
+### Evidence for the v10 fixes (23 November)
+| Measure | v8 | v9 | v10 |
+|---|---|---|---|
+| Outcome matches the label, tuned set | 163 of 189 | 169 of 189 | 165 of 189 |
+| Outcome matches the label, held-out set | 64 of 69 | 65 of 69 | 65 of 69 |
+| False full drafts, tuned set | 3 of 72 | 2 of 72 | 2 of 72 |
+| Internal names or template lines | 0 | 0 | 0 |
+| Missing a required fact | 0 | 0 | 0 |
+
+The tuned score moves about ±4 between runs of the same code (162 to 169 in v9 runs). Two
+intermediate v10 replays found regressions caused by the v9 status predicate, both fixed:
+- "be approved" matched advice ("needs to be approved by the coordinator"). The couple's
+  whole answer was removed and replaced by "You have no reports on record yet".
+- "still pending" matched a task, which can truly be pending. The usher lost its due time
+  (2 missing facts).
+Now a status word counts only when it is said of something ("was sent", "request approved"),
+the predicate form excludes "be" and "pending", and the "no reports" line appears only when a
+removed sentence named a report. Tests: 283 passed.
+
 ## Checks
 - Unit: extractor (each token type, Singlish time forms); `unsupported` with
   cited and uncited lines; quoted spans do not ground; self-acts with and without
@@ -592,12 +699,13 @@ in 71; trust ≥ 3.5 with no fall in ease or clarity.
 
 ## Resume point
 Read this file, then `git log` on the branch. Done: Fable's build order through gate v8, the
-gate v8 open items, live-play round v9 (26 players, Haiku and GPT-6-Luna) and its fixes
-(sections "Live-play round v9" and "Built, after Fable's review"). Tools: `scripts/replay.py`
-(tuned and held-out cases), `scripts/ab.py` with `WEDDING_OPS_SRC` (paired comparison),
-`scripts/gate.py` and `simulate.py records|transcript|realtime` (live play; Luna players run as
-`codex exec -m gpt-6-luna -s workspace-write -c sandbox_workspace_write.network_access=true
---add-dir <world>`). Next: a second live-play round on this build to look for new kinds of
-failure; then decide on a staging deploy (message the Mini App session first, and tell it about
-the neutral badge for "withdrawn"). Staging runs release 406bf7c; migrations 0007 and 0008 are
-new since then.
+gate v8 open items, live-play rounds v9 and v10 (26 players each, Haiku and GPT-6-Luna) and
+their fixes. Tools: `scripts/replay.py` (tuned and held-out cases), `scripts/ab.py` with
+`WEDDING_OPS_SRC` (paired comparison), `scripts/gate.py` and
+`simulate.py records|transcript|realtime` (live play; Luna players run as `codex exec -m
+gpt-6-luna -s workspace-write -c sandbox_workspace_write.network_access=true --add-dir <world>`).
+Residual model behaviours with no general check: hearsay restated as fact, a missed record
+("nothing mentions a car"), the model choosing "Ask the coordinator" beside a full answer.
+Next: decide on a staging deploy (message the Mini App session first, and tell it about the
+neutral badge for "withdrawn"). Staging runs release 406bf7c; migrations 0007 and 0008 are new
+since then.

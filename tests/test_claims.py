@@ -125,10 +125,12 @@ def test_an_answer_with_nothing_supported_says_so_and_offers_to_ask(deputy_chat)
     assert reply.telegram_draft_id
 
 
-def test_a_table_from_this_messages_lookup_supports_the_answer(deputy_chat):  # noqa: F811
+def test_the_lookup_line_states_the_seat_not_the_answer(deputy_chat):  # noqa: F811
+    # The model answers before the lookup runs, so its sentence about the guest is a guess even when
+    # it happens to be right (live play v10: "isn't on the guest list" above "Table 3").
     planner = StubPlanner({"sarah tan table?": DeputyPlan(answer="Sarah Tan is at Table 18.", find_guests=["Sarah Tan"])})
     message = deputy_chat(planner).send("usher", "sarah tan table?").message
-    assert message.startswith("Sarah Tan is at Table 18.") and "• Sarah Tan: Table 18" in message
+    assert message == "• Sarah Tan: Table 18; not checked in yet"
 
 
 def test_an_outcome_claim_beside_a_draft_is_removed_and_nothing_replaces_it(deputy_chat):  # noqa: F811

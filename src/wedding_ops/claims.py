@@ -22,6 +22,8 @@ DURATION = re.compile(r"\b(\d{1,3})\s*(?:min|mins|minute|minutes|minit)\b", re.I
 REFERENCE = re.compile(r"\b([RQ]\d{1,2})\b")
 QUOTED = re.compile(r"“[^”]*”")
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
+# A line break after a line with no end punctuation, unless the next line is a list item.
+UNFINISHED_LINE = re.compile(r"(?<![.!?\u2026:\u201d\"')\]])[ \t]*\n+[ \t]*(?![\u2022*\-\d])")
 
 # A sentence states the status of a report when it names a report and a status together.
 REPORT_NOUN = re.compile(r"\b([RQ]\d{1,2}|requests?|reports?|questions?|alerts?|drafts?|notes?|nudges?|arrivals?|"
@@ -94,13 +96,37 @@ def facts(text: str, names: set[str]) -> list[Fact]:
     return found
 
 
+# A run-sheet line keeps the time an item had before it moved: "19:10 Dinner service (moved from
+# 19:00)". Live play v10: three replies said dinner was "still 19:00" after the change, and the
+# old time in that parenthesis supported them. An old time is a fact only beside the new one.
+MOVED = re.compile(r"(\d{1,2}:\d{2})([^\n]*?)\(moved from (\d{1,2}:\d{2})\)")
+# Words that put a time in the past: "was at 19:00", "moved from 19:00", "originally 19:00".
+PAST_TIME = re.compile(r"\b(?:was|were|moved from|originally|planned for|previously|earlier|instead of|used to be)\b",
+                       re.IGNORECASE)
+# The same in an update notice: "Dinner service 19:00 → 19:10".
+ARROW = re.compile(r"(\d{1,2}:\d{2})\s*\u2192\s*(\d{1,2}:\d{2})")
+
+
 class Support:
     """The normalised facts that a text may state."""
 
     def __init__(self, text: str, names: set[str], references: set[str] = frozenset(), *,
                  extra_names: str = "", shifts_from: str = ""):
         self.forms: set[str] = set()
-        for fact in facts(text, names):
+        # old time form -> the current time forms that a sentence must also state to mention it
+        self.superseded: dict[str, set[str]] = {}
+        pairs = [(m[3], m[1]) for m in MOVED.finditer(text)] + [(m[1], m[2]) for m in ARROW.finditer(text)]
+        for old, current in pairs:
+            new = {form for fact in facts(current, names) for form in fact.forms}
+            for fact in facts(old, names):
+                for form in fact.forms:
+                    self.superseded.setdefault(form, set()).update(new)
+        # After a second move, an older notice's new time ("18:50 → 19:00") is old as well.
+        old_times = {old for old, _ in pairs}
+
+        def latest(match: re.Match) -> str:
+            return "" if match[2] in old_times else match[2]
+        for fact in facts(ARROW.sub(latest, MOVED.sub(r"\1\2", text)), names):
             self.forms |= fact.forms
         # A record's time moved by a duration the person gave ("15 min later" on 19:00) is
         # arithmetic on supported facts, so the result is supported too.
@@ -116,7 +142,19 @@ class Support:
             self.forms |= {form for form in fact.forms if form.startswith("name:")}
 
     def missing(self, text: str, names: set[str]) -> list[str]:
-        return [fact.shown for fact in facts(text, names) if not fact.forms & self.forms]
+        found = facts(text, names)
+        stated = {form for fact in found for form in fact.forms}
+
+        past = bool(PAST_TIME.search(text))
+
+        def supported(fact) -> bool:
+            if fact.forms & self.forms:
+                return True
+            # "moved from 19:00 to 19:10" and "dinner was at 19:00" are true; "dinner is still
+            # 19:00" is not. An earlier time is supported beside the current one, or as the past.
+            earlier = [form for form in fact.forms if form in self.superseded]
+            return bool(earlier) and (past or any(self.superseded[form] & stated for form in earlier))
+        return [fact.shown for fact in found if not supported(fact)]
 
 
 def sentences(text: str) -> list[str]:
@@ -126,13 +164,23 @@ def sentences(text: str) -> list[str]:
 # A decision word used as a predicate states a status even without a report noun: "so tell the
 # kitchen it's not approved" sat above a code line saying the request was pending (live play v9).
 # Only decision words: "registration is open" or "he is recorded as onsite" are not statuses.
+# Not "pending" (a task is pending, truly) and not "be approved" ("moving speeches needs to be
+# approved" is advice): replay v10 lost a due time and a whole answer to those.
 DECISION_PREDICATE = re.compile(
-    r"\b(?:is|was|are|were|be|been|being|'s|isn't|wasn't|aren't|not|still|already|yet|now)\s+(?:not\s+|yet\s+|still\s+)?"
-    r"(?:approved|rejected|declined|pending|withdrawn|answered|unsent)\b", re.IGNORECASE)
+    r"\b(?:is|was|are|were|'s|isn't|wasn't|aren't|not|still|already|yet|now)\s+(?:not\s+|yet\s+|still\s+)?"
+    r"(?:approved|rejected|declined|withdrawn|answered|unsent)\b", re.IGNORECASE)
+
+
+# The status word is said of something: "was sent", "is still pending", "has been answered", or
+# right after the noun ("request approved"). Replay v10: "I can't change the run sheet, and the
+# approved sheet has speeches at 19:45" was removed as a status (a verb "change" and an adjective).
+STATUS_SAID = re.compile(
+    r"(?:\b(?:is|was|are|were|be|been|being|'s|got|has|have|still|already|now|yet|not)\s+(?:not\s+|yet\s+|still\s+|"
+    r"been\s+|already\s+)?|" + REPORT_NOUN.pattern + r"\s+)" + REPORT_STATUS.pattern, re.IGNORECASE)
 
 
 def states_report_status(sentence: str) -> bool:
-    return bool(REPORT_NOUN.search(sentence) and REPORT_STATUS.search(sentence)) or bool(
+    return bool(REPORT_NOUN.search(sentence) and STATUS_SAID.search(sentence)) or bool(
         DECISION_PREDICATE.search(sentence))
 
 
@@ -155,6 +203,9 @@ def check_answer(text: str, support: Support, names: set[str], internal: re.Patt
     The prompt keeps these names out of its prose; this is the backstop.
     """
     kept, removed, status, references, acts, internals = [], [], [], set(), [], []
+    # A line break inside a sentence is not a sentence end: live play v10 showed "I don't have a
+    # seat listed for" on its own after the rest of the sentence, on the next line, was removed.
+    text = UNFINISHED_LINE.sub(" ", text)
     for sentence in sentences(text):
         if internal is not None and internal.search(sentence):
             internals.append(sentence)
@@ -208,6 +259,16 @@ DONE_WORDS = re.compile(r"\b(?:done|finish|finished|finishing|complete|completed
 
 def says_done(text: str) -> bool:
     return bool(DONE_WORDS.search(text))
+
+
+# Words that say the person is late. "not yet lol going there now", in answer to a check-in,
+# drafted "Jamie Lim is running late" (live play v10).
+LATE_WORDS = re.compile(r"\b(?:late|later|delay|delayed|stuck|jam|jammed|traffic|lambat|eta|"
+                        r"(?:won't|wont|can't|cant|cannot|not) make it)\b", re.IGNORECASE)
+
+
+def says_late(text: str) -> bool:
+    return bool(LATE_WORDS.search(text))
 
 
 # What a confirmation is made of. Acknowledging changes a record without a tap, so the set is

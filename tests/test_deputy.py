@@ -57,7 +57,8 @@ def test_an_action_creates_the_usual_draft_for_the_person_to_confirm(deputy_chat
     reply = deputy_chat(planner).send("banquet", "kitchen jialat, dinner need 15 more min")
     assert reply.telegram_draft_id and "Dinner service" in reply.message
     # "I will ask the coordinator" is not something the deputy can do; code introduces the draft instead.
-    assert "I will ask" not in reply.message and reply.message.startswith("Confirm the report")
+    assert "I will ask" not in reply.message and reply.message.startswith("Check this before it goes to the coordinator")
+    assert "Report to the coordinator: Dinner service starts 15 minutes late." in reply.message
 
 
 def test_conversation_memory_carries_the_last_turns(deputy_chat):

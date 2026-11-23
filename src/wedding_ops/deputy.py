@@ -29,6 +29,7 @@ from .agent import (
 )
 from .attention import already_told, tell_coordinators
 from .claims import (
+    REPORT_NOUN,
     Checked,
     Support,
     asks,
@@ -36,6 +37,7 @@ from .claims import (
     from_their_words,
     is_confirmation,
     says_done,
+    says_late,
     sentences,
     without_quotes,
 )
@@ -45,7 +47,7 @@ from .models import ActionDraft, ConversationTurn, DeputyPing
 from .operations import Operations
 from .policy import Actor
 from .schemas import Intent, Strict
-from .telegram_ui import ACK_PROMPT, ACK_TOPICS, attendance_label, glance
+from .telegram_ui import ACK_PROMPT, ACK_TOPICS, attendance_label, glance, names_list
 from .views import Queries, incident_status
 
 logger = logging.getLogger(__name__)
@@ -154,7 +156,7 @@ ACTION_HELP = {
     "run_sheet_change": "Draft a run-sheet change: an activity starts later, moves place, or needs a note.",
     "complete_task": "Draft marking one of their own tasks done, when they say it is done.",
     "draft_arrival": "Draft recording that a guest or family member arrived.",
-    "withdraw_last": "Draft taking back one of their reports.",
+    "withdraw_last": "Draft taking back one of their reports, or undoing an arrival they recorded.",
     "acknowledge": "Acknowledge their task or an update, when the whole message is a short confirmation.",
     "send_message": "Coordinator: draft a message to people or teams.",
     "stop_checkins": "Stop unprompted check-ins to them.", "resume_checkins": "Resume check-ins to them.",
@@ -175,7 +177,8 @@ FIELD_HELP = {
         "place": "The new place.", "note": "What helpers must know, only from the person's words."},
     "complete_task": {"text": "Which of their own tasks is done."},
     "draft_arrival": {"text": "The guest or family member who arrived, as they named them."},
-    "withdraw_last": {"about": "The reference of the report they take back (for example R2); empty for the latest."},
+    "withdraw_last": {"about": "The reference of the report they take back (for example R2); empty for their latest "
+                               "report or arrival."},
     "acknowledge": {"text": "The task, if they name one."},
     "send_message": {
         "to": "'everyone', or the names of people or teams.",
@@ -286,7 +289,8 @@ action per message, and only an action the schema offers.
   sheet when they tap.
 - complete_task: text = which of their own tasks is done, when they say it is done.
 - draft_arrival: a guest or family member arrived; text = the person, as they named them.
-- withdraw_last: they take back a report; about = its reference, or empty for their latest.
+- withdraw_last: they take back a report, or undo an arrival they recorded ("wrong one, undo");
+  about = its reference, or empty for their latest.
 - acknowledge: only when the whole message is a short confirmation ("ok noted", "got it", "on it",
   a thumbs up). A question is never an acknowledgement.
 - send_message: coordinator only. to = "everyone", or names of people or teams from the RECORDS;
@@ -358,6 +362,15 @@ class Deputy:
         if plan.action == "acknowledge" and not is_confirmation(text):
             logger.warning("Deputy chose acknowledge for a message that is not a confirmation; answering without it")
             plan = plan.model_copy(update={"action": "none"})
+        if plan.action == "report_late" and not says_late(text):
+            # A lateness report rests on the person saying they are late (live play v10).
+            logger.warning("Deputy chose report_late without the person saying they are late; answering without it")
+            plan = plan.model_copy(update={"action": "none"})
+        if plan.action == "draft_arrival" and asks(text):
+            # A question never records anything: "what is Grace Tan status now? arrived or not"
+            # drafted her arrival (replay v10).
+            logger.warning("Deputy chose draft_arrival for a question; answering without it")
+            plan = plan.model_copy(update={"action": "none"})
         if plan.action == "complete_task" and (asks(text) or not says_done(text)):
             # A message that asks something, or does not say something is done, never marks a task done.
             logger.warning("Deputy chose complete_task for a question; answering without it")
@@ -389,9 +402,17 @@ class Deputy:
             # Code says what to tap under every draft; the answer's own "tap the button" repeats it,
             # sometimes above the draft it refers to.
             answer = " ".join(part for part in sentences(answer) if not DRAFT_CLAIM.search(part))
+        if lookups:
+            # The model answers before the lookup runs, so what it says about a looked-up guest is
+            # a guess: "Lucas Tan isn't on the guest list I can see" above "Lucas Tan: Table 3"
+            # (live play v10). The lookup line states those facts.
+            looked_up = [name.casefold() for name in plan.find_guests]
+            answer = " ".join(part for part in sentences(answer)
+                              if not any(name in part.casefold() for name in looked_up))
         pending_id, pending = self._pending(actor.member_id)
-        # The question button never replaces a draft that is still waiting for a tap.
-        if not result.get("draft") and not pending and self._question_wanted(plan, checked, answer, result, turn,
+        # The question button never replaces a draft that is still waiting for a tap, and is not
+        # offered when a lookup answered the message.
+        if not result.get("draft") and not pending and not lookups and self._question_wanted(plan, checked, answer, result, turn,
                                                                                snapshot):
             result = self._question_button(actor, snapshot, turn)
         if not result.get("draft") and DRAFT_CLAIM.search(answer):
@@ -472,10 +493,13 @@ class Deputy:
         quoted = f"\u201c{glance(words)}\u201d"
         # "ok thanks. i stand at entrance b till seating announce then i go where" was titled "ok
         # thanks" (live play v9). The title skips leading confirmations; the details keep every word.
-        asked = sentences(words)
-        while len(asked) > 1 and is_confirmation(asked[0]):
-            asked.pop(0)
-        asked = " ".join(asked)
+        # The title is the first sentence that asks; else the message without leading confirmations
+        # ("Ok, saw the coordinator's message. Who covers the welcome?" was titled by its first words).
+        parts = sentences(words)
+        asking = [part for part in parts if asks(part)]
+        while len(parts) > 1 and is_confirmation(parts[0]):
+            parts.pop(0)
+        asked = asking[0] if asking else " ".join(parts)
         mine = sorted((i for i in snapshot["incidents"] if i["status"] == "open" and i["kind"] == "question"
                        and i["reported_by"] == actor.member_id), key=lambda i: i["created_at"])
         if len(mine) >= QUESTIONS_PER_PERSON:
@@ -501,7 +525,8 @@ class Deputy:
         """Status from the records, for the references asked about or named in a removed status sentence."""
         wanted = [ref.upper().strip() for ref in plan.status_of] + sorted(checked.status_references)
         lines = [turn.refs[ref][2] for ref in dict.fromkeys(wanted) if ref in turn.refs]
-        if checked.status and not lines and not drafted:
+        about_reports = any(REPORT_NOUN.search(sentence) for sentence in checked.status)
+        if checked.status and about_reports and not lines and not drafted:
             # The model talked about something's status without naming it. A draft waiting for their
             # tap is what they can act on; otherwise state their latest report.
             if pending:
@@ -640,7 +665,28 @@ class Deputy:
             asker = names.get(question_record["reported_by"], "the helper")
             summary += f"\nThis answers {asker}'s question \u201c{question_record['title']}\u201d and closes it."
         draft = self.operations.draft(actor, command, summary)
-        return {"kind": "confirmation", "message": "Check the message before it goes out.", "draft": draft, "data": []}
+        message = "Check the message before it goes out."
+        left_out = self._named_but_not_reached(turn.text, snapshot, member_ids, team_ids)
+        if left_out:
+            # One draft per message: "tell Chris … tell Taylor …" made one draft to Chris, and the
+            # answer said Taylor's part was "covered" (live play v10). Code names who it does not reach.
+            message += (f" This message is not to {names_list(left_out)}. "
+                        f"Send me what {names_list(left_out)} should get next.")
+        return {"kind": "confirmation", "message": message, "draft": draft, "data": []}
+
+    @staticmethod
+    def _named_but_not_reached(text: str, snapshot: dict, member_ids: list[str], team_ids: list[str]) -> list[str]:
+        """People the message names (full or first name) whom the draft does not reach."""
+        lowered = text.casefold()
+        reached = set(member_ids) | {m["id"] for m in snapshot["members"] if set(m.get("team_ids") or []) & set(team_ids)}
+        named = []
+        for member in snapshot["members"]:
+            if member["id"] == snapshot["me"]["id"] or member["id"] in reached:
+                continue
+            first = member["name"].split()[0].casefold()
+            if re.search(rf"\b{re.escape(member['name'].casefold())}\b|\b{re.escape(first)}\b", lowered):
+                named.append(member["name"])
+        return named
 
     def _control(self, actor: Actor, plan: DeputyPlan) -> dict:
         """Check-in switches. Each still runs through Operations' permission checks."""
@@ -781,8 +827,8 @@ class Deputy:
             counts = snapshot["counts"]
             lines += ["", f"[record] {counts['onsite']} of {counts['guests']} guests are recorded as onsite.",
                       "[record] This person can look up guest seats: put up to five guest names from their message "
-                      "in find_guests and the system looks them up, so a seating question never goes to the "
-                      "coordinator."]
+                      "in find_guests, even a partial name such as \"Mr Lee\", and the system looks them up and "
+                      "shows the matches, so a seating question never goes to the coordinator."]
         else:
             lines += ["", "[record] This person cannot look up guest seats; seating is for the registration team "
                           "and ushers."]

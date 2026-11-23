@@ -73,3 +73,80 @@ def test_a_task_is_marked_done_only_when_the_person_says_so(deputy_chat):  # noq
     # Replay v9: with no acknowledge to choose, the model drafted "Mark your task done" for this.
     assert not chat.send("usher", got_it).telegram_draft_id
     assert "Mark your task done" in chat.send("usher", "entrance b done").message
+
+
+# Live play v10 ---------------------------------------------------------------------------------------
+
+def test_an_earlier_time_supports_only_a_sentence_about_the_change():
+    from wedding_ops.claims import Support, check_answer
+    support = Support("- 19:10 Dinner service at Cedar Ballroom (moved from 19:00).\n"
+                      "- [record] • Dinner service 18:50 → 19:00\n- [record] • Dinner service 19:00 → 19:10", set())
+    assert support.missing("Dinner service is still 19:00.", set()) == ["19:00"]
+    assert support.missing("Dinner moved from 19:00 to 19:10.", set()) == []
+    assert support.missing("Dinner was at 18:50.", set()) == []
+    # A sentence split by a line break is checked whole, so no half of it is left.
+    assert check_answer("I don't have a seat listed for\n“auntie sarah” at 21:30.", support, set()).text == ""
+
+
+def test_a_lateness_report_needs_the_person_to_say_late(deputy_chat):  # noqa: F811
+    planner = StubPlanner({"not yet lol going there now": DeputyPlan(action="report_late"),
+                           "stuck in jam, 20 min late": DeputyPlan(action="report_late", minutes=20)})
+    chat = deputy_chat(planner)
+    assert not chat.send("usher", "not yet lol going there now").telegram_draft_id
+    assert chat.send("usher", "stuck in jam, 20 min late").telegram_draft_id
+
+
+def test_a_question_title_is_the_sentence_that_asks(deputy_chat, db):  # noqa: F811
+    text = "Ok, saw the coordinator's message. Who is covering the welcome speech?"
+    chat = deputy_chat(StubPlanner({text: DeputyPlan(answer="The records don't say.", action="ask_coordinator")}))
+    chat.tap("mc", f"confirm:{chat.send('mc', text).telegram_draft_id}")
+    with db.sessions() as s:
+        assert s.scalars(select(Incident)).one().title.startswith("Who is covering the welcome")
+
+
+def test_a_replaced_draft_and_a_left_out_person_are_named(deputy_chat):  # noqa: F811
+    both = "tell Chris: delay approved. tell Taylor: announce at 7.15"
+    chat = deputy_chat(StubPlanner({
+        "tell asha speeches stay after dinner": DeputyPlan(action="send_message", to="Asha",
+                                                           message="Speeches stay after dinner."),
+        both: DeputyPlan(action="send_message", to="Chris", message="Delay approved.")}))
+    chat.send("coordinator", "tell asha speeches stay after dinner")
+    reply = chat.send("coordinator", both)
+    assert "This message is not to Taylor Ng." in reply.message
+    assert "This replaces your unsent draft: Message to Asha Tan:" in reply.message
+
+
+def test_a_helpers_delay_reads_as_a_report(deputy_chat):  # noqa: F811
+    planner = StubPlanner({"kitchen behind, dinner 20 min late": DeputyPlan(action="run_sheet_change", text="dinner",
+                                                                           minutes=20)})
+    reply = deputy_chat(planner).send("banquet", "kitchen behind, dinner 20 min late")
+    assert "Report to the coordinator: Dinner service starts 20 minutes late.\nIf they approve, the run sheet becomes:" \
+        in reply.message
+
+
+def test_a_lookup_states_the_seat_and_the_answer_does_not_guess_it(deputy_chat):  # noqa: F811
+    planner = StubPlanner({"Lucas Tan table?": DeputyPlan(
+        answer="Lucas Tan isn't on the guest list I can see, so please refer him to Alex.", find_guests=["Lucas Tan"])})
+    reply = deputy_chat(planner).send("registration-a", "Lucas Tan table?")
+    assert "isn't on the guest list" not in reply.message and "Lucas Tan: Table" in reply.message
+    assert not reply.telegram_draft_id  # the lookup answered it; no question button
+
+
+def test_a_question_about_an_arrival_never_records_one(deputy_chat):  # noqa: F811
+    planner = StubPlanner({"what is Grace Tan status now? arrived or not": DeputyPlan(action="draft_arrival",
+                                                                                     text="Grace Tan")})
+    assert not deputy_chat(planner).send("registration-a", "what is Grace Tan status now? arrived or not").telegram_draft_id
+
+
+def test_advice_and_a_pending_task_are_not_report_statuses():
+    from wedding_ops.claims import states_report_status
+    assert not states_report_status("Moving the speeches needs to be approved by the coordinator.")
+    assert not states_report_status("Your task is still pending, due 17:50.")
+    assert states_report_status("So tell the kitchen it's not approved.")
+
+
+def test_a_status_word_counts_only_when_said_of_something():
+    from wedding_ops.claims import states_report_status
+    # Replay v10: a verb "change" and the adjective "approved" removed the couple's whole answer.
+    assert not states_report_status("I can't change the run sheet, and the approved sheet has speeches at 19:45.")
+    assert states_report_status("Your report was sent.") and states_report_status("R1 approved.")

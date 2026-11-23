@@ -906,13 +906,20 @@ class Operations:
             now = utcnow()
             # One pending draft per person: a newer draft replaces any earlier one, so a repeated
             # message can never leave two different reports waiting for a tap.
+            replaced = None
             for earlier in rows(s, ActionDraft, self.wid):
                 if earlier.member_id == a.member.id and earlier.consumed_at is None and earlier.expires_at > now:
                     earlier.expires_at = now
+                    if earlier.offer is None and earlier.command != cmd.model_dump(mode="json"):
+                        # The reply says so: a coordinator's message was replaced unseen (live play v10).
+                        replaced = earlier
             draft = ActionDraft(id=new_id(), wedding_id=self.wid, member_id=a.member.id, command=cmd.model_dump(mode="json"),
                                 summary=summary, created_at=now, expires_at=now + timedelta(minutes=5), offer=offer)
             s.add(draft)
-            return {"id": draft.id, "summary": summary, "expires_at": iso(draft.expires_at), "command_type": cmd.type}
+            # A report that replaces an unsent report carries its words (Deputy._with_unsent_report).
+            carried = replaced is not None and cmd.type == "report_incident" == replaced.command["type"]
+            return {"id": draft.id, "summary": summary, "expires_at": iso(draft.expires_at), "command_type": cmd.type,
+                    "replaced": replaced.summary.splitlines()[0][:200] if replaced is not None and not carried else None}
 
     def drop_unsent_offers(self, actor: Actor) -> None:
         """A one-tap offer (the question button, or the Undo after a question) is about one message.
