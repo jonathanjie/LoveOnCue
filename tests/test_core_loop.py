@@ -304,6 +304,16 @@ def test_coordinator_rejects_with_a_reason_and_the_reporter_is_told(chat_factory
     assert "rejected" in decision.message and "kitchen says on time" in decision.message
 
 
+def test_a_decision_without_a_reason_gets_a_correctly_spelled_note(chat_factory, db):
+    # The default note was the decision word plus "d", which gave "Rejectd in Telegram.".
+    chat = chat_factory()
+    confirmed_report(chat, "banquet", "/delay dinner 15")
+    approval_id = pending_approvals(db)[0].id
+    chat.tap("coordinator", f"reject:{approval_id}")
+    with db.sessions() as s:
+        assert s.get(Approval, approval_id).decision_note == "Rejected in Telegram."
+
+
 def test_helpers_cannot_approve_from_telegram(chat_factory, db):
     chat = chat_factory()
     confirmed_report(chat, "banquet", "/delay dinner 15")

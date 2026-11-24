@@ -288,9 +288,10 @@ class TelegramIngress:
 
     def _decide(self, actor, decision: str, approval_id: str, note: str) -> str:
         """A coordinator's explicit Approve or Reject from Telegram. The model is not involved."""
+        decided = {"approve": "Approved", "reject": "Rejected"}[decision]
         outcome = self.operations.execute(
             actor, {"type": "decide_approval", "approval_id": approval_id, "decision": decision,
-                    "note": note[:1000] or f"{decision.capitalize()}d in Telegram."},
+                    "note": note[:1000] or f"{decided} in Telegram."},
             f"telegram-decision:{approval_id}")
         if decision == "approve":
             return (f"Approved\nTimeline version {outcome['timeline_version']}. "
