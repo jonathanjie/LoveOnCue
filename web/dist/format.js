@@ -47,6 +47,17 @@ export function jobStatus(task) {
     return { label: 'Not seen yet', tone: 'waiting' };
 }
 export function isOpenJob(task) { return task.state !== 'done' && task.state !== 'cancelled'; }
+/** A problem report's badge. Only a resolved report is "Sorted"; one the reporter took back is neutral. */
+export function incidentStatus(incident) {
+    if (incident.status === 'open') {
+        return incident.severity === 'urgent' ? { label: 'Urgent', tone: 'urgent', word: 'open' } : { label: 'Open', tone: 'waiting', word: 'open' };
+    }
+    if (incident.status === 'withdrawn')
+        return { label: 'Withdrawn', tone: '', word: 'withdrawn' };
+    if (incident.status === 'resolved')
+        return { label: 'Sorted', tone: 'done', word: 'sorted' };
+    return { label: incident.status, tone: '', word: incident.status };
+}
 export function approvalStatus(approval, now) {
     if (approval.status === 'approved')
         return { label: 'Approved', tone: 'done', open: false };

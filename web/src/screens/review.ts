@@ -1,7 +1,7 @@
 // Review (coordinator): decide schedule changes with full context, and close problems.
 import {command} from '../api.js';
 import {can} from '../access.js';
-import {approvalStatus, clock, memberName, relative, shift, teamName} from '../format.js';
+import {approvalStatus, clock, incidentStatus, memberName, relative, shift, teamName} from '../format.js';
 import {rerender, snap, state} from '../state.js';
 import type {Approval, Incident} from '../types.js';
 import {area, button, el, empty, list, note, pill, row, segmented, sheet, toast} from '../ui.js';
@@ -103,13 +103,16 @@ function problemList(main: HTMLElement): void {
     return b.created_at.localeCompare(a.created_at);
   });
   if (!all.length) main.append(empty('No problems reported', 'Problems reported in chat or here show up in this list.', 'clear'));
-  else main.append(list(...all.map(incident => row({
-    title: incident.title,
-    meta: `${memberName(incident.reported_by)} · ${relative(incident.created_at)}`,
-    end: incident.status !== 'open' ? pill('Sorted', 'done') : incident.severity === 'urgent' ? pill('Urgent', 'urgent') : pill('Open', 'waiting'),
-    tone: incident.status === 'open' ? (incident.severity === 'urgent' ? 'urgent' : 'waiting') : '',
-    onOpen: () => problemSheet(incident),
-  }))));
+  else main.append(list(...all.map(incident => {
+    const status = incidentStatus(incident);
+    return row({
+      title: incident.title,
+      meta: `${memberName(incident.reported_by)} · ${relative(incident.created_at)}`,
+      end: pill(status.label, status.tone),
+      tone: incident.status === 'open' ? status.tone : '',
+      onOpen: () => problemSheet(incident),
+    });
+  })));
   if (can('incidents:report')) main.append(el('div', 'group', button('Report a problem', reportProblem, 'wide')));
 }
 
@@ -118,7 +121,7 @@ export function problemSheet(incident: Incident): void {
   const resolvable = open && can('incidents:resolve');
   const resolution = area('How was it sorted?', '', 'Saved with the problem for the activity log.');
   sheet({
-    eyebrow: `${incident.severity === 'urgent' ? 'Urgent problem' : 'Problem'} · ${open ? 'open' : 'sorted'}`,
+    eyebrow: `${incident.severity === 'urgent' ? 'Urgent problem' : 'Problem'} · ${incidentStatus(incident).word}`,
     eyebrowTone: incident.severity === 'urgent' ? 'urgent' : '',
     title: incident.title,
     content: [el('p', 'card-body', incident.details), note(`Reported by ${memberName(incident.reported_by)} at ${clock(incident.created_at)}`), resolvable ? resolution.wrap : null],

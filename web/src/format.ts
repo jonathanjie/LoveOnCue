@@ -1,6 +1,6 @@
 // Plain-language formatting. System words never reach the screen.
 import {snap} from './state.js';
-import type {Approval, Cue, Snapshot, Task} from './types.js';
+import type {Approval, Cue, Incident, Snapshot, Task} from './types.js';
 
 export function clock(value: string | null): string {
   if (!value) return '—';
@@ -50,6 +50,16 @@ export function jobStatus(task: Task): {label: string; tone: Tone} {
 }
 
 export function isOpenJob(task: Task): boolean { return task.state !== 'done' && task.state !== 'cancelled'; }
+
+/** A problem report's badge. Only a resolved report is "Sorted"; one the reporter took back is neutral. */
+export function incidentStatus(incident: Incident): {label: string; tone: Tone; word: string} {
+  if (incident.status === 'open') {
+    return incident.severity === 'urgent' ? {label: 'Urgent', tone: 'urgent', word: 'open'} : {label: 'Open', tone: 'waiting', word: 'open'};
+  }
+  if (incident.status === 'withdrawn') return {label: 'Withdrawn', tone: '', word: 'withdrawn'};
+  if (incident.status === 'resolved') return {label: 'Sorted', tone: 'done', word: 'sorted'};
+  return {label: incident.status, tone: '', word: incident.status};
+}
 
 export function approvalStatus(approval: Approval, now: string): {label: string; tone: Tone; open: boolean} {
   if (approval.status === 'approved') return {label: 'Approved', tone: 'done', open: false};
