@@ -259,7 +259,7 @@ class Operations:
             return {"id": task.id, "status": task.state, "version": task.version}
 
         if cmd.type == "arrival":
-            changed, previous, resolved_incidents, told = [], {}, [], set()
+            changed, names, previous, resolved_incidents, told = [], [], {}, [], set()
             for ident in dict.fromkeys(cmd.person_ids):
                 p = row(s, Person, wid, ident)
                 if p.attendance == cmd.status:
@@ -269,6 +269,7 @@ class Operations:
                 p.arrived_at = now if cmd.status == "onsite" else p.arrived_at
                 p.version += 1
                 changed.append(p.id)
+                names.append(p.name)
                 # Kept so the reporter can withdraw this exact change later.
                 previous[p.id] = {"attendance": old_attendance, "version": p.version}
                 if p.relationship:
@@ -284,7 +285,7 @@ class Operations:
                                 incident.status, incident.resolved_at = "resolved", now
                                 resolved_incidents.append(incident.id)
                                 audit(s, w, actor.member_id, "incident_resolved_by_arrival", incident.id, {"person_id": p.id}, now)
-            return {"status": "recorded", "changed": changed, "previous": previous,
+            return {"status": "recorded", "changed": changed, "names": names, "previous": previous,
                     "set_to": cmd.status, "resolved_incidents": resolved_incidents, "told": sorted(told)}
 
         if cmd.type == "report_incident":
@@ -544,7 +545,7 @@ class Operations:
                               permission=permission)
         # Who else received it, so the reply after the tap says exactly that and nothing more.
         team_names = {team.id: team.name for team in rows(s, Team, wid)}
-        return {"id": incident.id, "status": "open", "kind": cmd.kind,
+        return {"id": incident.id, "status": "open", "kind": cmd.kind, "details": cmd.details,
                 "teams": [team_names[t] for t in audience if t in team_names] if team_targets else []}
 
     def _update_incident(self, s: Session, w: Wedding, a: Access, cmd, now) -> dict:
@@ -560,7 +561,7 @@ class Operations:
                 f"\u201c{one_line(cmd.details, 300)}\u201d")
         tell_coordinators(s, w, f"incident:{incident.id}", text, now, push=escalated,
                           key=f"incident-update:{incident.id}:{at}")
-        return {"id": incident.id, "status": "updated", "kind": incident.kind}
+        return {"id": incident.id, "status": "updated", "kind": incident.kind, "details": cmd.details}
 
     def _change_set(self, s: Session, item: TimelineItem, shift: int, location_id: str | None, note: str):
         """Every item a change moves, its blockers, and a short title. Reads only."""

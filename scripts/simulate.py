@@ -556,6 +556,7 @@ def main(argv: list[str]) -> None:
     logging.basicConfig(level=logging.WARNING, handlers=[handler])
     logging.getLogger("httpx").setLevel(logging.ERROR)
     logging.getLogger("wedding_ops.deputy").setLevel(logging.INFO)  # the claim check counts
+    logging.getLogger("wedding_ops.deputy.removed").setLevel(logging.DEBUG)  # why a sentence went
     # One lock per world: simulated users act one at a time, like a real queue.
     with open(args.dir / ".lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)

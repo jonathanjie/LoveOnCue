@@ -25,8 +25,12 @@ SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
 # A line break after a line with no end punctuation, unless the next line is a list item.
 UNFINISHED_LINE = re.compile(r"(?<![.!?\u2026:\u201d\"')\]])[ \t]*\n+[ \t]*(?![\u2022*\-\d])")
 
-# A sentence states the status of a report when it names a report and a status together.
-REPORT_NOUN = re.compile(r"\b([RQAP]\d{1,2}|requests?|reports?|questions?|alerts?|drafts?|notes?|nudges?|arrivals?|"
+# A sentence states the status of a report when it names a report and a status together. Not
+# "arrival": "Your task to confirm the parents' arrival is pending" and "Robert Tan's arrival is
+# not recorded yet" are task and attendance facts, and were removed as report status with no line
+# to replace them (live play v13, 26 of 176 answers lost a status sentence). Beside an arrival
+# draft, PASSIVE_DONE still catches "is recorded".
+REPORT_NOUN = re.compile(r"\b([RQAP]\d{1,2}|requests?|reports?|questions?|alerts?|drafts?|notes?|nudges?|"
                          r"changes?)\b",
                          re.IGNORECASE)
 REPORT_STATUS = re.compile(r"\b(sent|unsent|pending|approved|rejected|declined|open|answered|resolved|withdrawn|"
@@ -333,6 +337,18 @@ LATE_WORDS = re.compile(r"\b(?:late|later|delay|delayed|stuck|jam|jammed|traffic
 
 def says_late(text: str) -> bool:
     return stated(LATE_WORDS, text)
+
+
+# Words that take something back. Withdrawing a report rests on the person saying so, or on them
+# naming a report: "sorry that was a guest lol", after a guest typed into their phone, drafted
+# "Take back your note" (live play v13).
+RETRACT_WORDS = re.compile(r"\b(?:undo|take back|takeback|cancel|cancelled|ignore|wrong|mistake|withdraw|retract|"
+                           r"disregard|scratch|never ?mind|nvm|false alarm|correct|correction|actually|instead)\b",
+                           re.IGNORECASE)
+
+
+def says_retracted(text: str) -> bool:
+    return stated(RETRACT_WORDS, text) or bool(REPORT_NOUN.search(text))
 
 
 # What a confirmation is made of. Acknowledging changes a record without a tap, so the set is

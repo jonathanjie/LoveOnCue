@@ -359,10 +359,18 @@ class Assistant:
                 done = "Nothing was recorded. " if intent.kind == "arrival" else ""
                 return {"kind": "clarification", "message": done + line, "data": []}
             if intent.kind == "arrival":
+                # Someone already checked in needs no draft: "Robert Tan already here, good good" drew a
+                # draft to record him a minute after registration had (live play v13).
+                here = [p["name"] for p in found if p.get("attendance") == "onsite"]
+                found = [p for p in found if p.get("attendance") != "onsite"]
+                already = f"{names_list(here)} {'is' if len(here) == 1 else 'are'} already checked in." if here else ""
+                if not found:
+                    return {"kind": "status", "message": already + " Nothing to record.", "data": []}
                 command = {"type": "arrival", "person_ids": [p["id"] for p in found], "status": "onsite"}
                 family = any(p.get("relationship") for p in found)
                 summary = ("Record confirmed arrival for " + ", ".join(p["name"] for p in found) + "."
-                           + (" Notify the family liaison and photography team." if family else ""))
+                           + (" Notify the family liaison and photography team." if family else "")
+                           + (f" {already}" if already else ""))
             else:
                 p = found[0]
                 command = {"type": "report_incident", "kind": "location_unconfirmed", "title": f"Locate {p['name']}",

@@ -41,6 +41,7 @@ from .claims import (
     says_arrived,
     says_done,
     says_late,
+    says_retracted,
     sentences,
     without_quotes,
 )
@@ -54,6 +55,9 @@ from .telegram_ui import ACK_PROMPT, ACK_TOPICS, attendance_label, glance, names
 from .views import Queries, incident_status
 
 logger = logging.getLogger(__name__)
+# Each sentence code removes from an answer, with the reason. Model text can name guests, so it is
+# logged at DEBUG only; the simulator and the replay turn it on to find the cause of a removal.
+removal_log = logging.getLogger(__name__ + ".removed")
 
 # Memory: the last few exchanges per person, kept briefly.
 MEMORY_TURNS = 10  # five user messages and five replies
@@ -422,6 +426,10 @@ class Deputy:
         logger.info("Claim check: sentences=%d removed=%d status=%d self_acts=%d internal=%d",
                     len(sentences(plan.answer)), len(checked.removed), len(checked.status), len(checked.acts),
                     len(checked.internal))
+        for reason, removed in (("unsupported", checked.removed), ("status", checked.status),
+                                ("act", checked.acts), ("internal", checked.internal)):
+            for sentence in removed:
+                removal_log.debug("Removed (%s): %s", reason, one_line(sentence, 200))
         # A run-sheet change's preview states every time before and after the change, so an answer
         # beside it can only repeat or contradict it (gate v7: "speeches stay at 19:45" above a
         # preview that moved them). Beside other drafts the answer stays: it answers the question,
@@ -432,6 +440,8 @@ class Deputy:
             # Code says what to tap under every draft; the answer's own "tap the button" repeats it,
             # sometimes above the draft it refers to.
             answer = " ".join(part for part in sentences(answer) if not DRAFT_CLAIM.search(part))
+            if "coordinator" not in snapshot["me"]["roles"]:
+                answer = self._without_recipient_claims(answer, snapshot)
         if lookups:
             # The model answers before the lookup runs, so what it says about a looked-up guest is
             # a guess: "Lucas Tan isn't on the guest list I can see" above "Lucas Tan: Table 3"
@@ -528,6 +538,9 @@ class Deputy:
             return "the person did not say anyone arrived"
         if plan.action == "complete_task" and not says_done(recent):
             return "the person did not say a task is done"
+        if plan.action == "withdraw_last" and not (says_retracted(text) or about_own_report(text, snapshot)):
+            # "chef say only 10 minutes now lah, not 20" takes back the +20 request by its own words.
+            return "the person neither took anything back nor named a report"
         if plan.action == "send_message" and not (recipients_named(plan.to, snapshot, text) or SENDING.search(text)):
             # "Who is late and what is the current car situation?" drafted a message to Chris and
             # Asha that nobody asked for (live play v11). A message goes to people this message
@@ -562,6 +575,26 @@ class Deputy:
             lines = [CANNOT_CONFIRM if checked.removed or plan.action == "ask_coordinator" else NOTHING_DONE]
         return "\n".join(lines)
 
+    @staticmethod
+    def _without_recipient_claims(answer: str, snapshot: dict) -> str:
+        """Beside a helper's unsent draft, which goes to the coordinator, remove each statement that
+        names the coordinator: before the tap it can only state the draft's outcome, and the draft
+        text already says who gets what. "The dinner delay and the missing veg meals are both with
+        the coordinator now" stood above an unsent report (live play v13). A list of delivery
+        words never closes ("knows", "is on it", "has it"); the draft's recipients do. Questions stay.
+        """
+        coordinators = [m["name"] for m in snapshot["members"] if "coordinator" in m.get("roles", [])]
+        words = ["coordinator", *(name.casefold() for name in coordinators),
+                 *(name.split()[0].casefold() for name in coordinators)]
+        kept = []
+        for part in sentences(answer):
+            lowered = part.casefold()
+            if not asks(part) and any(re.search(rf"\b{re.escape(word)}\b", lowered) for word in words):
+                removal_log.debug("Removed (recipient): %s", one_line(part, 200))
+                continue
+            kept.append(part)
+        return " ".join(kept)
+
     # Buttons under a reply -----------------------------------------------------------------
 
     @staticmethod
@@ -580,15 +613,19 @@ class Deputy:
 
         Every helper reply has buttons now, so a sentence that says "tap" is not by itself a broken
         promise. Replacing the whole answer left "got need to do anything else?" with only "I didn't
-        make a draft for that" (live play v12). The fixed line stays for an answer with nothing else.
+        make a draft for that" (live play v12).
         """
         parts = sentences(answer)
         kept = [part for part in parts
                 if not DRAFT_CLAIM.search(part) or any(label in part.casefold() for label in labels)]
         if len(kept) == len(parts):
             return answer
-        logger.warning("Deputy answer pointed at a button that the reply does not show")
-        return " ".join(kept) or "I didn't make a draft for that. Tell me exactly what to send, and to whom."
+        for part in parts:
+            if part not in kept:
+                removal_log.debug("Removed (button): %s", one_line(part, 200))
+        # Nothing kept: _compose says that nothing was done. A fixed "I didn't make a draft for that"
+        # answered "sorry that was a guest lol" (live play v13).
+        return " ".join(kept)
 
     @staticmethod
     def _waiting_request(about: str, snapshot: dict, turn: Turn) -> str | None:
@@ -1337,6 +1374,26 @@ def resolve_recipients(to: str, snapshot: dict) -> tuple[list[str], list[str], l
 # Words that ask for something to be sent to other people.
 SENDING = re.compile(r"\b(?:tell|ask|send|message|msg|nudge|chase|remind|ping|inform|announce|broadcast|reply|"
                      r"answer|let (?:\w+ )?know|follow up|update (?:them|everyone|all|the))\b", re.IGNORECASE)
+
+
+# Words too common in report titles to show that a message is about one of them.
+TITLE_FILLER = {"the", "and", "for", "new", "note", "with", "from", "minutes", "minute", "min", "mins", "running",
+                "late", "report", "request", "change", "move", "about"}
+
+
+def about_own_report(text: str, snapshot: dict) -> bool:
+    """The message shares a word with one of the person's open reports or pending requests, so it is
+    about that report: "chef say only 10 minutes now lah, not 20" and “Dinner service: +20 minutes”."""
+    me = snapshot["me"]["id"]
+    titles = [a["title"] for a in snapshot["approvals"] if a.get("proposed_by") == me and a["status"] == "pending"]
+    titles += [i["title"] for i in snapshot["incidents"] if i["reported_by"] == me and i["status"] == "open"]
+
+    def words(value: str) -> set[str]:
+        return {w for w in re.findall(r"[a-z0-9]+", value.casefold())
+                if (len(w) >= 3 or w.isdigit()) and w not in TITLE_FILLER}
+
+    said = words(text)
+    return any(words(title) & said for title in titles)
 
 
 def recipients_named(to: str, snapshot: dict, words: str) -> bool:

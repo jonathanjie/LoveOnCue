@@ -958,6 +958,77 @@ answering"). The replay does not exercise most v12 causes, which are reply texts
 `tests/test_deputy_live_play_v12.py` and `tests/test_ask_button.py` cover them. Not measured: a
 count of verbatim repeated replies (Fable suggested logging it in the replay).
 
+## Live-play round v13 (24 November)
+
+Build a71aef5, same method. Reports, transcripts and records: scratchpad `live-v13/`;
+`live-v13/verified.md` lists each finding with its transcript lines.
+
+| Cast | Ease | Clarity | Trust |
+|---|---|---|---|
+| Haiku, 13 players (v12) | 3.8 | 3.4 | 2.8 |
+| Haiku, 13 players (v13) | 3.7 | 3.5 | 2.7 |
+| Luna, 13 players (v12) | 2.8 | 3.1 | 3.0 |
+| Luna, 13 players (v13) | 3.7 | 3.8 | 3.5 |
+
+Several Haiku trust scores of 2 rest on statements that were true when made (an answer before
+the coordinator's change or approval arrived), and on the records view, which lists only what
+reached the coordinator.
+
+### The ask button in use
+14 taps by 11 players made 14 questions, one tap each; the coordinator answered 10 during play
+(v12: 4 taps, 2 questions). Two players could not tell which message a tap had sent.
+
+### Findings, by cause (each checked in a transcript)
+1. "Question sent" did not say what was sent; one usher sent "toilet where ah" meaning to ask about
+   "Mr Lee".
+2. The fixed "I didn't make a draft for that" line answered "sorry that was a guest lol".
+3. "You have no reports on record yet." stood under four unrelated answers. Cause (Fable):
+   "arrival" in REPORT_NOUN made task and attendance facts ("Your task to confirm the parents'
+   arrival is pending") into report status; they were removed with no line in their place, and the
+   fallback added that line. A status sentence was removed in 26 of 176 answers.
+4. An arrival draft for someone already checked in ("Robert Tan already here, good good"); and a
+   tap after another desk's check-in still said "Arrival recorded". The confirmation did not name
+   who was recorded.
+5. "The dinner delay and the missing veg meals are both with the coordinator now" above an unsent
+   report. The act check's draft objects match the draft title as a whole string only.
+6. "sorry that was a guest lol" drafted "Take back your note": withdraw_last had no check on the
+   person's words.
+
+### Built, after Fable's review (v13)
+- Every removed sentence is logged with its reason (`wedding_ops.deputy.removed`, DEBUG; the
+  simulator and the replay turn it on).
+- 3: "arrival" leaves REPORT_NOUN (beside an arrival draft, PASSIVE_DONE still catches "is
+  recorded").
+- 4: an arrival for people already checked in drafts nothing and says so; a mix drafts only the
+  others. The arrival result names who changed: "Arrival recorded: Grace Tan." then "Told: Priya
+  Rao and Sam Koh."; a late tap says "Already checked in. Nothing changed".
+- 1: "Question sent: “<their words>”", also for "Added to your question" and "Already sent".
+- 2: the fixed line is gone; an empty answer gets `_compose`'s "I haven't done anything with that".
+- 5: beside a helper's unsent draft (which goes to the coordinator), a statement that names the
+  coordinator is removed; the draft text says who gets what. Questions stay. Not a list of
+  delivery words, which never closes.
+- 6: withdraw_last rests on the person's words, like every other write: a word that takes
+  something back, stated (`says_retracted`), a report noun, or a word shared with one of their
+  open reports or pending requests (`about_own_report`). Without the last, the paired replay lost
+  "chef say only 10 minutes now lah, not 20" (2 of 6 runs drafted nothing); with it, 6 of 6.
+
+### Evidence (paired replay, 2 rounds of 3 runs, run at the same time)
+| Measure (sum of 6 runs) | a71aef5 | This build |
+|---|---|---|
+| Outcome matches the label, tuned set | 374 of 378 | 372 of 378 |
+| Outcome matches the label, held-out set | 138 of 138 | 138 of 138 |
+| False full drafts | 1 | 2 |
+| Missing a required fact | 2 | 0 |
+
+Within run-to-run noise. Two of this build's misses were banquet-correction, fixed after the run
+by `about_own_report` (that case alone, 6 runs: 6 of 6). The rest are driver-anyone and
+driver-who-call, known residuals. Re-plans after a veto: 24 send_message and 20 complete_task in
+the tuned set's 378 replies.
+
+Not built: Fable noted that 30 of 176 turns planned twice after a veto (17 send_message, 12
+complete_task); stating each veto rule in ACTION_HELP would save the second call. And the ask
+button could reply to the very message it sends, if the offer stored its Telegram message id.
+
 ## Checks
 - Unit: extractor (each token type, Singlish time forms); `unsupported` with
   cited and uncited lines; quoted spans do not ground; self-acts with and without
@@ -974,7 +1045,7 @@ in 71; trust ≥ 3.5 with no fall in ease or clarity.
 
 ## Resume point
 Read this file, then `git log` on the branch. Done: Fable's build order through gate v8, the
-gate v8 open items, live-play rounds v9, v10, v11 and v12 (26 players each, Haiku and GPT-6-Luna)
+gate v8 open items, live-play rounds v9 to v13 (26 players each, Haiku and GPT-6-Luna)
 and their fixes, and the one-tap ask button (the person, not the model, decides when to ask the
 coordinator). Tools: `scripts/replay.py` (tuned and held-out cases), `scripts/ab.py` with
 `WEDDING_OPS_SRC` (paired comparison), `scripts/gate.py` and
@@ -986,7 +1057,6 @@ problem report made from a question ("its raining, where do I send guests"), an 
 messages when the model drafts it again under a new title, and a place-only move sent as a
 message (only a new time redirects to a run-sheet change), a chef's correction that makes a second
 run-sheet request instead of revising the pending one, and miscounts in the model's own words.
-Next: a live-play round on the v12 fixes (does one tap get questions through?), then decide on a
-staging deploy (message the Mini App session first, and tell it about the neutral badge for
+One tap gets questions through (v13: 14 taps, 14 questions). Next: decide on a staging deploy (message the Mini App session first, and tell it about the neutral badge for
 "withdrawn"). Staging runs release 406bf7c; migrations 0007 and 0008 are new
 since then.

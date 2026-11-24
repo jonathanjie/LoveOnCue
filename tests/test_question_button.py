@@ -30,7 +30,7 @@ def test_the_button_sends_the_persons_own_message_and_can_be_undone(deputy_chat,
     chat = deputy_chat(StubPlanner({"how to say groom surname ah": UNKNOWN}))
     assert button(db, chat.send("mc", "how to say groom surname ah").ask_draft_id) == "Ask the coordinator"
     sent = chat.tap("mc", f"confirm:{chat.send('mc', 'how to say groom surname ah').ask_draft_id}")
-    assert sent.message.startswith("Question sent\nThe coordinator has your message.")
+    assert sent.message.startswith("Question sent: “how to say groom surname ah”\nThe coordinator has it.")
     with db.sessions() as s:
         question = s.scalars(select(Incident)).one()
     assert (question.kind, question.title, question.details) == ("question", "how to say groom surname ah",

@@ -269,6 +269,7 @@ def main(argv: list[str]) -> None:
     logging.basicConfig(level=logging.WARNING, handlers=[logging.FileHandler(args.out / "app.log")])
     logging.getLogger("httpx").setLevel(logging.ERROR)
     logging.getLogger("wedding_ops.deputy").setLevel(logging.INFO)
+    logging.getLogger("wedding_ops.deputy.removed").setLevel(logging.DEBUG)  # why a sentence went
     only = set(filter(None, args.only.split(",")))
     chosen = {"main": CASES, "held": HELD_OUT, "all": CASES + HELD_OUT}[args.set]
     cases = [c for c in chosen if not only or c.id in only]

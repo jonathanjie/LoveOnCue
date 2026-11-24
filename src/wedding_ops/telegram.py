@@ -25,6 +25,7 @@ from .telegram_ui import (
     NAVIGATION,
     acknowledged_reply,
     attendance_label,
+    glance,
     names_list,
     render_brief,
 )
@@ -159,12 +160,18 @@ def overtaken_line(result: dict) -> str:
             f"{'The requester is' if len(closed) == 1 else 'The requesters are'} told.")
 
 
+def said(result: dict) -> str:
+    """The words a question carried, quoted. One tap sends the message the reply answered, so the
+    reply says which one: "Question sent" alone left two players unsure what went (live play v13)."""
+    return f"\u201c{glance(result.get('details') or '')}\u201d" if result.get("details") else "your message"
+
+
 def confirmation_reply(result: dict) -> str:
     """Tell the reporter what their confirmed report did, in plain words."""
     if result.get("replayed"):
         # The Ask the coordinator button is tapped twice by habit, and Telegram can deliver a tap twice.
         if result.get("kind") == "question":
-            return "Already sent\nThe coordinator has this question. Nothing new was sent."
+            return f"Already sent: {said(result)}\nThe coordinator has this question. Nothing new was sent."
         return "Already recorded\nThis report was confirmed earlier. No new change was made."
     kind = result.get("command_type")
     if kind in {"propose_delay", "change_item"} and result.get("status") == "approved":
@@ -183,10 +190,11 @@ def confirmation_reply(result: dict) -> str:
                 "they approve it. I will tell you their decision.")
     question = result.get("kind") == "question"
     if kind == "report_incident" and result.get("status") == "updated":
-        return ("Added to your question\nThe coordinator will see it with your earlier message." if question else
+        return (f"Added to your question: {said(result)}\nThe coordinator will see it with your earlier message." if question else
                 "Update added\nThe coordinator will see it with your earlier report.")
     if kind == "report_incident" and question:
-        return "Question sent\nThe coordinator has your message. Their answer will come to this chat. Tap Undo to take it back."
+        return (f"Question sent: {said(result)}\nThe coordinator has it. Their answer will come to this chat. "
+                "Tap Undo to take it back.")
     if kind == "report_incident" and result.get("kind") == "note":
         return "Note sent\nThe coordinator has it, for their information."
     if kind == "report_incident":
@@ -195,10 +203,14 @@ def confirmation_reply(result: dict) -> str:
         also = f" The {', '.join(teams)} team{'s' if len(teams) > 1 else ''} also got it." if teams else ""
         return f"Report sent\nThe coordinator has it.{also}"
     if kind == "arrival":
-        # Only family arrivals are announced, and only to the roles that act on them.
-        told = result.get("told") or []
-        return "Arrival recorded\n" + (f"{names_list(told)} {'has' if len(told) == 1 else 'have'} been told."
-                                        if told else "It is in the records. Nobody else is notified.")
+        # Name who was recorded, apart from who was told: "Arrival recorded. Priya Rao and Sam Koh
+        # have been told." left the desk unsure which guest it was (live play v13). Someone checked
+        # in by another desk since the draft is not recorded again.
+        names, told = result.get("names"), result.get("told") or []
+        if names == []:
+            return "Already checked in\nNothing changed: another desk recorded the arrival first."
+        recorded = f"Arrival recorded: {names_list(names)}." if names else "Arrival recorded."
+        return recorded + "\n" + (f"Told: {names_list(told)}." if told else "It is in the records. Nobody else is notified.")
     if kind == "set_deputy_enabled":
         return ("Check-ins are on. I will chase unacknowledged tasks again." if result["status"] == "on" else
                 "Check-ins are paused for everyone. Helpers get the plain reminders instead.")

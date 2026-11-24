@@ -59,7 +59,7 @@ def test_one_tap_sends_the_message_the_reply_answered(deputy_chat, db):  # noqa:
     chat = deputy_chat(StubPlanner({"how to say groom surname ah": DeputyPlan(answer="The records don't say.")}))
     reply = chat.send("mc", "how to say groom surname ah")
     sent = chat.tap("mc", f"confirm:{reply.ask_draft_id}")
-    assert sent.message.startswith("Question sent\nThe coordinator has your message.")
+    assert sent.message.startswith("Question sent: “how to say groom surname ah”\nThe coordinator has it.")
     with db.sessions() as s:
         question = s.scalars(select(Incident)).one()
     assert (question.kind, question.title, question.details) == ("question", "how to say groom surname ah",
