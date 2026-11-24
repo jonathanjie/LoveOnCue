@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <title>LoveOnCue</title>
+  <!-- Two linked rings (radius 10.5, centres 12 apart, crossing at x = 24, y = 26 ± 8.6).
+       The brass ring passes under the green ring at the top crossing and over it at the
+       bottom: the arc from 100 to 150 degrees is drawn again on top, over a
+       slightly shorter linen gap (108 to 142 degrees), so the gap's ends stay hidden.
+       Butt caps let the redrawn arc blend into its own ring. The sparkle is the cue. -->
+  <rect width="48" height="48" rx="12" fill="#F7F4EE"/>
+  <circle cx="30" cy="26" r="10.5" stroke="#B8893B" stroke-width="3.5"/>
+  <circle cx="18" cy="26" r="10.5" stroke="#173D35" stroke-width="3.5"/>
+  <path d="M26.76 35.99A10.5 10.5 0 0 1 21.73 32.46" stroke="#F7F4EE" stroke-width="7.5"/>
+  <path d="M28.18 36.34A10.5 10.5 0 0 1 20.91 31.25" stroke="#B8893B" stroke-width="3.5"/>
+  <path d="M40 4.5c.5 2.9 1.6 4 4.5 4.5-2.9.5-4 1.6-4.5 4.5-.5-2.9-1.6-4-4.5-4.5 2.9-.5 4-1.6 4.5-4.5z" fill="#B8893B"/>
+</svg>

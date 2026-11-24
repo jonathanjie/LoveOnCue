@@ -62,9 +62,9 @@ For the offline test bridge used during this build:
 python scripts/ui-smoke.py --bridge
 ```
 
-Use `CHROMIUM_PATH=/path/to/chromium` when selecting an existing browser. The bridge serves the real compiled frontend and forwards fetch calls into the real ASGI app/test database. It verifies rendering, buttons, permissions and workflows without using a public server. It intentionally cannot validate browser cookie transport, reverse proxy headers, TLS, cross-site Telegram webviews or connection recovery. A separate Python HTTP smoke does not eliminate those limitations.
+Use `CHROMIUM_PATH=/path/to/chromium` when selecting an existing browser. The bridge routes every browser request (page, compiled modules and API) to an in-process ASGI app with its own test database. It verifies rendering, buttons, permissions and workflows without using a public server. It intentionally cannot validate browser cookie transport, reverse proxy headers, TLS, cross-site Telegram webviews or connection recovery. A separate Python HTTP smoke does not eliminate those limitations.
 
-The eight exercised workflow groups are delay draft/confirmation/approval, role-aware approval visibility, missing-family followed by parents' arrival, seating lookup, reviewed knowledge lookup, reviewed guest/family editing, family-contact role visibility, and mobile no-horizontal-overflow. Screenshots are in `docs/screenshots/`.
+The smoke test runs at phone width (390 x 844) and covers: the coordinator's Home hub, tabs and sections; a helper's delay report and the coordinator's approval sheet; sending an update and seeing who read it; a helper's "Got it" on their next job; a problem report reaching the coordinator; seating lookup without dietary notes; venue notes search; a guest family-role edit; family-contact visibility by role; and no horizontal overflow. Each run must start from fresh demo data. Phone screenshots of each view are in `docs/screenshots/mini-app/`.
 
 ## PostgreSQL and deployment checks
 

@@ -19,3 +19,5 @@ artifacts/
 *.egg-info/
 build/
 dist/
+# Compiled browser assets are committed and checked in CI.
+!web/dist/
