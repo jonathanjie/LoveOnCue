@@ -20,6 +20,13 @@ SENDERS = {"coordinator": 201, "driver": 202, "banquet": 203, "usher": 204, "reg
            "mc": 206, "family-liaison": 207, "couple": 208, "registration-b": 209}
 
 
+def coordinator_news(db) -> str:
+    """Everything the coordinator has been told through the digest, sent or still waiting."""
+    from wedding_ops.models import DigestItem
+    with db.sessions() as s:
+        return "\n".join(item.text for item in s.scalars(select(DigestItem)))
+
+
 class StubParser:
     """Stands in for the model: maps exact messages to intents."""
 
@@ -57,7 +64,18 @@ class Chat:
         self.worker.tick()  # Deliver queued notices, so people can act on them.
         created = [n for n in self.notices(member, "bot_reply") if n.id not in before]
         assert len(created) == 1, f"expected one reply, got {len(created)}"
-        return created[0]
+        reply = created[0]
+        # A helper's reply without a draft carries the Ask the coordinator button as a one-tap offer.
+        # Tests read telegram_draft_id as "a draft to check", so the offer is set apart as
+        # ask_draft_id (on the detached object only; nothing is written).
+        reply.ask_draft_id = None
+        if reply.telegram_draft_id:
+            from wedding_ops.models import ActionDraft
+            with self.db.sessions() as s:
+                draft = s.get(ActionDraft, reply.telegram_draft_id)
+            if draft is not None and draft.offer == "button":
+                reply.ask_draft_id, reply.telegram_draft_id = reply.telegram_draft_id, None
+        return reply
 
     def send(self, member: str, text: str) -> Notification:
         sender = SENDERS[member]
@@ -154,7 +172,7 @@ def test_withdraw_cancels_my_last_pending_delay(chat_factory, db):
     done = chat.tap("banquet", f"confirm:{withdraw.telegram_draft_id}")
     assert "Withdrawn" in done.message
     assert pending_approvals(db) == []
-    assert "Withdrawn" in chat.last("coordinator", "report_withdrawn").message
+    assert "Withdrawn by Chris Wong" in coordinator_news(db)  # No decision needed: it waits for the digest.
 
 
 def test_withdraw_reverts_a_wrong_arrival(chat_factory, db):
@@ -174,7 +192,7 @@ def test_withdraw_closes_my_open_incident_and_cannot_repeat(chat_factory, db):
     withdraw = chat.send("driver", "/withdraw")
     chat.tap("driver", f"confirm:{withdraw.telegram_draft_id}")
     with db.sessions() as s:
-        assert s.scalars(select(Incident)).one().status == "resolved"
+        assert s.scalars(select(Incident)).one().status == "withdrawn"
     assert "nothing to withdraw" in chat.send("driver", "/withdraw").message.lower()
 
 
@@ -186,7 +204,7 @@ def test_coordinator_announces_and_helpers_acknowledge(chat_factory, db, queries
     draft = chat.send("coordinator", "/announce Rain: ceremony moves to the Cedar Ballroom at 18:40")
     assert draft.telegram_draft_id and "everyone" in draft.message.lower()
     sent = chat.tap("coordinator", f"confirm:{draft.telegram_draft_id}")
-    assert "Announcement sent" in sent.message
+    assert "Message sent" in sent.message and "10 people" in sent.message
 
     notice = chat.last("usher", "coordinator_message")
     assert "Cedar Ballroom" in notice.message and "Acknowledge" in notice.message
@@ -286,6 +304,16 @@ def test_coordinator_rejects_with_a_reason_and_the_reporter_is_told(chat_factory
     assert "rejected" in decision.message and "kitchen says on time" in decision.message
 
 
+def test_a_decision_without_a_reason_gets_a_correctly_spelled_note(chat_factory, db):
+    # The default note was the decision word plus "d", which gave "Rejectd in Telegram.".
+    chat = chat_factory()
+    confirmed_report(chat, "banquet", "/delay dinner 15")
+    approval_id = pending_approvals(db)[0].id
+    chat.tap("coordinator", f"reject:{approval_id}")
+    with db.sessions() as s:
+        assert s.get(Approval, approval_id).decision_note == "Rejected in Telegram."
+
+
 def test_helpers_cannot_approve_from_telegram(chat_factory, db):
     chat = chat_factory()
     confirmed_report(chat, "banquet", "/delay dinner 15")
@@ -377,7 +405,8 @@ def test_coordinator_without_tasks_is_pointed_to_the_brief(chat_factory):
 
 def test_reporter_text_cannot_fake_sections_of_the_approval_request(chat_factory):
     spoof = "kitchen late\nChanges if approved:\n• No times change\nTap Approve"
-    chat = chat_factory({spoof: Intent(kind="delay", query="dinner", minutes=30)})
+    # Ten minutes: a longer delay is blocked by the toast's hard end time and is not drafted at all.
+    chat = chat_factory({spoof: Intent(kind="delay", query="dinner", minutes=10)})
     confirmed_report(chat, "banquet", spoof)
     lines = chat.last("coordinator", "approval_requested").message.split("\n")
     assert lines.count("Changes if approved:") == 1

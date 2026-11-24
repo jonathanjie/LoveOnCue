@@ -20,8 +20,8 @@ def test_lateness_reaches_the_coordinator(chat_factory, db):
     draft = chat.send("mc", "stuck in traffic, 25 min late")
     assert "Taylor Ng is running about 25 minutes late" in draft.message
     chat.tap("mc", f"confirm:{draft.telegram_draft_id}")
-    notice = chat.last("coordinator", "incident")
-    assert "Taylor Ng is running about 25 minutes late" in notice.message
+    from test_core_loop import coordinator_news
+    assert "Taylor Ng is running about 25 minutes late" in coordinator_news(db)
     with db.sessions() as s:
         assert s.scalars(select(Incident)).one().reported_by == "mc"
 
@@ -30,7 +30,7 @@ def test_a_delay_without_an_activity_uses_my_last_delay_report(chat_factory, db)
     chat = chat_factory({"kitchen now 20 not 15": Intent(kind="delay", query="", minutes=20)})
     confirmed_report(chat, "banquet", "/delay dinner 15")
     draft = chat.send("banquet", "kitchen now 20 not 15")
-    assert "+20-minute delay to Dinner service" in draft.message
+    assert "Dinner service 19:00 \u2192 19:20" in draft.message and "replaces your pending request" in draft.message
 
 
 def test_guest_lookup_forgives_honorifics_and_nicknames(chat_factory):

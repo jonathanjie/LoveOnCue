@@ -157,3 +157,33 @@ def test_existing_unversioned_demo_preserves_fixture_when_outbox_gains_draft_ref
         assert any(task["id"] == "signage" for task in snapshot["tasks"])
     finally:
         database.close()
+
+
+def test_migration_0007_marks_earlier_withdrawals_as_withdrawn(tmp_path, monkeypatch):
+    from sqlalchemy import select
+
+    from wedding_ops.models import Incident
+    from wedding_ops.operations import Operations
+    from wedding_ops.seed import seed_demo
+
+    url = f"sqlite:///{tmp_path / 'withdrawn.db'}"
+    monkeypatch.setenv('WEDDINGOPS_DATABASE_URL', url)
+    config = Config(str(Path(__file__).resolve().parents[1] / 'alembic.ini'))
+    command.upgrade(config, 'head')
+    database = Database(url)
+    try:
+        seed_demo(database)
+        ops = Operations(database, WID, DemoClock(DEMO_TIME))
+        draft = ops.draft(actor('driver'), {"type": "report_incident", "kind": "logistics", "title": "Flat tyre",
+                                            "details": "flat tyre", "severity": "normal"}, "Report: flat tyre")
+        ops.confirm(actor('driver'), draft['id'])
+        ops.execute(actor('driver'), {"type": "withdraw_report", "request_id": f"draft:{draft['id']}"}, 'take-back')
+        # A release before 0007 stored the withdrawal as resolved.
+        with database.engine.begin() as connection:
+            connection.exec_driver_sql("UPDATE incidents SET status = 'resolved'")
+        command.downgrade(config, '0006')
+        command.upgrade(config, 'head')
+        with database.sessions() as s:
+            assert s.scalars(select(Incident.status)).all() == ['withdrawn']
+    finally:
+        database.close()

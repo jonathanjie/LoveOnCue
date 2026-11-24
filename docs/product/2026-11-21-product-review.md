@@ -247,11 +247,84 @@ drafts; only a human tap or deterministic code commits a change.
 5. Customer discovery, from section 5, is still the gate on the product
    itself. The deputy goes into the interview script.
 
-## 8. Resume point
+## 8. Trust root causes (22 November)
 
-- Code: `main`, plus PR #3 (rename, harness, this review) and PR #4 (core loop and deputy), which is stacked on #3.
-- Staging: `loveoncue.jonathanjie.com` runs release `bbf1080` (migration 0004) with the deputy on, plus
-  DeepSeek V4.1 Flash for chat and photos, and `WEDDINGOPS_REHEARSAL=true`.
-- Simulation: create a world with `scripts/simulate.py --dir <dir> init`. Put a model key in
-  `<dir>/model.key` (mode 600) to turn on free-form parsing.
-- Next to build: the items under "Next" in section 7. Rerun the gate first.
+The founder asked for root-cause fixes, not prompt patches. The design and the
+Fable review are in `docs/plans/2026-11-21-deputy-trust-root-causes.md`. ADR
+0003 has an amendment. PR #6 holds the work.
+
+**Gate results** (Haiku personas, anchored rubric, 6 in round 1 and 7 in round
+2; ease / clarity / trust):
+
+| Code | Round 1 (normal) | Round 2 (rain, confounders) | Fallback replies | Coordinator interruptions |
+|---|---|---|---|---|
+| v3, main before this work | 3.33 / 3.33 / 2.67 | 3.43 / 3.29 / 2.43 | 1/71 and 3/76 | 6 and 16 |
+| v4, root-cause fixes | 3.17 / 3.17 / 2.83 | 3.29 / 3.43 / 2.86 | 0/69 and 0/67 | 2 and 5 |
+| v5, plus v4 findings | 3.17 / 3.17 / 2.17 | 3.57 / 3.29 / 2.71 | 0/70 and 0/73 | 3 and 7 |
+| v6, claim check (26 raters) | 3.08 / 2.75 / 2.75 | 3.50 / 3.00 / 2.71 | 0/141 and 0/150 | 5–8 and 9–11 |
+| v7, plus v6 findings (26 raters) | 3.25 / 3.17 / 2.67 | 3.50 / 3.21 / 2.43 | 0/149 and 0/171 | 9–10 and 2–15 |
+
+Gate v8 changed method, because single raters cannot tell a good chat from a bad one (a
+hand-written ideal chat scored trust 3.5). The 13 v7 rater chats were replayed message for
+message through v7 and v8 code, and blind raters compared the two in both orders:
+
+| Code | Preferred (26 blind pairs) | Paired ease / clarity / trust |
+|---|---|---|
+| v7 (61ce8ea) | 2 | 3.38 / 3.19 / 2.31 |
+| v8 (15de154) | 24 | 3.65 / 3.69 / 3.65 |
+
+What the numbers say:
+- **The structural measures moved a lot.** No reply fell back to the help menu.
+  Coordinator interruptions fell to between 2 and 7. Round 2's 7 includes 5
+  helper questions, which push by design.
+- **The venue change now works end to end.** The coordinator says it once, the
+  preview shows the whole cascade, one tap updates the run sheet, every helper
+  gets a notice generated from the change, and helpers' answers match it.
+- **The rubric scores did not reach 3.5, and trust is noisy** (2.17–2.86
+  between runs of the same personas). With 6–7 raters, one rater changes a
+  round's mean by about 0.15.
+- **The trust failures left are mostly the model's free-text claims**, not
+  missing structure. Examples:
+  - an invented time in a report's details ("18:28")
+  - "No injury reported" added by the model
+  - "I'll flag it now" while only drafting
+  - naming the wrong pending request
+  - offering to "ask the coordinator" to the coordinator
+- **v5 had two regressions of mine**, both fixed after the run: the unsent-draft
+  note repeated on every reply, and "tap Send" replies with no draft behind them.
+
+**Fixed after gate v5, not yet measured:**
+- blocked changes are explained, not drafted
+- a false "tap Send" is corrected by code
+- the unsent-draft note appears once
+- "on it" acknowledges the person's task
+- withdrawals can target a named report
+- guest status reads "not checked in yet"
+- the coordinator line says nobody is above them
+
+**Claim check built (22 November):** see
+`docs/plans/2026-11-22-deputy-claim-check.md`. The model writes the answer; code
+writes outcomes, status, time and next steps; facts must trace to records; reports
+carry the person's own words. Gate v6 (26 raters) did not move trust (2.75 and
+2.71), and found two regressions of mine and a schema cause, all fixed in 7858501
+and not yet measured.
+
+**Next (as of 21 November):**
+1. **Check the model's claims in code.** This is now justified, because claims
+   are the main trust gap. Use the cheap form Fable suggested: the plan cites the
+   context lines it relies on (`sources`), and code checks that each cited line
+   exists and that draft details add no times, places or statuses beyond the
+   person's words and the cited lines.
+2. Rerun the gate after (1), with more raters per round (for example 2 runs per
+   persona), so the noise is smaller than the effect.
+3. Keep the Mini App redesign separate, and customer discovery as the product gate.
+
+## 9. Resume point
+
+- Code: PR #6 (`claude/loveoncue-trust-roots`), stacked on `main`.
+- Staging: `loveoncue.jonathanjie.com` runs the PR branch with migration 0005 and
+  the deputy on. DeepSeek V4.1 Flash for chat and photos, `WEDDINGOPS_REHEARSAL=true`.
+- Simulation: `scripts/simulate.py --dir <dir> init --deputy`, with a model key in
+  `<dir>/model.key` (mode 600). Persona prompts: `scripts/gate.py`. Replay:
+  `scripts/replay.py`. Paired comparison: `scripts/ab.py`.
+- Next: see the resume point in `docs/plans/2026-11-22-deputy-claim-check.md`.

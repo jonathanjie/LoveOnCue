@@ -1,0 +1,135 @@
+[17:45] coordinator: hi, i just take over the wedding today. what needs my attention now? ok who never confirm yet
+[17:45] bot: Ryan Goh's Desk B signage task is overdue and unacknowledged, and that blocks opening Desk B; Jamie Lim, Jordan Tay and Michelle Chen also haven't acknowledged their 17:50–17:55 tasks. Registration opens at 18:00, so those are the ones to chase first.
+What should the message say?
+
+[17:46] coordinator: ok who never acknowledge yet
+[17:46] bot: Ryan Goh, Jamie Lim, Jordan Tay and Michelle Chen have not acknowledged their tasks; Ryan's Desk B signage is the overdue one.
+Check the message before it goes out.
+After that, tell me about: message the unacknowledged helpers.
+
+Message to Ryan Goh, Jamie Lim, Jordan Tay, Michelle Chen:
+“Hi all, please acknowledge your tasks in the app now. Ryan, Desk B signage is overdue and blocks opening Desk B. Registration opens at 18:00.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[17:47] coordinator: (taps the draft button)
+[17:47] bot: Message sent
+4 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[17:47] coordinator: is the kitchen on time? kitchen ok anot
+[17:47] bot: Nothing in the run sheet or reports covers the kitchen's progress, so I can't say whether they're on time.
+What should the message say?
+
+[17:48] coordinator: (taps More details)
+[17:48] bot: Coordinator brief
+
+1 urgent · 6 follow-ups · 1 notes
+
+🔴 Confirm Desk B signage
+Ryan Goh has not acknowledged this assignment.
+
+🟠 Not acknowledged: latest announcement (0 of 4 acknowledged)
+Jamie Lim, Jordan Tay, Michelle Chen, Ryan Goh
+
+🟠 Confirm shuttle drop-off route
+Jordan Tay has not acknowledged this assignment.
+
+🟠 Take position at Ballroom Entrance B
+Jamie Lim has not acknowledged this assignment.
+
+🟠 Open registration Desk A
+Michelle Chen has not acknowledged this assignment.
+
+🟠 Open registration Desk B
+Unfinished prerequisites: Confirm Desk B signage.
+
+🟠 Open registration Desk B
+Ryan Goh has not acknowledged this assignment.
+
+• Assistant activity: 3 check-ins sent
+0 answered, 3 waiting. Replies reach you as they come in.
+
+Tap Coordinator brief for the summary.
+
+Coordinator availability is not recorded. Use an enrolled backup for major decisions.
+
+[17:48] coordinator: is the father of the bride here? and where is mei lee, the groom mother, portraits soon
+[17:48] bot: I don't have any arrival record for the father of the bride, and no report of Mei Lee arriving either.
+Check the message before it goes out.
+After that, tell me about: check father of the bride arrival.
+• Mei Lee: Table 1; not checked in yet
+
+Message to Priya Rao:
+“Hi Priya, are the father of the bride and Mei Lee (groom's mother) here yet? Family portraits are at 18:50 at the Portrait alcove, so please confirm their arrival.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[17:49] coordinator: tell priya to bring mei lee to the portrait area, keep looking at the garden too, and tell me when she is found
+[17:49] bot: What should the message say?
+
+Your earlier draft is still unsent. Its button sends only this: Message to Priya Rao:
+
+[17:50] notice (deputy_digest): Update from the floor:
+• No reply from Jordan Tay about “Confirm shuttle drop-off route” (asked 17:45). You may want to call them. (just now)
+• No reply from Ryan Goh about “Confirm Desk B signage” (asked 17:45). You may want to call them. (just now)
+• No reply from Jamie Lim about “Take position at Ballroom Entrance B” (asked 17:45). You may want to call them. (just now)
+Quoted words are helpers' own; nothing they typed changed records.
+
+[17:50] coordinator: say: please bring mei lee to the portrait area by 6.50, check garden too, reply me when found
+[17:50] bot: Check the message before it goes out.
+
+Message to Priya Rao:
+“Please bring Mei Lee to the portrait area by 6.50, check the garden too, and reply to me when she is found.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[17:51] coordinator: (taps the draft button)
+[17:51] bot: Message sent
+1 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[17:51] coordinator: tell taylor dinner not confirmed yet, dont stall yet, i will update in 5 min. speech order is per the brief
+[17:51] bot: Who should get it? Say everyone, a person's name, or a team (Coordination, Registration, Ushers, Family liaison, Photography, Banquet, MC & AV, Transport).
+
+[17:52] coordinator: (taps the draft button)
+[17:52] bot: Already recorded
+This report was confirmed earlier. No new change was made.
+
+[17:52] coordinator: kitchen ok anot? dinner 7pm still on?
+[17:52] bot: Nothing in the run sheet or reports says how the kitchen is doing, so I can't confirm dinner at 19:00 is on track.
+Check the message before it goes out.
+
+Message to Banquet:
+“Kitchen status? Is dinner at 19:00 still on? Please reply.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[17:53] coordinator: (taps the draft button)
+[17:53] bot: Message sent
+1 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[17:53] coordinator: find mei lee for me, is she checked in? what is her number
+[17:53] bot: Mei Lee is not checked in yet, and I don't have her phone number in the records.
+Check the message before it goes out.
+After that, tell me about: ask Priya for Mei Lee's number.
+• Mei Lee: Table 1; not checked in yet
+
+Message to Priya Rao:
+“Do you have Mei Lee's phone number? She is not checked in yet and we need to reach her.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[17:54] coordinator: (taps the draft button)
+[17:54] bot: Message sent
+1 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[17:54] coordinator: tell taylor the speech order is in the brief, i will send the file, dont worry
+[17:54] bot: Who should get it? Say everyone, a person's name, or a team (Coordination, Registration, Ushers, Family liaison, Photography, Banquet, MC & AV, Transport).
+
+[17:55] coordinator: (taps the draft button)
+[17:55] bot: Already recorded
+This report was confirmed earlier. No new change was made.

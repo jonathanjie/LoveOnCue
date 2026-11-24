@@ -6,7 +6,16 @@ NAVIGATION = {
     "nav:brief": "/brief",
     "nav:details": "/brief_more",
     "nav:help": "/help",
+    "nav:ask": "/ask",  # The Ask the coordinator button of v12 replies still in people's chats.
 }
+
+
+# Attendance as people say it. "unknown" only means nobody has checked them in.
+ATTENDANCE_LABELS = {"onsite": "checked in", "unknown": "not checked in yet", "departed": "left"}
+
+
+def attendance_label(status: str) -> str:
+    return ATTENDANCE_LABELS.get(status, status)
 
 
 # Notices the coordinator needs to see acknowledged. Each gets an Acknowledge button.
@@ -27,14 +36,36 @@ def approval_markup(approval_id: str, *, blocked: bool) -> dict:
     return {"inline_keyboard": [buttons]}
 
 
-# What the button under a draft does, in plain words.
-DRAFT_BUTTONS = {"propose_delay": "Send to coordinator", "report_incident": "Send report",
-                 "arrival": "Record arrival", "withdraw_report": "Withdraw it", "broadcast": "Send to everyone",
-                 "set_deputy_enabled": "Confirm switch"}
+# What the button under a draft does, in plain words. Keys are worker.draft_type values.
+DRAFT_BUTTONS = {"propose_delay": "Send to coordinator", "change_item": "Send change", "report_incident": "Send",
+                 "question": "Ask the coordinator", "question_update": "Add to my question",
+                 "report_update": "Add to my report", "undo": "Undo",
+                 "arrival": "Record arrival", "withdraw_report": "Withdraw it", "broadcast": "Send message",
+                 "set_deputy_enabled": "Confirm switch", "task_action": "Mark done"}
+
+
+def glance(text: str, limit: int = 80) -> str:
+    """The first line of a message that is not a heading, cut at a word, for quoting it back."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    body = next((line for line in lines if not line.endswith(":")), lines[0] if lines else "")
+    return body if len(body) <= limit else body[:limit].rsplit(" ", 1)[0] + "\u2026"
+
+
+def names_list(names: list[str]) -> str:
+    """"Priya Rao", "Priya Rao and Sam Lee", "A, B and C"."""
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def acknowledged_reply(notice: str) -> str:
+    """What the person sees after acknowledging an update: which one, and that the coordinator sees it."""
+    return f"Acknowledged\nThe coordinator can see that you saw: \u201c{glance(notice)}\u201d"
 
 
 def reply_markup(*, coordinator: bool, guest_lookup: bool, draft_id: str | None,
                  app_url: str, draft_type: str | None = None) -> dict:
+    """The buttons under a bot reply. The draft's button comes first. A helper's reply with no draft
+    carries a question offer as its draft, so its button is Ask the coordinator (draft_type "question"):
+    the person, not the model, decides whether an answer was enough."""
     def button(label: str, action: str) -> dict:
         return {"text": label, "callback_data": action}
 

@@ -1,0 +1,65 @@
+[17:45] family-liaison: Hi aiyo, I am Priya, the family liaison leh. It is almost 6 pm already, can you show me what tasks I need to do for the family today or not?
+[17:45] bot: Your one task is to confirm the parents' arrival at the Registration foyer, due 18:15. Nobody has reported Robert, Grace, Daniel or Mei yet.
+
+[17:46] family-liaison: Ok thanks. Aiyo so many parents to check, can you tell me whether Robert Tan, Grace Tan, Daniel Lee and Mei Lee have already arrived at the registration foyer or not? I need to know before I mark anything.
+[17:46] bot: None of the four has been reported as arrived yet — that means nobody has checked them in, not that they are absent. You'll need to confirm each one at the Registration foyer before marking anything.
+Check this before I mark it done.
+After that, tell me about: confirm parents' arrival task.
+Guest seating is for the registration team and ushers.
+
+Mark your task done: Confirm parents' arrival. The coordinator will see it.
+
+Tap the button below within five minutes to send it.
+    [button: Mark done]
+
+[17:47] family-liaison: Aiyo, I went around already, Robert Tan, Grace Tan and Daniel Lee are here at the foyer I think. But I cannot find the groom mother leh, Mei Lee, anywhere. Very worrying, the portraits are at 6.50 pm. Can help or not?
+[17:47] bot: Check this report before I send it.
+
+Send a problem report to the coordinator and your team: Mei Lee not found before portraits.
+Your words, as sent: “Aiyo, I went around already, Robert Tan, Grace Tan and Daniel Lee are here at the foyer I think. But I cannot find the groom mother leh, Mei Lee, anywhere. Very worrying, the portraits are at 6.50 pm. Can help or not?”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:48] family-liaison: (taps the draft button)
+[17:48] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[17:48] family-liaison: Wait wait, sorry sorry! Just now the auntie told me Mei Lee was in the toilet only, she is fine. So please ignore my urgent report leh. I was wrong, not missing at all.
+[17:48] bot: Robert, Grace and Daniel are noted as at the foyer.
+Check this before I withdraw it.
+
+Withdraw your report: Mei Lee not found before portraits. Everyone who was told will be told to ignore it.
+
+Tap the button below within five minutes to send it.
+    [button: Withdraw it]
+
+[17:49] family-liaison: (taps the draft button)
+[17:49] bot: Withdrawn
+Your report (Mei Lee not found before portraits) is cancelled. Everyone who was told has been told to ignore it.
+
+[17:49] family-liaison: Thanks ah. Can give me Mei Lee's phone number? I want to call her directly to check where she is.
+[17:49] bot: I don't have Mei Lee's phone number in front of me — the only contact I have is the venue duty manager, Lee, on +65 6555 0142. If you need her number, the coordinator would have to give it to you.
+Check this report before I send it.
+
+Ask the coordinator: Need Mei Lee's phone number.
+Your words, as sent: “Thanks ah. Can give me Mei Lee's phone number? I want to call her directly to check where she is.”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:50] family-liaison: (taps the draft button)
+[17:50] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[17:50] family-liaison: Aiyo still no reply from anyone ah? Portraits in one hour already leh. Is there anything else I should do for the four parents or not?
+[17:50] bot: It's 17:50 now. I can't see any reply to your question about Mei Lee's number, and the run sheet still has family portraits at 18:50 at the Portrait alcove. Your only task is still to confirm the four parents' arrival at the Registration foyer, due 18:15 — Robert, Grace and Daniel are reported there, but nobody has reported Mei yet.
+Check this report before I send it.
+Your 17:50 question “Need Mei Lee's phone number”: open.
+After that, tell me about: confirm parents' arrival task.
+
+Add this update to your report “Need Mei Lee's phone number”.
+Your words, as sent: “Aiyo still no reply from anyone ah? Portraits in one hour already leh. Is there anything else I should do for the four parents or not?”
+
+Tap the button below within five minutes to send it.
+    [button: Send]

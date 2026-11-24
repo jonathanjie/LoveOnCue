@@ -1,0 +1,33 @@
+Records at 19:29.
+
+Run sheet (approved):
+  18:00 Guest registration at Registration foyer
+  18:40 Garden ceremony at Cedar Ballroom (planned 18:30)
+  19:00 Family portraits at Portrait alcove (planned 18:50)
+  19:10 Dinner service at Cedar Ballroom (planned 19:00)
+  19:50 Family speeches at Stage & AV desk (planned 19:45)
+  20:05 Dessert service at Cedar Ballroom (planned 20:00)
+  20:20 Couple's toast at Stage & AV desk
+
+Places:
+  Registration foyer: Level 1, main entrance. Desks A and B beside the lift.
+  Cedar Ballroom: Level 1, through the foyer's double doors.
+  Garden terrace: Through the glass doors at the west side of the foyer.
+  Stage & AV desk: Front of ballroom; AV desk at stage right.
+  Banquet service door: Staff-only east corridor. Keep access unobstructed.
+  Portrait alcove: North-west corner of the garden terrace.
+  Ballroom Entrance B: Second set of ballroom doors, off the foyer opposite the lift.
+  Restrooms: Level 1, left of the foyer lift. Accessible restroom beside the service door.
+
+Emergency contact: Venue duty manager Lee (fictional), DEMO-NOT-A-REAL-NUMBER
+
+Tasks of Jordan Tay:
+  due 17:50 Confirm shuttle drop-off route (pending, not acknowledged): Use the signed east driveway. No guest phone numbers are exposed.
+
+What reached the coordinator from Jordan Tay:
+  18:27 urgent other from Jordan Tay: “Bridal car flat tyre” — open; also shown to: Transport. Details: WAIT I AM IN CAR PARK NOW AND THE BRIDAL CAR GOT FLAT TYRE!!! CAR PANCIT LIAO / FLAT TYRE / car cannot move / help car spoil. bride need the car for ceremony or not ah? who i must call now??
+
+Updates and messages to Jordan Tay, and whether the coordinator sees them acknowledged:
+  18:25 timeline_updated “Run sheet updated by the coordinator (version 2): Garden ceremony 18:30 → 18:40”: not acknowledged
+  18:26 coordinator_message “Announcement from Alex Morgan: Ceremony is now indoors at Cedar Ballroom, starti”: not acknowledged
+  18:29 coordinator_message “Message from Alex Morgan: Bridal car has a flat tyre. Call venue duty manager Le”: not acknowledged

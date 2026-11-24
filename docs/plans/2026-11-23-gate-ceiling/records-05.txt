@@ -1,0 +1,38 @@
+Records at 18:49.
+
+Run sheet (approved):
+  18:00 Guest registration at Registration foyer
+  18:30 Garden ceremony at Garden terrace
+  18:50 Family portraits at Portrait alcove
+  19:00 Dinner service at Cedar Ballroom
+  19:45 Family speeches at Stage & AV desk
+  20:00 Dessert service at Cedar Ballroom
+  20:20 Couple's toast at Stage & AV desk
+
+Places:
+  Registration foyer: Level 1, main entrance. Desks A and B beside the lift.
+  Cedar Ballroom: Level 1, through the foyer's double doors.
+  Garden terrace: Through the glass doors at the west side of the foyer.
+  Stage & AV desk: Front of ballroom; AV desk at stage right.
+  Banquet service door: Staff-only east corridor. Keep access unobstructed.
+  Portrait alcove: North-west corner of the garden terrace.
+  Ballroom Entrance B: Second set of ballroom doors, off the foyer opposite the lift.
+  Restrooms: Level 1, left of the foyer lift. Accessible restroom beside the service door.
+
+Emergency contact: Venue duty manager Lee (fictional), DEMO-NOT-A-REAL-NUMBER
+
+Tasks of Taylor Ng:
+  due 18:58 Prepare dinner announcement (pending, not acknowledged): Wait for coordinator-approved go-ahead.
+
+What reached the coordinator from Taylor Ng:
+  17:46 normal question from Taylor Ng: “MC: speech order and dinner go-ahead” — resolved; also shown to: no team. Details: eh when i announce dinner ah? and the speech order how
+Update 17:48: ok so is the go-ahead for my dinner announcement coming or not? i'm standing here with the mic
+  17:47 normal question from Taylor Ng: “Groom's family name pronunciation for MC” — open; also shown to: no team. Details: how to pronounce the groom's family name ah? i don't want to mess up on mic
+  17:47 normal question from Taylor Ng: “Dinner delay: should MC stall guests?” — open; also shown to: no team. Details: i heard dinner is running late ah. is it confirmed? should i stall the crowd with a song or something
+  17:49 normal question from Taylor Ng: “Where is the brief for speech order?” — resolved; also shown to: no team. Details: eh the coordinator said speech order is per the brief. where is the brief ah? i cannot find it
+
+Updates and messages to Taylor Ng, and whether the coordinator sees them acknowledged:
+  17:48 coordinator_message “Message from Alex Morgan:
+Dinner is not confirmed yet, so don't stall guests yet”: acknowledged at 17:48
+  17:50 coordinator_message “Message from Alex Morgan:
+Speech order is in the brief; I will send the file sho”: not acknowledged

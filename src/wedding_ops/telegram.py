@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 import httpx
 from sqlalchemy import or_, select
 
-from .agent import Assistant
+from .agent import Assistant, ask_coordinator
 from .auth import Auth
 from .clock import Clock, parse_time
 from .config import Settings
@@ -18,9 +18,17 @@ from .db import Database
 from .errors import OpsError, denied
 from .models import InboundUpdate, new_id
 from .operations import Operations, audit, notify
+from .policy import Actor
 from .schemas import PhotoReview
 from .telegram_photo import MAX_PHOTO_BYTES, download_photo, render_photo
-from .telegram_ui import NAVIGATION, render_brief
+from .telegram_ui import (
+    NAVIGATION,
+    acknowledged_reply,
+    attendance_label,
+    glance,
+    names_list,
+    render_brief,
+)
 from .views import row
 
 
@@ -86,7 +94,8 @@ def private_callback(update: dict, token: str) -> tuple[str, str | None, str] | 
 
 HELP = ("Just message me like you would a teammate. Ask what you should be doing, where something "
         "is, or when something happens. Tell me about delays or problems in your own words and I will "
-        "pass them on once you confirm. Photo reviews are read-only when enabled. "
+        "pass them on once you confirm. If my answer is not enough, tap Ask the coordinator under it. "
+        "Photo reviews are read-only when enabled. "
         "Reports need confirmation. "
         "Schedule changes need human approval in LoveOnCue.")
 
@@ -107,7 +116,11 @@ def render_reply(result: dict) -> str:
         draft = result["draft"]
         note = ("\nTimeline changes still need the coordinator's approval."
                 if draft.get("command_type") == "propose_delay" else "")
-        return f"{message}\n\n{draft['summary']}\n\nTap the button below within five minutes to send it.{note}"
+        if draft.get("command_type") == "change_item":
+            note = ""  # The preview itself says who approves the change.
+        replaced = f"\n\nThis replaces your unsent draft: {draft['replaced']}" if draft.get("replaced") else ""
+        return (f"{message}\n\n{draft['summary']}\n\nTap the button below within five minutes to send it.{note}"
+                f"{replaced}")
     for item in result.get("data", [])[:8]:
         if result["kind"] == "tasks":
             message += f"\n• {item['title']} · due {local_time(item['due_at'], zone)} · {item['state']}"
@@ -125,9 +138,9 @@ def render_reply(result: dict) -> str:
             note = f" — {item['note']}" if item.get("note") else ""
             message += f"\n• {item['title']}: {item['status']}{note}"
         elif result["kind"] == "guests":
-            message += f"\n• {item['name']}: Table {item['table'] or 'unassigned'}; {item['attendance']}"
+            message += f"\n• {item['name']}: Table {item['table'] or 'unassigned'}; {attendance_label(item['attendance'])}"
         elif result["kind"] == "family":
-            message += f"\n• {item['name']}: {item['attendance']}"
+            message += f"\n• {item['name']}: {attendance_label(item['attendance'])}"
         elif result["kind"] == "knowledge":
             message += f"\n\n{item['excerpt']}\nSource: {item['source']}, revision {item['revision']}, line {item['line']}"
         elif result["kind"] == "vendors":
@@ -137,26 +150,84 @@ def render_reply(result: dict) -> str:
     return message[:3900]
 
 
+def overtaken_line(result: dict) -> str:
+    """Name the pending requests that a change just closed, so the coordinator is not left
+    approving one that no longer fits."""
+    closed = result.get("overtaken") or []
+    if not closed:
+        return ""
+    return (f"\nClosed, because they no longer fit the new run sheet: {'; '.join(closed)}. "
+            f"{'The requester is' if len(closed) == 1 else 'The requesters are'} told.")
+
+
+def said(result: dict) -> str:
+    """The words a question carried, quoted. One tap sends the message the reply answered, so the
+    reply says which one: "Question sent" alone left two players unsure what went (live play v13)."""
+    return f"\u201c{glance(result.get('details') or '')}\u201d" if result.get("details") else "your message"
+
+
 def confirmation_reply(result: dict) -> str:
     """Tell the reporter what their confirmed report did, in plain words."""
     if result.get("replayed"):
+        # The Ask the coordinator button is tapped twice by habit, and Telegram can deliver a tap twice.
+        if result.get("kind") == "question":
+            return f"Already sent: {said(result)}\nThe coordinator has this question. Nothing new was sent."
         return "Already recorded\nThis report was confirmed earlier. No new change was made."
     kind = result.get("command_type")
-    if kind == "propose_delay":
+    if kind in {"propose_delay", "change_item"} and result.get("status") == "approved":
+        # Say how many were told: an approved change can reach nobody (no team affected).
+        told, informed = result.get("told", 0), result.get("informed", 0)
+        lines = []
+        if told:
+            lines.append(f"{told} {'person is' if told == 1 else 'people are'} told, with an Acknowledge button.")
+        if informed:
+            # The couple see the new times but have nothing to acknowledge (live play v11).
+            lines.append("The couple see the new times too." if told else "Only the couple needed telling.")
+        return (f"Run sheet updated\nVersion {result['timeline_version']}. "
+                + (" ".join(lines) if lines else "Nobody else needed telling.") + overtaken_line(result))
+    if kind in {"propose_delay", "change_item"}:
         return ("Report confirmed\nProposal awaiting approval from the coordinator. The run sheet does not change until "
                 "they approve it. I will tell you their decision.")
+    question = result.get("kind") == "question"
+    if kind == "report_incident" and result.get("status") == "updated":
+        return (f"Added to your question: {said(result)}\nThe coordinator will see it with your earlier message." if question else
+                "Update added\nThe coordinator will see it with your earlier report.")
+    if kind == "report_incident" and question:
+        return (f"Question sent: {said(result)}\nThe coordinator has it. Their answer will come to this chat. "
+                "Tap Undo to take it back.")
+    if kind == "report_incident" and result.get("kind") == "note":
+        return "Note sent\nThe coordinator has it, for their information."
     if kind == "report_incident":
-        return "Report sent\nThe coordinator and your team have been told."
+        # Say exactly who received it: the operation reports the teams it told.
+        teams = result.get("teams") or []
+        also = f" The {', '.join(teams)} team{'s' if len(teams) > 1 else ''} also got it." if teams else ""
+        return f"Report sent\nThe coordinator has it.{also}"
     if kind == "arrival":
-        return "Arrival recorded\nThe family liaison and photographer have been told."
+        # Name who was recorded, apart from who was told: "Arrival recorded. Priya Rao and Sam Koh
+        # have been told." left the desk unsure which guest it was (live play v13). Someone checked
+        # in by another desk since the draft is not recorded again.
+        names, told = result.get("names"), result.get("told") or []
+        if names == []:
+            return "Already checked in\nNothing changed: another desk recorded the arrival first."
+        recorded = f"Arrival recorded: {names_list(names)}." if names else "Arrival recorded."
+        return recorded + "\n" + (f"Told: {names_list(told)}." if told else "It is in the records. Nobody else is notified.")
     if kind == "set_deputy_enabled":
         return ("Check-ins are on. I will chase unacknowledged tasks again." if result["status"] == "on" else
                 "Check-ins are paused for everyone. Helpers get the plain reminders instead.")
     if kind == "broadcast":
-        return ("Announcement sent\nEveryone gets an Acknowledge button. "
-                "Ask me who has not acknowledged yet.")
+        count = result.get("recipients", 0)
+        return (f"Message sent\n{count} {'person gets' if count == 1 else 'people get'} it with an Acknowledge "
+                "button. Ask me who has not acknowledged yet.")
+    if kind == "task_action":
+        return "Marked done\nThe coordinator can see it."
     if kind == "withdraw_report":
-        return f"Withdrawn\nYour report ({result['title']}) is cancelled. Everyone who was told has been told to ignore it."
+        noun, told = result.get("noun", "report"), result.get("told") or []
+        lines = [f"Withdrawn\nYour {noun} ({result['title']}) is taken back."]
+        if result.get("coordinator_told", True):
+            lines.append("The coordinator sees this in their next update.")
+        if told:
+            lines.append(f"{names_list(told)} {'is' if len(told) == 1 else 'are'} told to ignore it.")
+        return " ".join(lines)
     return "Report confirmed."
 
 
@@ -197,12 +268,15 @@ class TelegramIngress:
         """Opt-out, the coordinator's on/off switch, and the On it button on a deputy ping."""
         if command.startswith("taskack"):
             task_id = command.split()[1]
-            version = next(t["version"] for t in self.assistant.queries.snapshot(actor)["tasks"] if t["id"] == task_id)
+            task = next(t for t in self.assistant.queries.snapshot(actor)["tasks"] if t["id"] == task_id)
+            version = task["version"]
             self.operations.execute(actor, {"type": "task_action", "task_id": task_id, "action": "acknowledge",
                                             "expected_version": version}, f"taskack:{task_id}:{version}")
             from .deputy import Heartbeat
             Heartbeat(self.db, self.wid, self.clock).record_answer(actor.member_id, "On it", acknowledged=True, task_id=task_id)
-            return "Thanks, marked as acknowledged. The coordinator can see it."
+            # Name what was acknowledged: "marked as acknowledged" read as acknowledging the
+            # coordinator's message beside it (live play v11, three raters).
+            return f"Acknowledged\nThe coordinator can see that you are on \u201c{task['title']}\u201d."
         if command in {"quiet", "unquiet"}:
             self.operations.set_deputy_quiet(actor, command == "quiet")
             return ("Okay, I won't message you unprompted for the rest of the event, except urgent items. "
@@ -214,13 +288,14 @@ class TelegramIngress:
 
     def _decide(self, actor, decision: str, approval_id: str, note: str) -> str:
         """A coordinator's explicit Approve or Reject from Telegram. The model is not involved."""
+        decided = {"approve": "Approved", "reject": "Rejected"}[decision]
         outcome = self.operations.execute(
             actor, {"type": "decide_approval", "approval_id": approval_id, "decision": decision,
-                    "note": note[:1000] or f"{decision.capitalize()}d in Telegram."},
+                    "note": note[:1000] or f"{decided} in Telegram."},
             f"telegram-decision:{approval_id}")
         if decision == "approve":
             return (f"Approved\nTimeline version {outcome['timeline_version']}. "
-                    "Affected teams are being told, and the reporter knows.")
+                    "Affected teams are being told, and the reporter knows." + overtaken_line(outcome))
         return "Rejected\nThe run sheet is unchanged. The reporter has been told."
 
     def _announce(self, actor, message: str) -> tuple[str, str | None]:
@@ -273,6 +348,15 @@ class TelegramIngress:
             ))
         return acknowledgment or {"ok": True, "queued": True}
 
+    def _send_draft(self, actor: Actor, draft_id: str) -> tuple[str, str | None]:
+        """Send a draft the person tapped. A question just sent gets a one-tap Undo."""
+        outcome = self.operations.confirm(actor, draft_id)
+        undo = None
+        if outcome.get("kind") == "question" and outcome.get("status") == "open" and not outcome.get("replayed"):
+            undo = self.operations.draft(actor, {"type": "withdraw_report", "request_id": f"draft:{draft_id}"},
+                                         "Take back your question.", offer="undo")["id"]
+        return confirmation_reply(outcome), undo
+
     def process_one(self) -> bool:
         now = self.clock.now()
         with self.db.transaction(self.wid, write=True) as (s,w):
@@ -286,6 +370,7 @@ class TelegramIngress:
             item.attempts += 1
             ident, lease, payload, provider_id = item.id, item.lease_token, item.payload, item.provider_update_id
         member_id, result, permission, draft_id = None, None, None, None
+        chase = False  # whether the deputy may chase this person right after its reply
         try:
             text = payload.get("text", "").strip()
             match = re.fullmatch(r"/start\s+([A-Za-z0-9_-]{20,64})", text)
@@ -307,8 +392,8 @@ class TelegramIngress:
                 member_id = actor.member_id
                 confirmation = re.fullmatch(r"/confirm\s+([a-zA-Z0-9_-]{1,64})", text)
                 if confirmation:
-                    result = confirmation_reply(self.operations.confirm(actor, confirmation[1]))
-                elif decision := re.fullmatch(r"/(approve|reject)\s+([A-Za-z0-9_-]{1,64})(?:\s+(.+))?", text, re.S):
+                    result, draft_id = self._send_draft(actor, confirmation[1])
+                elif decision := re.fullmatch(r"/(approve|reject)\s+([A-Za-z0-9_-]{1,64})(?:\s+(.+))?", text, re.DOTALL):
                     result = self._decide(actor, decision[1], decision[2], (decision[3] or "").strip())
                 elif deputy_command := re.fullmatch(r"/(quiet|unquiet|deputy\s+(?:on|off)|taskack\s+[A-Za-z0-9_-]{1,64})", text):
                     result = self._deputy_command(actor, deputy_command[1])
@@ -316,7 +401,7 @@ class TelegramIngress:
                     result, draft_id = self._announce(actor, text[len("/announce"):].strip())
                 elif re.fullmatch(r"/ack(\s+[A-Za-z0-9_-]{1,64})?", text):
                     notice = self.operations.acknowledge_latest(actor, text[len("/ack"):].strip() or None)
-                    result = (f"Acknowledged\n{notice[:120]}" if notice else
+                    result = (acknowledged_reply(notice) if notice else
                               "Nothing to acknowledge. You have no update waiting for acknowledgement.")
                 elif text in {"/brief", "/brief_more"}:
                     brief = self.assistant.queries.coordinator_brief(actor)
@@ -328,12 +413,27 @@ class TelegramIngress:
                     permission = "guests:seating"
                 elif text in {"/start", "/help"}:
                     result = HELP
+                elif text == "/ask" and self.deputy is None:
+                    # Without the deputy there is no chat memory to send: say who to ask.
+                    result = ask_coordinator(self.assistant.queries.snapshot(actor))
+                elif text == "/ask":
+                    # Typed /ask sends their latest message at once, as the button under a reply does.
+                    response = self.deputy.ask_from_last_message(actor)
+                    if response.get("ask_draft"):
+                        result, draft_id = self._send_draft(actor, response["ask_draft"]["id"])
+                    else:
+                        result = render_reply(response)
                 else:
                     responder = self.deputy if self.deputy is not None else self.assistant
                     response = responder.ask(actor, text)
                     result = render_reply(response)
                     if response.get("draft"):
                         draft_id = response["draft"]["id"]
+                    # Beside a draft, a second button would compete with the one the preview is for.
+                    chase = self.deputy is not None and draft_id is None
+                    if draft_id is None and response.get("ask_draft"):
+                        # The reply's own Ask the coordinator button sends the message it answers.
+                        draft_id = response["ask_draft"]["id"]
                     permission = {"guests": "guests:seating", "family": "family:status",
                                   "knowledge": "knowledge:read"}.get(response["kind"])
             failure, retry = None, False
@@ -358,4 +458,8 @@ class TelegramIngress:
                 w.state_version += 1
                 audit(s,w,"system","telegram_processed",item.id,{"status":item.state,"error_code":failure},self.clock.now())
             item.last_error, item.lease_token, item.lease_until = failure, None, None
+        if chase and result and failure is None:
+            # What still waits for them (an unacknowledged update, a task due) follows the reply.
+            from .deputy import Heartbeat
+            Heartbeat(self.db, self.wid, self.clock).run(active=member_id)
         return True

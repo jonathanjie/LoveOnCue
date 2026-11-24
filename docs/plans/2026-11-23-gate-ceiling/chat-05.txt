@@ -1,0 +1,112 @@
+
+[17:46] mc: eh hi, i'm the MC for tonight. what do i need to do and when ah? it's 5.45 now
+[17:46] bot: It's 17:46 now. You're down to prepare the dinner announcement, due 18:58 at the Stage & AV desk, and you wait for the coordinator-approved go-ahead before it.
+Check this report before I send it.
+After that, tell me about: MC task details and go-ahead timing.
+
+Ask the coordinator: MC dinner announcement go-ahead timing.
+Your words, as sent: “eh hi, i'm the MC for tonight. what do i need to do and when ah? it's 5.45 now”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:46] mc: (taps a button)
+[17:46] bot: Your current and next tasks, by due time. Blocked tasks wait for their prerequisites.
+• Prepare dinner announcement · due 18:58 · pending
+  Where: Stage & AV desk. Front of ballroom; AV desk at stage right.
+  What: Wait for coordinator-approved go-ahead.
+
+[17:46] mc: eh when i announce dinner ah? and the speech order how
+[17:46] bot: The run sheet has dinner service at 19:00, and your announcement is due 18:58 at the Stage & AV desk, but it waits for the coordinator-approved go-ahead. The run sheet only lists family speeches at 19:45 and the couple's toast at 20:20 — it doesn't give a speech order, so that needs the coordinator.
+Check this report before I send it.
+
+Ask the coordinator: MC: speech order and dinner go-ahead.
+Your words, as sent: “eh when i announce dinner ah? and the speech order how”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:46] mc: (taps a button)
+[17:46] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[17:46] mc: how to pronounce the groom's family name ah? i don't want to mess up on mic
+[17:46] bot: I don't have the groom's family name or its pronunciation in front of me, so I can't help with that one.
+Check this report before I send it.
+
+Ask the coordinator: Groom's family name pronunciation for MC.
+Your words, as sent: “how to pronounce the groom's family name ah? i don't want to mess up on mic”
+You already reported: MC: speech order and dinner go-ahead. Confirm only if this is a different problem.
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:47] mc: (taps a button)
+[17:47] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[17:47] mc: i heard dinner is running late ah. is it confirmed? should i stall the crowd with a song or something
+[17:47] bot: Nothing in the run sheet says dinner is running late — it still shows dinner service at 19:00, and your announcement is due 18:58. Whether to stall the crowd is the coordinator's call, not something I can confirm.
+Check this report before I send it.
+
+Ask the coordinator: Dinner delay: should MC stall guests?.
+Your words, as sent: “i heard dinner is running late ah. is it confirmed? should i stall the crowd with a song or something”
+You already reported: Groom's family name pronunciation for MC. Confirm only if this is a different problem.
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:47] mc: (taps a button)
+[17:47] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[17:48] mc: ok so is the go-ahead for my dinner announcement coming or not? i'm standing here with the mic
+[17:48] bot: I don't have a go-ahead to give you — the run sheet still shows dinner at 19:00 and your announcement due 18:58, waiting on the coordinator's approval. Your question about the go-ahead is with the coordinator, and I can't say when an answer will come.
+Check this report before I send it.
+
+Add this update to your report “MC: speech order and dinner go-ahead”.
+Your words, as sent: “ok so is the go-ahead for my dinner announcement coming or not? i'm standing here with the mic”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:48] mc: (taps a button)
+[17:48] bot: Update added
+The coordinator will see it with your earlier report.
+
+[17:48] notice (coordinator_message): Message from Alex Morgan:
+Dinner is not confirmed yet, so don't stall guests yet. I'll update you in 5 minutes. Speech order is per the brief.
+
+Tap Acknowledge, or reply “ok”, so the coordinator knows you saw this.
+    [button: Acknowledge]
+
+[17:48] mc: (taps a button)
+[17:48] bot: Acknowledged
+Message from Alex Morgan:
+Dinner is not confirmed yet, so don't stall guests yet. I'll update you in 5 minutes. Speech o
+
+[17:49] mc: eh the coordinator said speech order is per the brief. where is the brief ah? i cannot find it
+[17:49] bot: The coordinator said at 17:48 that the speech order is per the brief, but nothing in the run sheet or records says where the brief is kept. That's one for the coordinator to point you to.
+Check this report before I send it.
+
+Ask the coordinator: Where is the brief for speech order?.
+Your words, as sent: “eh the coordinator said speech order is per the brief. where is the brief ah? i cannot find it”
+You already reported: Dinner delay: should MC stall guests?. Confirm only if this is a different problem.
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:49] mc: (taps a button)
+[17:49] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[17:50] notice (coordinator_message): Message from Alex Morgan:
+Speech order is in the brief; I will send the file shortly, so don't worry.
+
+Tap Acknowledge, or reply “ok”, so the coordinator knows you saw this.
+    [button: Acknowledge]
+
+[17:55] notice (deputy_ping): Hi Taylor, did you see the coordinator's update? “Speech order is in the brief; I will send the file shortly, so don't worry.” Tap Acknowledge, or reply “ok”.
+    [button: Acknowledge]
+
+[18:48] notice (task_reminder): Due 18:58: Prepare dinner announcement. Open My tasks, review prerequisites and acknowledge the assignment.

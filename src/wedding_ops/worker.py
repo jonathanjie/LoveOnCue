@@ -9,12 +9,13 @@ from zoneinfo import ZoneInfo
 import httpx
 from sqlalchemy import func, or_, select
 
+from .attention import already_told, send_digest, tell_coordinators
 from .clock import Clock
 from .config import Settings
 from .db import Database
 from .errors import OpsError
 from .models import Approval, Member, Notification, Task, new_id
-from .operations import audit, notify, recipients
+from .operations import audit, notify, one_line
 from .policy import Actor, load_access
 from .telegram_ui import approval_markup, notice_markup, reply_markup
 from .views import row, rows
@@ -67,12 +68,22 @@ class TelegramTransport:
 
 
 def draft_type(s, wedding_id: str, draft_id: str | None) -> str | None:
-    """The command type of a draft, so its button can say what it does."""
+    """What a draft does, so its button can say it: the command type, or a question, an addition
+    to an open question, or the Undo of a question just sent."""
     from .models import ActionDraft
     if not draft_id:
         return None
     draft = s.scalar(select(ActionDraft).where(ActionDraft.wedding_id == wedding_id, ActionDraft.id == draft_id))
-    return draft.command["type"] if draft else None
+    if draft is None:
+        return None
+    command = draft.command
+    if draft.offer == "undo":
+        return "undo"
+    if command["type"] == "report_incident" and command.get("updates_incident_id"):
+        return "question_update" if command.get("kind") == "question" else "report_update"
+    if command["type"] == "report_incident" and command.get("kind") == "question":
+        return "question"
+    return command["type"]
 
 
 def deputy_ping_markup(s, wedding_id: str, notice: Notification) -> dict | None:
@@ -80,6 +91,9 @@ def deputy_ping_markup(s, wedding_id: str, notice: Notification) -> dict | None:
     from .models import DeputyPing
     ping = s.scalar(select(DeputyPing).where(DeputyPing.wedding_id == wedding_id,
                                              DeputyPing.id == notice.dedupe_key.split(":")[1]))
+    if ping is not None and ping.notification_id:
+        # A chase about an update acknowledges that update itself.
+        return {"inline_keyboard": [[{"text": "Acknowledge", "callback_data": f"ack:{ping.notification_id}"}]]}
     if ping is None or ping.task_id is None:
         return None
     return {"inline_keyboard": [[{"text": "On it", "callback_data": f"taskack:{ping.task_id}"}]]}
@@ -123,15 +137,19 @@ class Worker:
                         notify(s, self.wid, owner.id, "task_overdue",
                                f"Unacknowledged task due {due}: {task.title}. Confirm your status in My tasks.",
                                f"overdue:{task.id}:{task.version}", now, task=task)
-                    if now >= task.due_at + timedelta(minutes=5):
-                        for m in recipients(s, self.wid):
-                            notify(s, self.wid, m.id, "task_escalation", f"Needs follow-up: {task.title} was due {due} and has not been acknowledged. Contact the assigned helper.",
-                                   f"escalation:{task.id}:{task.version}", now, task=task)
+                    since = max(task.due_at, ping.answered_at) if ping is not None else task.due_at
+                    if now >= task.due_at + timedelta(minutes=5) and not already_told(s, self.wid, f"task:{task.id}", since):
+                        # Once per due time. A reply after the due time already told them its status.
+                        said = f" Their last reply: \u201c{one_line(ping.answer or '', 120)}\u201d." if ping is not None else ""
+                        tell_coordinators(s, w, f"task:{task.id}",
+                                          f"Not acknowledged: \u201c{task.title}\u201d (due {due}). Contact the assigned helper.{said}", now)
             for proposal in rows(s, Approval, self.wid):
                 if proposal.status == "pending" and proposal.expires_at <= now:
                     proposal.status = "expired"
                     expired += 1
                     expired_ids.append(proposal.id)
+            s.flush()
+            send_digest(s, w, now)  # Counted below with the other queued notices.
             s.flush()
             after_count = s.scalar(select(func.count()).select_from(Notification).where(Notification.wedding_id == self.wid))
             queued = after_count - before_count

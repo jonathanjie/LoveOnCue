@@ -1,0 +1,83 @@
+[18:25] notice (deputy_ping): Hi Jordan, the coordinator's assistant here. Are you at Registration foyer for “Confirm shuttle drop-off route” (due 17:50)? Tap On it, or reply with how it is going.
+    [button: On it]
+
+[18:25] notice (timeline_updated): Run sheet updated by the coordinator (version 2):
+• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden terrace)
+Check your tasks. Tap Acknowledge, or reply “ok”, so the coordinator knows you saw this.
+    [button: Acknowledge]
+
+[18:27] driver: hi sorry wah i am the bridal car driver Jordan. its 6.25pm already. what am i supposed to do now ah?
+[18:27] bot: It's 18:27 now. You're Jordan, the transport contact, and your task is to confirm the shuttle drop-off route using the signed east driveway. The run sheet now has the garden ceremony at 18:40 in Cedar Ballroom, moved from 18:30 in the garden terrace.
+Check this report before I send it.
+After that, tell me about: confirm shuttle drop-off route task.
+
+Ask the coordinator: Bridal car driver unsure of next step.
+Your words, as sent: “hi sorry wah i am the bridal car driver Jordan. its 6.25pm already. what am i supposed to do now ah?”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:28] driver: WAIT I AM IN CAR PARK NOW AND THE BRIDAL CAR GOT FLAT TYRE!!! CAR PANCIT LIAO
+[18:28] bot: That's a problem that blocks the ceremony, so this goes to the coordinator as urgent. The venue duty manager is Lee on +65 6555 0142 if you need help on the ground now.
+Check this report before I send it.
+
+If anyone is hurt or in danger, call Venue duty manager Lee, +65 6555 0142 now. Do not wait for this bot.
+Send an URGENT problem report to the coordinator and your team: Bridal car flat tyre in car park.
+Your words, as sent: “hi sorry wah i am the bridal car driver Jordan. its 6.25pm already. what am i supposed to do now ah? / WAIT I AM IN CAR PARK NOW AND THE BRIDAL CAR GOT FLAT TYRE!!! CAR PANCIT LIAO”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:29] driver: FLAT TYRE
+[18:29] bot: Understood — the bridal car has a flat tyre in the car park.
+Check this report before I send it.
+
+If anyone is hurt or in danger, call Venue duty manager Lee, +65 6555 0142 now. Do not wait for this bot.
+Send an URGENT problem report to the coordinator and your team: Bridal car flat tyre in car park.
+Your words, as sent: “WAIT I AM IN CAR PARK NOW AND THE BRIDAL CAR GOT FLAT TYRE!!! CAR PANCIT LIAO / FLAT TYRE”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:30] driver: car cannot move
+[18:30] bot: The bridal car can't move, so this is urgent for the coordinator. If anyone is hurt or in danger, call Venue duty manager Lee on +65 6555 0142 now.
+Check this report before I send it.
+
+If anyone is hurt or in danger, call Venue duty manager Lee, +65 6555 0142 now. Do not wait for this bot.
+Send an URGENT problem report to the coordinator and your team: Bridal car flat tyre, cannot move.
+Your words, as sent: “WAIT I AM IN CAR PARK NOW AND THE BRIDAL CAR GOT FLAT TYRE!!! CAR PANCIT LIAO / FLAT TYRE / car cannot move”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:31] driver: help car spoil. bride need the car for ceremony or not ah? who i must call now??
+[18:31] bot: I don't have anything on whether the bride needs the car for the ceremony — that's for the coordinator to answer. For the car itself, the venue duty manager is Lee on +65 6555 0142.
+Check this report before I send it.
+
+If anyone is hurt or in danger, call Venue duty manager Lee, +65 6555 0142 now. Do not wait for this bot.
+Send an URGENT problem report to the coordinator and your team: Bridal car flat tyre, cannot move.
+Your words, as sent: “WAIT I AM IN CAR PARK NOW AND THE BRIDAL CAR GOT FLAT TYRE!!! CAR PANCIT LIAO / FLAT TYRE / car cannot move / help car spoil. bride need the car for ceremony or not ah? who i must call now??”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:32] driver: (taps the draft button)
+[18:32] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[18:32] driver: hello?? i sent already. got anybody coming to help or not
+[18:32] bot: The venue duty manager, Lee, is on +65 6555 0142 if you need someone on the ground now.
+Check this report before I send it.
+Your 18:32 urgent problem report “Bridal car flat tyre, cannot move”: open.
+After that, tell me about: ask coordinator who is coming to help with the car.
+
+If anyone is hurt or in danger, call Venue duty manager Lee, +65 6555 0142 now. Do not wait for this bot.
+Add this update to your report “Bridal car flat tyre, cannot move” and mark it URGENT.
+Your words, as sent: “hello?? i sent already. got anybody coming to help or not”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:33] driver: (taps the draft button)
+[18:33] bot: Update added
+The coordinator will see it with your earlier report.

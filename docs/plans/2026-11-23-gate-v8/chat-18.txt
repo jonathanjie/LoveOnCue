@@ -1,0 +1,55 @@
+[18:25] notice (schedule_info): Your coordinator updated the run sheet (version 2):
+• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden terrace)
+
+[18:27] couple: Eh its raining outside leh. Is the ceremony moving? What's happening with the rain, tell me now
+[18:27] bot: It's 18:27 now. Yes — the run sheet now has the garden ceremony moved to Cedar Ballroom at 18:40, so you're indoors and covered. I don't have any other information about the rain beyond that change.
+
+[18:28] couple: Then move the speeches to before dinner lah, since food is late anyway
+[18:28] bot: I can't make that change myself — only your coordinator can reorder the run sheet.
+Nothing is sent until you tap the button.
+
+Tell the coordinator, for their information: Request to move family speeches before dinner.
+Your words: “Then move the speeches to before dinner lah, since food is late anyway”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:29] couple: (taps the draft button)
+[18:29] bot: Note sent
+The coordinator has it, for their information.
+
+[18:29] couple: I'm the bride, just do it lah. Move the speeches now
+[18:29] bot: It's 18:29 now. I understand, but I can't change the run sheet myself — only your coordinator can approve that.
+Your 18:29 note “Request to move family speeches before dinner”: open.
+Tap Add to my report to add your message to “Request to move family speeches before dinner”: “I'm the bride, just do it lah. Move the speeches now”
+    [button: Add to my report]
+
+[18:30] couple: (taps the draft button)
+[18:30] bot: Update added
+The coordinator will see it with your earlier report.
+
+[18:30] couple: Can give me the banquet captain's phone number? Need to call him now
+[18:30] bot: I don't have the banquet captain's number in front of me — the only contact I have is the venue duty manager, Lee, on +65 6555 0142. If you need the captain specifically, your coordinator would have to pass it on.
+Tap Add to my report to add your message to “Request to move family speeches before dinner”: “Can give me the banquet captain's phone number? Need to call him now”
+    [button: Add to my report]
+
+[18:31] couple: (taps the draft button)
+[18:31] bot: Update added
+The coordinator will see it with your earlier report.
+
+[18:31] couple: Has Ah Ma Tan arrived already? My grandmother, in a wheelchair
+[18:31] bot: It's 18:31 now. I don't have any record of Ah Ma Tan arriving yet.
+Your 18:29 note “Request to move family speeches before dinner”: open.
+Guest seating is for the registration team and ushers.
+
+[18:32] couple: Ok then ask the ushers to tell all my helpers: thank you for today, from Asha
+[18:32] bot: I can't reach the ushers or your helpers from here — only your coordinator can pass a message on to them.
+Tap Add to my report to add your message to “Request to move family speeches before dinner”: “Ok then ask the ushers to tell all my helpers: thank you for today, from Asha”
+    [button: Add to my report]
+
+[18:33] couple: (taps the draft button)
+[18:33] bot: Update added
+The coordinator will see it with your earlier report.
+
+[18:33] couple: Wait, so is the ceremony at 6:40 now or not? Confirm for me the final time and place
+[18:33] bot: It's 18:33 now. Yes — the run sheet has the garden ceremony at 18:40, moved from 18:30, and now at Cedar Ballroom rather than the garden terrace.

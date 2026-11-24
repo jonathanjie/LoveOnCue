@@ -1,0 +1,53 @@
+[18:25] notice (timeline_updated): Run sheet updated by the coordinator (version 2):
+• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden terrace)
+• Dinner service 19:00 → 19:10
+• Family speeches 19:45 → 19:50
+• Dessert service 20:00 → 20:05
+Check your tasks. Tap Acknowledge, or reply “ok”, so the coordinator knows you saw this.
+    [button: Acknowledge]
+
+[18:27] banquet: hi chris here banquet captain. kitchen is 20 minutes behind lah, dinner 20 late, guests waiting
+[18:27] bot: That change can't go through as it is: Couple's toast: would exceed its hard latest-end constraint. Try a smaller change, or adjust the run sheet in LoveOnCue.
+
+[18:28] banquet: DINNER 20 LATE!! food need 20 more min lah, sure guests angry already
+[18:28] bot: The run sheet still shows dinner service at 19:10, so keep to that until you hear otherwise.
+Nothing is sent until you tap the button.
+
+Send a problem report to the coordinator and your team: Dinner service 20 minutes behind.
+Your words: “DINNER 20 LATE!! food need 20 more min lah, sure guests angry already”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:29] banquet: (taps the draft button)
+[18:29] bot: Report sent
+The coordinator has it.
+
+[18:29] banquet: wait wait the timeline changed? what happen, ceremony moved to cedar ballroom ah? i never know
+[18:29] bot: Yes — the coordinator updated the run sheet at 18:25: the garden ceremony moved to Cedar Ballroom and now starts at 18:40, with dinner at 19:10, family speeches at 19:50 and dessert at 20:05. You haven't acknowledged that update yet.
+
+[18:30] notice (deputy_ping): Hi Chris, did you see the coordinator's update? “• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden terrace) • Dinner service 19:00 → 19:10 • Family speeches 19:45 → 19:50 • Dessert service 20:” Tap Acknowledge, or reply “ok”.
+    [button: Acknowledge]
+
+[18:30] banquet: correction: chef say only 10 min now lah, not 20. dinner 10 late only
+[18:30] bot: Thanks for the correction — the kitchen is now 10 minutes behind, not 20. Dinner service is still on the run sheet at 19:10, so keep to that until you hear otherwise.
+Check this before I withdraw it.
+
+Withdraw your report: Dinner service 20 minutes behind. Everyone who was told will be told to ignore it.
+
+Tap the button below within five minutes to send it.
+    [button: Withdraw it]
+
+[18:31] banquet: (taps the draft button)
+[18:31] bot: Withdrawn
+Your report (Dinner service 20 minutes behind) is cancelled. Everyone who was told has been told to ignore it.
+
+[18:31] banquet: ok so now dinner only 10 min late. should i start plating at 7 or wait lah?
+[18:31] bot: The run sheet has dinner service at 19:10, so that's the time to work to. I don't have anything on when plating should start — only the coordinator can tell you that.
+Tap Ask the coordinator to send them your message: “ok so now dinner only 10 min late. should i start plating at 7 or wait lah?”
+    [button: Ask the coordinator]
+
+[18:32] banquet: (taps the draft button)
+[18:32] bot: Question sent
+The coordinator has your message. Their answer will come to this chat. Tap Undo to take it back.
+    [button: Undo]

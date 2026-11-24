@@ -1,0 +1,83 @@
+[17:45] mc: eh hi, i'm the MC for tonight. what do i need to do and when ah? it's 5.45 now
+[17:45] bot: It's 17:45 now. You're down to prepare the dinner announcement, due 18:58 at the Stage & AV desk, and you wait for the coordinator-approved go-ahead before giving it.
+
+[17:46] mc: (taps My tasks)
+[17:46] bot: Your current and next tasks, by due time. Blocked tasks wait for their prerequisites.
+• Prepare dinner announcement · due 18:58 · pending
+  Where: Stage & AV desk. Front of ballroom; AV desk at stage right.
+  What: Wait for coordinator-approved go-ahead.
+
+[17:46] mc: eh when i announce dinner ah? and the speech order how
+[17:46] bot: Dinner service is at 19:00 in the Cedar Ballroom, and your announcement is due 18:58 at the Stage & AV desk, waiting for the coordinator-approved go-ahead. The run sheet only lists family speeches at 19:45 at the Stage & AV desk — it doesn't give a speaking order, so you'd need to ask the coordinator for that.
+Check this report before I send it.
+
+Ask the coordinator: MC needs speech order.
+Your words, as sent: “eh when i announce dinner ah? and the speech order how”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:47] mc: (taps the draft button)
+[17:47] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[17:47] mc: how to pronounce the groom's family name ah? i don't want to mess up on mic
+[17:47] bot: I don't have the groom's family name or its pronunciation anywhere in what I can see, so I can't help with that one. The coordinator would be the one to confirm it.
+Check this report before I send it.
+
+Ask the coordinator: MC needs groom's family name pronunciation.
+Your words, as sent: “how to pronounce the groom's family name ah? i don't want to mess up on mic”
+You already reported: MC needs speech order. Confirm only if this is a different problem.
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:48] mc: (taps the draft button)
+[17:48] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[17:48] mc: i heard dinner is running late ah. is it confirmed? should i stall the crowd with a song or something
+[17:48] bot: Nothing in the run sheet says dinner is running late — it still shows dinner service at 19:00, and I have no confirmation of a delay. Whether to stall the crowd is your call; I can't give you that instruction.
+Check this report before I send it.
+
+Ask the coordinator: Dinner delay rumour: confirmed?.
+Your words, as sent: “i heard dinner is running late ah. is it confirmed? should i stall the crowd with a song or something”
+You already reported: MC needs groom's family name pronunciation. Confirm only if this is a different problem.
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:49] mc: (taps the draft button)
+[17:49] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[17:49] mc: ok so is the go-ahead for my dinner announcement coming or not? i'm standing here with the mic
+[17:49] bot: I don't have any go-ahead recorded for your dinner announcement — your task still shows as pending and waiting for the coordinator's approval. I can't give you the go-ahead myself.
+Check this report before I send it.
+
+If anyone is hurt or in danger, call Venue duty manager Lee, +65 6555 0142 now. Do not wait for this bot.
+Send an URGENT problem report to the coordinator and your team: MC waiting on dinner announcement go-ahead.
+Your words, as sent: “ok so is the go-ahead for my dinner announcement coming or not? i'm standing here with the mic”
+You already reported: Dinner delay rumour: confirmed?. Confirm only if this is a different problem.
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:50] mc: (taps the draft button)
+[17:50] bot: Report sent
+The coordinator has it. Problem reports also go to your team.
+
+[17:50] mc: eh the coordinator said speech order is per the brief. where is the brief ah? i cannot find it
+[17:50] bot: I don't have the brief or where it's kept in anything I can see, so I can't point you to it. The coordinator would need to tell you where it is.
+Check this report before I send it.
+
+Ask the coordinator: MC cannot find the brief.
+Your words, as sent: “eh the coordinator said speech order is per the brief. where is the brief ah? i cannot find it”
+You already reported: MC waiting on dinner announcement go-ahead. Confirm only if this is a different problem.
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:51] mc: (taps the draft button)
+[17:51] bot: Report sent
+The coordinator has it. Problem reports also go to your team.

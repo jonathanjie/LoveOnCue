@@ -5,9 +5,20 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import (
-    false, true,
-    JSON, Boolean, CheckConstraint, DateTime, ForeignKey, ForeignKeyConstraint,
-    Index, Integer, MetaData, String, Text, UniqueConstraint,
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
+    MetaData,
+    String,
+    Text,
+    UniqueConstraint,
+    false,
+    true,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
@@ -64,6 +75,8 @@ class Wedding(Base):
     # The coordinator's standing orders for the deputy, and its on/off switch.
     deputy_orders: Mapped[str] = mapped_column(Text, default="", server_default="")
     deputy_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    # Who to call when someone is hurt or in danger, for example "Duty manager Lee, +65 …". Set by the coordinator.
+    emergency_contact: Mapped[str] = mapped_column(String(200), default="", server_default="")
     __table_args__ = (CheckConstraint("status IN ('draft','live','archived')", name="status"),)
 
 
@@ -155,6 +168,8 @@ class TimelineItem(TenantRecord, Base):
     location_id: Mapped[str] = mapped_column(String(64))
     team_ids: Mapped[list] = mapped_column(JSON, default=list)
     status: Mapped[str] = mapped_column(String(16), default="scheduled")
+    # What helpers must know about the latest approved change, for example a wet-weather route.
+    change_note: Mapped[str] = mapped_column(Text, default="", server_default="")
     __table_args__ = (
         UniqueConstraint("wedding_id", "id"),
         ForeignKeyConstraint(["wedding_id", "location_id"], ["locations.wedding_id", "locations.id"]),
@@ -247,7 +262,8 @@ class Incident(TenantRecord, Base):
         ForeignKeyConstraint(["wedding_id", "subject_person_id"], ["people.wedding_id", "people.id"]),
         ForeignKeyConstraint(["wedding_id", "task_id"], ["tasks.wedding_id", "tasks.id"]),
         ForeignKeyConstraint(["wedding_id", "reported_by"], ["members.wedding_id", "members.id"]),
-        CheckConstraint("status IN ('open','resolved')", name="status"),
+        # withdrawn: the reporter took the report back; nobody resolved it.
+        CheckConstraint("status IN ('open','resolved','withdrawn')", name="status"),
     )
 
 
@@ -381,6 +397,10 @@ class ActionDraft(TenantRecord, Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime())
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
     consumed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    # "button": the Ask the coordinator button under one reply, which sends that reply's message in
+    # one tap; it lasts as long as chat memory. "undo": the Undo after a question, stale on the
+    # person's next message. None: a full draft with a preview.
+    offer: Mapped[str | None] = mapped_column(String(16))
     __table_args__ = (
         UniqueConstraint("wedding_id", "id"),
         ForeignKeyConstraint(["wedding_id", "member_id"], ["members.wedding_id", "members.id"]),
@@ -431,6 +451,10 @@ class ConversationTurn(TenantRecord, Base):
     role: Mapped[str] = mapped_column(String(16))
     text: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    # The draft this reply offered, so history can say later whether it was sent.
+    draft_id: Mapped[str | None] = mapped_column(String(64))
+    # The run-sheet version the reply was written under, so history can mark an older one.
+    timeline_version: Mapped[int | None] = mapped_column(Integer)
     __table_args__ = (
         UniqueConstraint("wedding_id", "id"),
         ForeignKeyConstraint(["wedding_id", "member_id"], ["members.wedding_id", "members.id"]),
@@ -444,6 +468,8 @@ class DeputyPing(TenantRecord, Base):
     __tablename__ = "deputy_pings"
     recipient_id: Mapped[str] = mapped_column(String(64))
     task_id: Mapped[str | None] = mapped_column(String(64))
+    # Set instead of task_id when the ping chases an unacknowledged update.
+    notification_id: Mapped[str | None] = mapped_column(String(64))
     reason: Mapped[str] = mapped_column(String(80))
     message: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime())
@@ -458,3 +484,17 @@ class DeputyPing(TenantRecord, Base):
         Index("ix_deputy_pings_recipient", "wedding_id", "recipient_id", "created_at"),
     )
 
+
+
+class DigestItem(TenantRecord, Base):
+    """News for the coordinator that can wait for the next digest. One unreported item per subject."""
+    __tablename__ = "digest_items"
+    subject: Mapped[str] = mapped_column(String(120))  # for example "task:<id>" or "incident:<id>"
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    reported_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    __table_args__ = (
+        UniqueConstraint("wedding_id", "id"),
+        Index("ix_digest_items_subject", "wedding_id", "subject", "reported_at"),
+    )

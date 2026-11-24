@@ -85,14 +85,28 @@ def test_idempotency_payload_conflict(ops):
     assert error.value.status == 409
 
 
-def test_stale_proposal_cannot_commit(ops):
+def test_a_change_closes_the_pending_requests_it_overtakes(ops, db):
     one=proposal(ops,key="first-proposal")
-    # A second proposal for the same item would replace the first, so use another item.
+    # A second proposal for the same item would replace the first, so use another item that the first moves.
     two=proposal(ops,key="second-proposal",item="dessert")
-    decide(ops,one["id"])
+    outcome=decide(ops,one["id"])
+    assert outcome["overtaken"] and outcome["overtaken"][0].startswith("Dessert service")
     with pytest.raises(OpsError) as error:
         decide(ops,two["id"],key="other-approval")
-    assert "timeline changed" in error.value.message.lower()
+    assert "no longer open" in error.value.message and "run sheet changed" in error.value.message
+    with db.sessions() as s:
+        notices = s.scalars(select(Notification).where(Notification.recipient_id == "banquet",
+                                                       Notification.dedupe_key.contains(f"overtaken:{two['id']}"))).all()
+    assert len(notices) == 1 and "tell me again if it still applies" in notices[0].message
+
+
+def test_a_change_elsewhere_leaves_a_request_approvable(ops):
+    # Live play v11: the coordinator's rain move made a kitchen request unapprovable on the version
+    # number alone. A request is stopped only when what it moves has changed.
+    toast=proposal(ops,minutes=5,key="toast-proposal",item="toast")
+    small=proposal(ops,minutes=2,key="small-dinner-delay")
+    decide(ops,small["id"],key="approve-small")
+    assert decide(ops,toast["id"],key="approve-toast")["status"]=="approved"
 
 
 def test_concurrent_decisions_only_one_wins(ops):
@@ -114,7 +128,7 @@ def test_expired_and_blocked_proposals(ops,clock):
         decide(ops,p["id"])
     p=proposal(ops,minutes=100,key="huge-delay-key")
     assert p["blocked"]
-    with pytest.raises(OpsError,match="Hard constraints"):
+    with pytest.raises(OpsError,match="can't go through"):
         decide(ops,p["id"],key="blocked-approve")
 
 

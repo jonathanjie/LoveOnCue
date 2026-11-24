@@ -1,0 +1,87 @@
+[18:25] notice (deputy_ping): Hi Michelle, the coordinator's assistant here. Are you at Registration foyer for “Open registration Desk A” (due 17:55)? Tap On it, or reply with how it is going.
+    [button: On it]
+
+[18:25] notice (timeline_updated): Run sheet updated by the coordinator (version 2):
+• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden terrace)
+Check your tasks. Tap Acknowledge, or reply “ok”, so the coordinator knows you saw this.
+    [button: Acknowledge]
+
+[18:27] registration-a: hi, Grace Tan the mother of bride just arrived at registration, pls mark her as arrived
+[18:27] bot: Lovely, thanks for letting me know.
+Review my interpretation before recording it.
+
+Record confirmed arrival for Grace Tan. Notify the family liaison and photography team.
+
+Tap the button below within five minutes to send it.
+    [button: Record arrival]
+
+[18:28] registration-a: (taps the draft button)
+[18:28] bot: Arrival recorded
+The family liaison and photographer have been told.
+
+[18:28] registration-a: wait sorry, wrong one. it's Grace TAY not Grace Tan, regular guest. undo the Grace Tan arrival pls
+[18:28] bot: No problem — I've noted the correction. Grace Tay is a regular guest, not the mother of the bride.
+Check this before I withdraw it.
+
+Withdraw your report: arrival of Grace Tan. Everyone who was told will be told to ignore it.
+
+Tap the button below within five minutes to send it.
+    [button: Withdraw it]
+
+[18:29] registration-a: (taps the draft button)
+[18:29] bot: Withdrawn
+Your report (arrival of Grace Tan) is cancelled. Everyone who was told has been told to ignore it.
+
+[18:29] registration-a: ok so is Grace Tay now recorded as arrived? I never said that. can you check
+[18:29] bot: You're right — you only told me it was Grace Tay, not Grace Tan, and asked me to undo the Grace Tan arrival. I can't see a record of Grace Tay arriving, so she isn't marked as arrived.
+• Grace Tay: not on the guest list
+
+[18:30] registration-a: Grace TAY, regular guest. please record her as arrived now
+[18:30] bot: Got it — Grace Tay, regular guest.
+I could not tell which guest or family member you mean. Send me their full name.
+
+[18:31] registration-a: which table is Chloe Tan on? quick pls
+[18:31] bot: • Chloe Tan: Table 8; not checked in yet
+
+[18:32] registration-a: and Ethan Tan table?
+[18:32] bot: • Ethan Tan: Table 6; not checked in yet
+
+[18:33] registration-a: a guest says he is on the list as Ben Wu but I cannot find him. what do I do?
+[18:33] bot: The run sheet says to refer unlisted guests to Alex, so that's the one to follow here. I can't confirm whether Ben Wu is on the list from what I have.
+• Ben Wu: not on the guest list
+Tap Ask the coordinator to send them your message: “a guest says he is on the list as Ben Wu but I cannot find him. what do I do?”
+    [button: Ask the coordinator]
+
+[18:34] registration-a: (taps the draft button)
+[18:34] bot: Question sent
+The coordinator has your message. Their answer will come to this chat. Tap Undo to take it back.
+    [button: Undo]
+
+[18:34] registration-a: is the ceremony still outdoors? its raining. where do I send arriving guests
+[18:34] bot: The run sheet has the garden ceremony moved to Cedar Ballroom at 18:40, so it's indoors now. Send arriving guests through the foyer's double doors into Cedar Ballroom.
+Nothing is sent until you tap the button.
+
+Tell the coordinator, for their information: Rain at registration; ceremony now indoors.
+Your words: “is the ceremony still outdoors? its raining. where do I send arriving guests”
+You already reported: a guest says he is on the list as Ben Wu but I cannot find him. Confirm only if this is a different problem.
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:35] notice (deputy_ping): Hi Michelle, did you see the coordinator's update? “• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden terrace) Check your tasks.” Tap Acknowledge, or reply “ok”.
+    [button: Acknowledge]
+
+[18:35] registration-a: ok got it. where's the Acknowledge thing from the coordinator, I haven't tapped it yet
+[18:35] bot: It's 18:35 now. I didn't make a draft for that. Tell me exactly what to send, and to whom.
+Your 18:34 question “a guest says he is on the list as Ben Wu but I cannot find him”: open.
+
+Your earlier draft is still unsent. Its button sends only this: Tell the coordinator, for their information: Rain at registration; ceremony now indoors.
+
+[18:36] registration-a: (taps Acknowledge)
+[18:36] bot: Acknowledged
+The coordinator can see that you saw: “• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden terrace)”
+
+[18:36] registration-a: last one: is Grace Tan still showing as arrived or not? confirm
+[18:36] bot: It's 18:36 now. Grace Tan is not checked in yet — nobody has reported her.
+Your 18:34 question “a guest says he is on the list as Ben Wu but I cannot find him”: open.
+• Grace Tan: Table 1; not checked in yet

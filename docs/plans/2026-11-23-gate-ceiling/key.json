@@ -1,0 +1,26 @@
+{
+ "chat-01": [
+  "usher",
+  "actual"
+ ],
+ "chat-02": [
+  "usher",
+  "ideal"
+ ],
+ "chat-03": [
+  "driver",
+  "actual"
+ ],
+ "chat-04": [
+  "driver",
+  "ideal"
+ ],
+ "chat-05": [
+  "mc",
+  "actual"
+ ],
+ "chat-06": [
+  "mc",
+  "ideal"
+ ]
+}

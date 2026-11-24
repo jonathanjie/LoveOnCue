@@ -249,7 +249,7 @@ def test_scheduler_dedupe_and_escalation(db,settings,clock):
     assert first['queued']>=2 and second['queued']==0
     with db.transaction(WID) as (s,w):
         notices=rows(s,Notification,WID)
-        assert any(n.topic=='task_escalation' and n.recipient_id=='coordinator' for n in notices)
+        assert any(n.topic=='deputy_digest' and n.recipient_id=='coordinator' and 'Not acknowledged' in n.message for n in notices)
     worker.tick()
     with db.transaction(WID) as (s,w): assert any(n.state=='simulated' for n in rows(s,Notification,WID))
 

@@ -1,0 +1,62 @@
+[17:45] registration-a: hi, I'm Michelle, on registration desk tonight. registration opens at 6 right? what do I need to do before that
+[17:45] bot: It's 17:45 now. Yes, guest registration is at 18:00 at the Registration foyer. Your task is to open Desk A by 17:55 with the guest search open, and to refer any unlisted guests to Alex.
+
+[17:45] notice (task_reminder): Due 17:55: Open registration Desk A. Open My tasks, review prerequisites and acknowledge the assignment.
+
+[17:46] registration-a: robert tan reach liao, which table is he at
+[17:46] bot: It's 17:46 now.
+• Robert Tan: Table 1; not checked in yet
+
+[17:47] registration-a: ok can. record robert tan already arrived
+[17:47] bot: Noted, thanks Michelle.
+Review my interpretation before recording it.
+
+Record confirmed arrival for Robert Tan. Notify the family liaison and photography team.
+
+Tap the button below within five minutes to send it.
+    [button: Record arrival]
+
+[17:48] registration-a: lucas tan which table ah
+[17:48] bot: • Lucas Tan: Table 3; checked in
+
+Your earlier draft is still unsent. Its button sends only this: Record confirmed arrival for Robert Tan. Notify the family liaison and photography team.
+
+[17:49] registration-a: (taps the draft button)
+[17:49] bot: Arrival recorded
+The family liaison and photographer have been told.
+
+[17:49] registration-a: noah which table ah
+[17:49] bot: I can look him up, but I need his full name — which Noah is it?
+• Noah: 15 guests match; send the full name
+
+[17:50] notice (deputy_ping): Hi Michelle, the coordinator's assistant here. Are you at Registration foyer for “Open registration Desk A” (due 17:55)? Tap On it, or reply with how it is going.
+    [button: On it]
+
+[17:50] registration-a: the noah who is the groom's cousin, which table
+[17:50] bot: I can't tell which Noah is the groom's cousin from what I have, so I can't give his table. Alex would know which one you mean.
+• Noah: 15 guests match; send the full name
+Tap Ask the coordinator to send them your message: “the noah who is the groom's cousin, which table”
+    [button: Ask the coordinator]
+
+[17:51] registration-a: benjamin wu table ah? he say his name should be on list
+[17:51] bot: • Benjamin Wu: not on the guest list
+
+[17:52] registration-a: (taps the draft button)
+[17:52] bot: This draft expired or was replaced by a newer one. Use the newest draft, or tell me again
+
+[17:52] registration-a: auntie wants to know if her vegetarian meal was noted or not
+[17:52] bot: I don't have any record of a vegetarian meal for her, so I can't confirm it was noted. Alex would need to check that with the kitchen.
+Tap Ask the coordinator to send them your message: “auntie wants to know if her vegetarian meal was noted or not”
+    [button: Ask the coordinator]
+
+[17:53] registration-a: (taps the draft button)
+[17:53] bot: Question sent
+The coordinator has your message. Their answer will come to this chat. Tap Undo to take it back.
+    [button: Undo]
+
+[17:53] registration-a: how many guests have arrived so far
+[17:53] bot: 43 of 180 guests are recorded as onsite so far.
+
+[17:54] registration-a: ok thanks. what are my tasks now, anything else before 6
+[17:54] bot: It's 17:54 now. Your one task is to open registration Desk A at the Registration foyer, due 17:55, with the guest search open and unlisted guests referred to Alex. Guest registration starts at 18:00, so that's the only thing before 6.
+Your 17:53 question “auntie wants to know if her vegetarian meal was noted or not”: open.

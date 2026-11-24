@@ -1,0 +1,214 @@
+[18:25] notice (deputy_digest): Update from the floor:
+• Not acknowledged: “Open registration Desk B” (due 17:55). Contact the assigned helper. (just now)
+Quoted words are helpers' own; nothing they typed changed records.
+
+[18:25] coordinator: Alex here. Venue just say rain. Garden ceremony move inside to Cedar Ballroom, start 10 min late at 6:40pm. Tell everyone pls, need ack.
+[18:25] bot: Check the message before it goes out.
+
+Message to everyone:
+“Rain plan: the garden ceremony moves inside to Cedar Ballroom and will start 10 minutes late at 18:40. Please acknowledge this message.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[18:26] coordinator: (taps the draft button)
+[18:26] bot: Message sent
+10 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[18:26] coordinator: ok tell everyone ceremony move inside. who never ack yet?
+[18:26] bot: It's 18:26 now. Nobody has acknowledged the latest announcement yet — all ten are still outstanding: Asha Tan, Casey Teo, Chris Wong, Jamie Lim, Jordan Tay, Michelle Chen, Priya Rao, Ryan Goh, Sam Koh and Taylor Ng.
+Check the change before it goes out.
+After that, tell me about: acknowledgement status.
+
+Change the run sheet:
+• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden terrace)
+• Family portraits 18:50 → 19:00
+• Dinner service 19:00 → 19:10
+• Family speeches 19:45 → 19:50
+• Dessert service 20:00 → 20:05
+Later items move too, so that nothing overlaps.
+Reason: “ok tell everyone ceremony move inside. who never ack yet?”
+Everyone affected gets the new details with an Acknowledge button.
+
+Tap the button below within five minutes to send it.
+    [button: Send change]
+
+[18:27] coordinator: (taps the draft button)
+[18:27] bot: Run sheet updated
+Version 2. Everyone affected is being told, with an Acknowledge button.
+
+[18:27] coordinator: Taylor says cannot reach in time, stuck in taxi. Who can cover welcome? Pls decide.
+[18:27] bot: It's 18:27 now. Taylor Ng is the one due to prepare the dinner announcement at 19:08, and no other helper is listed for that job, so I can't name a cover from the run sheet. The overdue items at Stage & AV desk belong to Casey Teo (wireless microphones), so Casey is the closest person there.
+What should the message say?
+
+[18:28] coordinator: tell Jamie guests wait in Cedar Ballroom, ceremony is inside now
+[18:28] bot: Jamie Lim is due at Ballroom Entrance B, so that's the right person to point guests through to the ballroom. Here's the message for Jamie.
+Check the message before it goes out.
+
+Message to Jamie Lim:
+“Guests are to wait in Cedar Ballroom — the ceremony is inside now. Please direct guests through from Ballroom Entrance B.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[18:29] coordinator: (taps the draft button)
+[18:29] bot: Message sent
+1 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[18:29] coordinator: Bridal car flat tyre! who must I call now? need backup car fast, bride must reach
+[18:29] bot: Call venue duty manager Lee on +65 6555 0142 — that's the emergency contact on record. No backup car or transport contact is listed in what I have, so Lee is the one to ask for that.
+Check the message before it goes out.
+
+Message to Jamie Lim:
+“Bridal car has a flat tyre. Bride must still reach the venue — please stand by at Ballroom Entrance B and keep the route clear for her arrival.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[18:30] coordinator: No broadcast to everyone. Just tell Jordan only: call venue duty manager Lee, find backup car now. Keep bride calm.
+[18:30] bot: Jordan Tay is the one on the shuttle drop-off route, so that's a sensible person to call Lee. Here's the message to Jordan alone.
+Check the message before it goes out.
+
+Message to Jordan Tay:
+“Call venue duty manager Lee on +65 6555 0142 now and find a backup car — the bridal car has a flat tyre and the bride must reach. Keep the bride calm.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[18:31] coordinator: Cancel the message to everyone, do not send. Send to Jordan Tay only: call venue duty manager Lee now, find backup car.
+[18:31] bot: Understood — nothing goes to everyone. Here's the message to Jordan Tay alone.
+Check the message before it goes out.
+
+Message to Jordan Tay:
+“Call venue duty manager Lee on +65 6555 0142 now and find a backup car. Keep the bride calm.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[18:32] coordinator: tell Jordan: bridal car flat tyre, call venue duty manager Lee now, find backup car, reply me status
+[18:32] bot: Here's the message to Jordan Tay with the flat tyre and the request for a status reply.
+Who should get it? Say everyone, a person's name, or a team (Coordination, Registration, Ushers, Family liaison, Photography, Banquet, MC & AV, Transport).
+
+Your earlier draft is still unsent. Its button sends only this: Message to Jordan Tay:
+
+[18:33] coordinator: (taps the draft button)
+[18:33] bot: Message sent
+1 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[18:33] coordinator: Dinner time conflict. Kitchen say 7pm, captain say 7.10. What is the right time? Give me one answer and tell Jamie.
+[18:33] bot: The run sheet says dinner service is 19:10 at Cedar Ballroom, moved from 19:00 — so 7.10pm is the approved time. I can't confirm what the kitchen was told, so that's worth checking with them.
+Check the message before it goes out.
+
+Message to Jamie Lim:
+“Dinner service is at 19:10 in Cedar Ballroom, per the approved run sheet (moved from 19:00). Please work to 19:10.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[18:34] coordinator: (taps the draft button)
+[18:34] bot: Message sent
+1 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[18:34] coordinator: tell Asha speeches stay after dinner at 19:50, no change. bride also asked, same answer
+[18:34] bot: The run sheet has family speeches at 19:50 at Stage & AV desk, after dinner service at 19:10 — so no change is right. Here's the message to Asha.
+Check the message before it goes out.
+
+Message to Asha Tan:
+“Speeches stay after dinner at 19:50, no change.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[18:35] coordinator: (taps the draft button)
+[18:35] bot: Message sent
+1 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[18:35] coordinator: Taylor late 25 min. Who covers welcome? Pick someone already on site. Tell them, not everyone.
+[18:35] bot: The run sheet doesn't say who covers the welcome, and I can't see who is on site from here, so I can't pick a name.
+Check the message before it goes out.
+
+Message to Taylor Ng:
+“You're running 25 minutes late. Please let me know your status.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[18:36] coordinator: Ben Wu unlisted guest. Michelle at registration, what do I tell her?
+[18:36] bot: The run sheet doesn't cover unlisted guests, so I can't give you a rule to pass on. I can put the question to Michelle at registration, or you can tell me what you'd like her to do.
+Check the message before it goes out.
+
+Message to Michelle Chen:
+“Ben Wu has arrived and is not on the guest list. How should we handle him at registration?”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[18:37] coordinator: Dont send Taylor msg, it just asks Taylor back. Tell Taylor: cover is Priya Rao for welcome, you do speeches later. Thats final.
+[18:37] bot: Here's the message to Taylor Ng with Priya Rao covering the welcome and Taylor on speeches later.
+Check the message before it goes out.
+
+Message to Taylor Ng:
+“Priya Rao is covering the welcome. You do the speeches later.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[18:38] coordinator: (taps the draft button)
+[18:38] bot: Message sent
+1 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[18:38] coordinator: Michelle: Ben Wu not on the list. Dont hold him, dont seat him. Ask him to wait while I check the guest list. Tell Michelle that.
+[18:38] bot: Here's the message to Michelle Chen with your instruction for Ben Wu.
+Who should get it? Say everyone, a person's name, or a team (Coordination, Registration, Ushers, Family liaison, Photography, Banquet, MC & AV, Transport).
+
+[18:39] coordinator: (taps the draft button)
+[18:39] bot: Already recorded
+This report was confirmed earlier. No new change was made.
+
+[18:39] coordinator: who never ack the ceremony change yet?
+[18:39] bot: The ceremony change is your own run-sheet decision, and the record shows no acknowledgements against it. The only unacknowledged item listed is your latest announcement, with Taylor Ng not yet acknowledged.
+Check the message before it goes out.
+Your 18:27 run-sheet request “Garden ceremony: +10 minutes, move to Cedar Ballroom”: approved by Alex Morgan at 18:27.
+After that, tell me about: message Taylor Ng.
+
+Message to Taylor Ng:
+“Please acknowledge the latest announcement.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[18:40] notice (deputy_digest): Update from the floor:
+• No reply from Jordan Tay about “Confirm shuttle drop-off route” (asked 18:25). You may want to call them. (10 min ago)
+• No reply from Casey Teo about “Check wireless microphones” (asked 18:25). You may want to call them. (10 min ago)
+• No reply from Priya Rao about “Confirm parents' arrival” (asked 18:25). You may want to call them. (10 min ago)
+• No reply from Jamie Lim about “Take position at Ballroom Entrance B” (asked 18:25). You may want to call them. (10 min ago)
+• No reply from Ryan Goh about “Confirm Desk B signage” (asked 18:25). You may want to call them. (10 min ago)
+• No reply from Michelle Chen about “Open registration Desk A” (asked 18:25). You may want to call them. (10 min ago)
+1 more items will follow in the next update.
+Quoted words are helpers' own; nothing they typed changed records.
+
+[18:40] coordinator: wait, 10 people got the ceremony msg, only 1 acked? give me the full list of who acked and who did not
+[18:40] bot: The record only shows the latest announcement at 0 of 1 acknowledged, with Taylor Ng not yet acknowledged, so I can't give you a full list of who received or acknowledged the ceremony message.
+Check the message before it goes out.
+Your 18:27 run-sheet request “Garden ceremony: +10 minutes, move to Cedar Ballroom”: approved by Alex Morgan at 18:27.
+After that, tell me about: message Taylor Ng.
+
+Message to Taylor Ng:
+“Taylor, Priya Rao is covering the welcome. You do the speeches later. That's final.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]
+
+[18:41] coordinator: (taps the draft button)
+[18:41] bot: Message sent
+1 people get it with an Acknowledge button. Ask me who has not acknowledged yet.
+
+[18:41] coordinator: Bridal car: is there any backup car on the list? If not, say so plainly and tell me the next step.
+[18:41] bot: No backup car appears anywhere in the run sheet or records, so there isn't one on the list. The next step is yours to decide: I can put the question to the team, or you can name who should arrange one.
+Check the message before it goes out.
+
+Message to Transport:
+“Is there a backup bridal car available? There is none on the run sheet. Please confirm what backup can be arranged and when.”
+
+Tap the button below within five minutes to send it.
+    [button: Send message]

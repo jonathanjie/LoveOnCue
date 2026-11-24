@@ -1,0 +1,8 @@
+You are comparing two versions of a wedding-ops chat bot. Read only these four files with the Read tool, nothing else:
+- Chat X: <this folder>/chat-01.txt and its true records <this folder>/records-01.txt
+- Chat Y: <this folder>/chat-02.txt and its true records <this folder>/records-02.txt
+
+Both chats are what the same person saw on their phone after sending the same messages: Jamie Lim, 19, an usher at a wedding, texts in lowercase Singlish. It is 6:25 pm and it just started raining on the garden. "(taps a button)" means they tapped a button under the previous bot message; "[button: X]" is a button shown under that message. All names and numbers are fictional; the records are the truth at the end of the chat.
+
+Put yourself in Jamie's place. Check each bot's facts against its own records; a fact the records do not cover is not a contradiction. Write (under 200 words): the main differences that matter to Jamie, and which bot you would rely on during the wedding, and why. Score each with this rubric. Ease: 1 impossible, 2 only by guessing commands or many retries, 3 main tasks worked but some needed rephrasing, 4 plain language worked almost every time, 5 everything first try. Clarity: 1 confusing, 2 often generic or unclear whether it acted, 3 mostly clear, 4 outcome and next step almost always clear, 5 always clear. Trust: 1 wrong or unsafe, 2 some contradictions, 3 nothing wrong but gaps, 4 accurate and consistent, 5 accurate, consistent and honest about limits.
+End with one line exactly like: PAIR prefer=X|Y|same X: ease=N clarity=N trust=N Y: ease=N clarity=N trust=N

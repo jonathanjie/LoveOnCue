@@ -1,0 +1,79 @@
+[18:25] notice (deputy_ping): Hi Jordan, the coordinator's assistant here. Are you at Registration foyer for “Confirm shuttle drop-off route” (due 17:50)? Tap On it, or reply with how it is going.
+    [button: On it]
+
+[18:25] notice (timeline_updated): Run sheet updated by the coordinator (version 2):
+• Garden ceremony 18:30 → 18:40, now at Cedar Ballroom (was Garden terrace)
+Check your tasks. Tap Acknowledge, or reply “ok”, so the coordinator knows you saw this.
+    [button: Acknowledge]
+
+[18:27] driver: hi sorry wah i am the bridal car driver Jordan. its 6.25pm already. what am i supposed to do now ah?
+[18:27] bot: It's 18:27 now. Hi Jordan, you're the transport lead here, and your task is to confirm the shuttle drop-off route at Registration foyer, using the signed east driveway. The run sheet has moved the garden ceremony to 18:40 in Cedar Ballroom, so guests are heading in now.
+Tap Ask the coordinator to send them your message: “hi sorry wah i am the bridal car driver Jordan. its 6.25pm already. what am i…”
+    [button: Ask the coordinator]
+
+[18:28] driver: WAIT I AM IN CAR PARK NOW AND THE BRIDAL CAR GOT FLAT TYRE!!! CAR PANCIT LIAO
+[18:28] bot: That's a real problem — a flat tyre on the bridal car right before the ceremony.
+Nothing is sent until you tap the button.
+
+If anyone is hurt or in danger, call Venue duty manager Lee, +65 6555 0142 now. Do not wait for this bot.
+Send an URGENT problem report to the coordinator and your team: Bridal car flat tyre in car park.
+Your words: “WAIT I AM IN CAR PARK NOW AND THE BRIDAL CAR GOT FLAT TYRE!!! CAR PANCIT LIAO”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:29] driver: FLAT TYRE
+[18:29] bot: Understood — flat tyre on the bridal car, and you're in the car park now.
+Nothing is sent until you tap the button.
+
+If anyone is hurt or in danger, call Venue duty manager Lee, +65 6555 0142 now. Do not wait for this bot.
+Send an URGENT problem report to the coordinator and your team: Bridal car flat tyre in car park.
+Your words:
+“WAIT I AM IN CAR PARK NOW AND THE BRIDAL CAR GOT FLAT TYRE!!! CAR PANCIT LIAO”
+“FLAT TYRE”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:30] driver: car cannot move
+[18:30] bot: Understood — the bridal car can't move with the flat tyre, and you're in the car park now.
+Nothing is sent until you tap the button.
+
+If anyone is hurt or in danger, call Venue duty manager Lee, +65 6555 0142 now. Do not wait for this bot.
+Send an URGENT problem report to the coordinator and your team: Bridal car flat tyre, car cannot move.
+Your words:
+“WAIT I AM IN CAR PARK NOW AND THE BRIDAL CAR GOT FLAT TYRE!!! CAR PANCIT LIAO”
+“FLAT TYRE”
+“car cannot move”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:31] driver: help car spoil. bride need the car for ceremony or not ah? who i must call now??
+[18:31] bot: I don't have anything in the run sheet about whether the bride needs the car for the ceremony, so only the coordinator can confirm that. For the car itself, the venue's duty manager is Lee on +65 6555 0142.
+Nothing is sent until you tap the button.
+
+If anyone is hurt or in danger, call Venue duty manager Lee, +65 6555 0142 now. Do not wait for this bot.
+Send an URGENT problem report to the coordinator and your team: Bridal car flat tyre, car cannot move.
+Your words:
+“WAIT I AM IN CAR PARK NOW AND THE BRIDAL CAR GOT FLAT TYRE!!! CAR PANCIT LIAO”
+“FLAT TYRE”
+“car cannot move”
+“help car spoil. bride need the car for ceremony or not ah? who i must call now??”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[18:32] driver: (taps the draft button)
+[18:32] bot: Report sent
+The coordinator has it.
+
+[18:32] driver: hello?? i sent already. got anybody coming to help or not
+[18:32] bot: It's 18:32 now. I can't see who's been sent to help, so I can't tell you that. Your report is with the coordinator, and the venue's duty manager is Lee on +65 6555 0142 if you need someone on site now.
+Your 18:32 urgent problem report “Bridal car flat tyre, car cannot move”: open.
+Tap Add to my report to add your message to “Bridal car flat tyre, car cannot move”: “hello?? i sent already. got anybody coming to help or not”
+    [button: Add to my report]
+
+[18:33] driver: (taps the draft button)
+[18:33] bot: Update added
+The coordinator will see it with your earlier report.

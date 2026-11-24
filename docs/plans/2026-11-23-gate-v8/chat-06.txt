@@ -1,0 +1,48 @@
+[17:45] family-liaison: Hi aiyo, I am Priya, the family liaison leh. It is almost 6 pm already, can you show me what tasks I need to do for the family today or not?
+[17:45] bot: It's 17:45 now. None of the four parents (Robert and Grace Tan, Daniel and Mei Lee) have been reported as arrived yet, so do check with them.
+You have no reports on record yet.
+
+[17:46] family-liaison: Ok thanks. Aiyo so many parents to check, can you tell me whether Robert Tan, Grace Tan, Daniel Lee and Mei Lee have already arrived at the registration foyer or not? I need to know before I mark anything.
+[17:46] bot: None of the four has been reported as arrived yet — that means nobody has told us they're here, not that they're absent. Please confirm with them at the registration foyer before marking anything.
+Guest seating is for the registration team and ushers.
+
+[17:47] family-liaison: Aiyo, I went around already, Robert Tan, Grace Tan and Daniel Lee are here at the foyer I think. But I cannot find the groom mother leh, Mei Lee, anywhere. Very worrying, the portraits are at 6.50 pm. Can help or not?
+[17:47] bot: Mei Lee not being found is worth flagging now, well before the 18:50 portraits.
+Nothing is sent until you tap the button.
+
+Send a problem report to the coordinator and your team: Groom's mother Mei Lee not found at registration foyer.
+Your words: “Aiyo, I went around already, Robert Tan, Grace Tan and Daniel Lee are here at the foyer I think. But I cannot find the groom mother leh, Mei Lee, anywhere. Very worrying, the portraits are at 6.50 pm. Can help or not?”
+
+Tap the button below within five minutes to send it.
+    [button: Send]
+
+[17:48] family-liaison: (taps the draft button)
+[17:48] bot: Report sent
+The coordinator has it.
+
+[17:48] family-liaison: Wait wait, sorry sorry! Just now the auntie told me Mei Lee was in the toilet only, she is fine. So please ignore my urgent report leh. I was wrong, not missing at all.
+[17:48] bot: Good to hear she's fine — that's a weight off before the portraits. I've noted you want the earlier report taken back.
+Check this before I withdraw it.
+
+Withdraw your report: Groom's mother Mei Lee not found at registration foyer. Everyone who was told will be told to ignore it.
+
+Tap the button below within five minutes to send it.
+    [button: Withdraw it]
+
+[17:49] family-liaison: (taps the draft button)
+[17:49] bot: Withdrawn
+Your report (Groom's mother Mei Lee not found at registration foyer) is cancelled. Everyone who was told has been told to ignore it.
+
+[17:49] family-liaison: Thanks ah. Can give me Mei Lee's phone number? I want to call her directly to check where she is.
+[17:49] bot: I don't have Mei Lee's number here — the only contact I have is the venue duty manager, Lee, on +65 6555 0142. The coordinator would have the family contacts, so that's the one to ask.
+Tap Ask the coordinator to send them your message: “Thanks ah. Can give me Mei Lee's phone number? I want to call her directly to…”
+    [button: Ask the coordinator]
+
+[17:50] family-liaison: (taps the draft button)
+[17:50] bot: Question sent
+The coordinator has your message. Their answer will come to this chat. Tap Undo to take it back.
+    [button: Undo]
+
+[17:50] family-liaison: Aiyo still no reply from anyone ah? Portraits in one hour already leh. Is there anything else I should do for the four parents or not?
+[17:50] bot: It's 17:50 now. It's 17:50, so portraits at 18:50 are an hour away. Your task is to confirm the parents' arrival at the registration foyer by 18:15 — Robert, Grace and Daniel you've seen there, and Mei Lee was said to be in the toilet. Nothing else is on your list for them.
+Who arrived? Send their name as it is on the list.

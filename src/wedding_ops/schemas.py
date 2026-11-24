@@ -29,11 +29,14 @@ class Arrival(Strict):
 
 class ReportIncident(Strict):
     type: Literal["report_incident"]
-    kind: Literal["location_unconfirmed", "vendor", "logistics", "other"]
+    # "question" needs an answer from the coordinator; "note" is for their information only.
+    kind: Literal["location_unconfirmed", "vendor", "logistics", "other", "question", "note"]
     title: Annotated[str, Field(min_length=3, max_length=160)]
     details: Text
     subject_person_id: ID | None = None
     task_id: ID | None = None
+    # Set to add a follow-up to the reporter's own open report instead of opening a new one.
+    updates_incident_id: ID | None = None
     # Severity is not used to trigger automated emergency broadcasts.
     severity: Literal["normal", "urgent"] = "normal"
 
@@ -49,6 +52,22 @@ class ProposeDelay(Strict):
     item_id: ID
     minutes: int = Field(ge=1, le=180)
     reason: Text
+
+
+class ChangeItem(Strict):
+    """Change one run-sheet item's time, place or note. A shift moves dependent items too."""
+    type: Literal["change_item"]
+    item_id: ID
+    shift_minutes: int = Field(default=0, ge=0, le=180)  # later only: earlier would need predecessor checks
+    location_id: ID | None = None
+    note: Annotated[str, Field(max_length=300)] = ""
+    reason: Text
+
+    @model_validator(mode="after")
+    def changes_something(self):
+        if not (self.shift_minutes or self.location_id or self.note):
+            raise ValueError("A change needs a new time, a new place or a note")
+        return self
 
 
 class DecideApproval(Strict):
@@ -83,9 +102,25 @@ class RevokeMember(Strict):
 
 
 class Broadcast(Strict):
+    """A coordinator message to teams, to named members, or both."""
     type: Literal["broadcast"]
-    team_ids: list[ID] = Field(min_length=1, max_length=30)
+    team_ids: list[ID] = Field(default_factory=list, max_length=30)
+    member_ids: list[ID] = Field(default_factory=list, max_length=30)
     message: Text
+    # Set when the message answers a helper's question: the question is closed.
+    answers_incident_id: ID | None = None
+
+    @model_validator(mode="after")
+    def has_recipients(self):
+        if not (self.team_ids or self.member_ids):
+            raise ValueError("A message needs at least one team or member")
+        return self
+
+
+class SetEmergencyContact(Strict):
+    """Who people should call when someone is hurt or in danger. Shown on every urgent draft."""
+    type: Literal["set_emergency_contact"]
+    contact: Annotated[str, Field(min_length=3, max_length=200)]
 
 
 class SetWeddingStatus(Strict):
@@ -227,9 +262,9 @@ class WithdrawReport(Strict):
 
 
 Command = Annotated[
-    TaskAction | Arrival | ReportIncident | WithdrawReport | SetDeputyEnabled | ResolveIncident | ProposeDelay | DecideApproval |
+    TaskAction | Arrival | ReportIncident | WithdrawReport | SetDeputyEnabled | ResolveIncident | ProposeDelay | ChangeItem | DecideApproval |
     AcknowledgeNotification | AddKnowledge | ReviewKnowledge | RevokeMember | Broadcast |
-    SetWeddingStatus | ApplyGuestImport | CreateTeam | CreateMember | CreateTask |
+    SetWeddingStatus | SetEmergencyContact | ApplyGuestImport | CreateTeam | CreateMember | CreateTask |
     CreateLocation | CreateTable | CreateTimelineItem | TimelineAction | CreateVendor | VendorStatus | EditGuest,
     Field(discriminator="type"),
 ]

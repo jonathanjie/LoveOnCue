@@ -1,0 +1,106 @@
+{
+ "chat-01": [
+  "sim-g7-r1a:banquet",
+  "v7"
+ ],
+ "chat-02": [
+  "sim-g7-r1a:banquet",
+  "v8"
+ ],
+ "chat-03": [
+  "sim-g7-r1a:coordinator",
+  "v7"
+ ],
+ "chat-04": [
+  "sim-g7-r1a:coordinator",
+  "v8"
+ ],
+ "chat-05": [
+  "sim-g7-r1a:family-liaison",
+  "v7"
+ ],
+ "chat-06": [
+  "sim-g7-r1a:family-liaison",
+  "v8"
+ ],
+ "chat-07": [
+  "sim-g7-r1a:mc",
+  "v7"
+ ],
+ "chat-08": [
+  "sim-g7-r1a:mc",
+  "v8"
+ ],
+ "chat-09": [
+  "sim-g7-r1a:registration-a",
+  "v7"
+ ],
+ "chat-10": [
+  "sim-g7-r1a:registration-a",
+  "v8"
+ ],
+ "chat-11": [
+  "sim-g7-r1a:usher",
+  "v7"
+ ],
+ "chat-12": [
+  "sim-g7-r1a:usher",
+  "v8"
+ ],
+ "chat-13": [
+  "sim-g7-r2a:banquet",
+  "v7"
+ ],
+ "chat-14": [
+  "sim-g7-r2a:banquet",
+  "v8"
+ ],
+ "chat-15": [
+  "sim-g7-r2c:coordinator",
+  "v7"
+ ],
+ "chat-16": [
+  "sim-g7-r2c:coordinator",
+  "v8"
+ ],
+ "chat-17": [
+  "sim-g7-r2c:couple",
+  "v7"
+ ],
+ "chat-18": [
+  "sim-g7-r2c:couple",
+  "v8"
+ ],
+ "chat-19": [
+  "sim-g7-r2c:driver",
+  "v7"
+ ],
+ "chat-20": [
+  "sim-g7-r2c:driver",
+  "v8"
+ ],
+ "chat-21": [
+  "sim-g7-r2c:mc",
+  "v7"
+ ],
+ "chat-22": [
+  "sim-g7-r2c:mc",
+  "v8"
+ ],
+ "chat-23": [
+  "sim-g7-r2c:registration-a",
+  "v7"
+ ],
+ "chat-24": [
+  "sim-g7-r2c:registration-a",
+  "v8"
+ ],
+ "chat-25": [
+  "sim-g7-r2c:usher",
+  "v7"
+ ],
+ "chat-26": [
+  "sim-g7-r2c:usher",
+  "v8"
+ ]
+}
