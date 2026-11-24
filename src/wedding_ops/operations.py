@@ -9,18 +9,37 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .attention import tell_coordinators
 from .clock import Clock, iso, parse_time, utcnow
 from .db import Database
-from .errors import OpsError, conflict, denied, missing
+from .errors import OpsError, conflict, denied
 from .models import (
-    ActionDraft, Approval, AuditEvent, CommandReceipt, GuestImport, Incident, KnowledgeDocument,
-    Location, LoginSession, Member, MemberTeam, Notification, Person, SeatingTable, Task,
-    TaskDependency, Team, TimelineDependency, TimelineItem, Vendor, Wedding, new_id,
+    ActionDraft,
+    Approval,
+    AuditEvent,
+    CommandReceipt,
+    GuestImport,
+    Incident,
+    KnowledgeDocument,
+    Location,
+    LoginSession,
+    Member,
+    MemberTeam,
+    Notification,
+    Person,
+    SeatingTable,
+    Task,
+    TaskDependency,
+    Team,
+    TimelineDependency,
+    TimelineItem,
+    Vendor,
+    Wedding,
+    new_id,
 )
-from .policy import Access, Actor, ROLES, load_access, require_human
-from .schemas import COMMAND, Command
-from .attention import tell_coordinators
+from .policy import ROLES, Access, Actor, load_access, require_human
 from .scheduling import propose_shift
+from .schemas import COMMAND, Command
 from .telegram_ui import ACK_PROMPT, ACK_TOPICS
 from .views import row, rows, rows_for_edges
 
@@ -952,8 +971,13 @@ class Operations:
         return {"id": request_id, "status": "withdrawn", "title": target["title"], "noun": report_noun(target),
                 "told": told, "coordinator_told": tell}
 
-    def draft(self, actor: Actor, command: dict, summary: str, *, offer: str | None = None) -> dict:
-        """The model may propose only an already-authorized command; no mutation occurs."""
+    def draft(self, actor: Actor, command: dict, summary: str, *, offer: str | None = None,
+              lifetime: timedelta = timedelta(minutes=5)) -> dict:
+        """The model may propose only an already-authorized command; no mutation occurs.
+
+        offer="button" is the Ask the coordinator button under one reply: the person's own message,
+        sent by one tap. It stands beside full drafts, so it neither replaces one nor is replaced.
+        """
         cmd = COMMAND.validate_python(command)
         if cmd.type not in {"arrival", "report_incident", "propose_delay", "change_item", "withdraw_report", "broadcast",
                             "set_deputy_enabled", "task_action"}:
@@ -968,13 +992,15 @@ class Operations:
             # message can never leave two different reports waiting for a tap.
             replaced = None
             for earlier in rows(s, ActionDraft, self.wid):
+                if offer == "button" or earlier.offer == "button":
+                    continue
                 if earlier.member_id == a.member.id and earlier.consumed_at is None and earlier.expires_at > now:
                     earlier.expires_at = now
                     if earlier.offer is None and earlier.command != cmd.model_dump(mode="json"):
                         # The reply says so: a coordinator's message was replaced unseen (live play v10).
                         replaced = earlier
             draft = ActionDraft(id=new_id(), wedding_id=self.wid, member_id=a.member.id, command=cmd.model_dump(mode="json"),
-                                summary=summary, created_at=now, expires_at=now + timedelta(minutes=5), offer=offer)
+                                summary=summary, created_at=now, expires_at=now + lifetime, offer=offer)
             s.add(draft)
             # A report that replaces an unsent report carries its words (Deputy._with_unsent_report).
             carried = replaced is not None and cmd.type == "report_incident" == replaced.command["type"]
@@ -982,12 +1008,14 @@ class Operations:
                     "replaced": first_line(replaced.summary)[:200] if replaced is not None and not carried else None}
 
     def drop_unsent_offers(self, actor: Actor) -> None:
-        """A one-tap offer (the question button, or the Undo after a question) is about one message.
-        The person's next message makes it stale. Full drafts with a preview stay until they expire."""
+        """The Undo after a question is about the message just sent; the person's next message makes
+        it stale. An Ask the coordinator button stays: it belongs to the reply it sits under, and a
+        tap under an older reply sends that reply's message (live play v12). Full drafts with a
+        preview stay until they expire."""
         with self.db.transaction(self.wid, write=True) as (s, _):
             now = utcnow()
             for draft in rows(s, ActionDraft, self.wid):
-                if (draft.member_id == actor.member_id and draft.offer and draft.consumed_at is None
+                if (draft.member_id == actor.member_id and draft.offer == "undo" and draft.consumed_at is None
                         and draft.expires_at > now):
                     draft.expires_at = now
 

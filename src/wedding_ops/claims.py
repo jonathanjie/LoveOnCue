@@ -19,14 +19,14 @@ HOUR_ONLY = re.compile(r"(?<![:.\d])\b(1[0-2]|0?[1-9])\s*([ap])\.?m\b\.?", re.IG
 TABLE = re.compile(r"\btable\s+([A-Za-z]?\d+[A-Za-z]?)\b", re.IGNORECASE)
 COUNT = re.compile(r"\b(\d+)\s+of\s+(\d+)\b")
 DURATION = re.compile(r"\b(\d{1,3})\s*(?:min|mins|minute|minutes|minit)\b", re.IGNORECASE)
-REFERENCE = re.compile(r"\b([RQ]\d{1,2})\b")
+REFERENCE = re.compile(r"\b([RQAP]\d{1,2})\b")
 QUOTED = re.compile(r"“[^”]*”")
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
 # A line break after a line with no end punctuation, unless the next line is a list item.
 UNFINISHED_LINE = re.compile(r"(?<![.!?\u2026:\u201d\"')\]])[ \t]*\n+[ \t]*(?![\u2022*\-\d])")
 
 # A sentence states the status of a report when it names a report and a status together.
-REPORT_NOUN = re.compile(r"\b([RQ]\d{1,2}|requests?|reports?|questions?|alerts?|drafts?|notes?|nudges?|arrivals?|"
+REPORT_NOUN = re.compile(r"\b([RQAP]\d{1,2}|requests?|reports?|questions?|alerts?|drafts?|notes?|nudges?|arrivals?|"
                          r"changes?)\b",
                          re.IGNORECASE)
 REPORT_STATUS = re.compile(r"\b(sent|unsent|pending|approved|rejected|declined|open|answered|resolved|withdrawn|"

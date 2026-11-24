@@ -178,7 +178,7 @@ class Queries:
                     section.append((task.title, detail))
             for incident in sorted(rows(session, Incident, self.wid), key=lambda item: (item.created_at, item.id)):
                 if incident.status == "open":
-                    details = "Review this open incident in LoveOnCue."
+                    details = "Review this open report in LoveOnCue."
                     (urgent if incident.severity == "urgent" else notes).append((incident.title, details))
             for proposal in sorted(rows(session, Approval, self.wid), key=lambda item: (item.created_at, item.id)):
                 if proposal.status == "pending" and proposal.expires_at > now:

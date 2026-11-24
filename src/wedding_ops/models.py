@@ -5,9 +5,20 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import (
-    false, true,
-    JSON, Boolean, CheckConstraint, DateTime, ForeignKey, ForeignKeyConstraint,
-    Index, Integer, MetaData, String, Text, UniqueConstraint,
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
+    MetaData,
+    String,
+    Text,
+    UniqueConstraint,
+    false,
+    true,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
@@ -386,8 +397,9 @@ class ActionDraft(TenantRecord, Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime())
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
     consumed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
-    # "button": offered as one tap under an answer (the question button); "undo": the Undo after
-    # a question. Both go stale on the person's next message. None: a full draft with a preview.
+    # "button": the Ask the coordinator button under one reply, which sends that reply's message in
+    # one tap; it lasts as long as chat memory. "undo": the Undo after a question, stale on the
+    # person's next message. None: a full draft with a preview.
     offer: Mapped[str | None] = mapped_column(String(16))
     __table_args__ = (
         UniqueConstraint("wedding_id", "id"),

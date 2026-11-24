@@ -5,13 +5,14 @@ import httpx
 import pytest
 from sqlalchemy import select
 from test_core_loop import coordinator_news
+from test_deputy_live_play_v11 import ReplanningPlanner
 from test_deputy import (  # noqa: F401  (deputy_chat is a fixture)
     StubPlanner,
     deputy_chat,
 )
 
 from wedding_ops.agent import MistralParser, ask_coordinator
-from wedding_ops.deputy import DeputyPlan
+from wedding_ops.deputy import ASK_POINTER, DeputyPlan
 from wedding_ops.models import Approval, Incident, Person, Task, TimelineItem, Wedding
 from wedding_ops.policy import Actor
 
@@ -19,7 +20,7 @@ WEDDING = "demo-wedding"
 
 
 def context_of(planner: StubPlanner) -> str:
-    return planner.calls[-1][1]["content"]
+    return planner.records()
 
 
 # S1: code speaks for outcomes; history tells the truth --------------------------------------
@@ -166,9 +167,8 @@ def test_a_question_reaches_the_coordinator_and_the_answer_comes_back(deputy_cha
     chat = deputy_chat(planner)
     answered = chat.send("usher", "where i put guests now, raining")
     assert answered.message == "The run sheet does not say where guests wait in the rain."
-    question = chat.tap("usher", "nav:ask")  # the person decides that the answer was not enough
-    assert question.message == "Tap Ask the coordinator to send them your message: \u201cwhere i put guests now, raining\u201d"
-    chat.tap("usher", f"confirm:{question.telegram_draft_id}")
+    # The person decides that the answer was not enough: one tap sends their message.
+    assert chat.tap("usher", f"confirm:{answered.ask_draft_id}").message.startswith("Question sent")
     assert "Question from Jamie Lim" in chat.last("coordinator", "question").message  # Pushed: it needs an answer.
     answer = chat.send("coordinator", "tell jamie foyer until 18:35")
     assert "Message to Jamie Lim" in answer.message
@@ -316,9 +316,9 @@ def test_the_couple_can_ask_the_coordinator_but_not_report_problems(deputy_chat,
         answer="I'll ask Alex.", action="tell_coordinator", level="urgent", text="Move speeches before dinner?")})
     chat = deputy_chat(planner)
     draft = chat.send("couple", "move speeches before dinner pls")
-    # Asked in their own words through the question button, not an urgent report.
-    assert draft.message.endswith("Tap Ask the coordinator to send them your message: \u201cmove speeches before dinner pls\u201d")
-    chat.tap("couple", f"confirm:{draft.telegram_draft_id}")
+    # Asked in their own words through the ask button, not an urgent report.
+    assert draft.message.endswith(ASK_POINTER) and not draft.telegram_draft_id
+    chat.tap("couple", f"confirm:{draft.ask_draft_id}")
     with db.sessions() as s:
         question = s.scalars(select(Incident)).one()
     assert (question.kind, question.details, question.severity) == ("question", "move speeches before dinner pls", "normal")
@@ -439,10 +439,13 @@ def test_a_blocked_change_is_explained_not_drafted(deputy_chat):
     assert not reply.telegram_draft_id and "can't go through" in reply.message and "Couple's toast" in reply.message
 
 
-def test_a_promised_draft_that_does_not_exist_is_corrected(deputy_chat):
-    planner = StubPlanner({"nudge jamie": DeputyPlan(answer="Here's a nudge for Jamie. Tap Send.", action="send_message", to="Jamie")})
+def test_a_draft_code_cannot_make_is_asked_about_not_promised(deputy_chat):
+    # The message has no text, so code asks for it; the answer written for a draft is not kept.
+    planner = ReplanningPlanner({"nudge jamie": [
+        DeputyPlan(answer="Here's a nudge for Jamie. Tap Send.", action="send_message", to="Jamie"),
+        DeputyPlan(answer="")]})
     reply = deputy_chat(planner).send("coordinator", "nudge jamie")
-    assert not reply.telegram_draft_id and reply.message.startswith("I didn't make a draft for that.")
+    assert not reply.telegram_draft_id and reply.message == "What should the message to Jamie say?"
 
 
 def test_the_unsent_draft_note_appears_once(deputy_chat):

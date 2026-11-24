@@ -6,7 +6,7 @@ NAVIGATION = {
     "nav:brief": "/brief",
     "nav:details": "/brief_more",
     "nav:help": "/help",
-    "nav:ask": "/ask",
+    "nav:ask": "/ask",  # The Ask the coordinator button of v12 replies still in people's chats.
 }
 
 
@@ -62,20 +62,16 @@ def acknowledged_reply(notice: str) -> str:
 
 
 def reply_markup(*, coordinator: bool, guest_lookup: bool, draft_id: str | None,
-                 app_url: str, draft_type: str | None = None, ask: bool = False) -> dict:
-    """The buttons under a bot reply. `ask`: the person may send the coordinator a question.
-
-    The person, not the model, decides whether an answer was enough, so a helper's reply always
-    offers to ask the coordinator, except beside a draft, whose button is the one to tap.
-    """
+                 app_url: str, draft_type: str | None = None) -> dict:
+    """The buttons under a bot reply. The draft's button comes first. A helper's reply with no draft
+    carries a question offer as its draft, so its button is Ask the coordinator (draft_type "question"):
+    the person, not the model, decides whether an answer was enough."""
     def button(label: str, action: str) -> dict:
         return {"text": label, "callback_data": action}
 
     keyboard = []
     if draft_id:
         keyboard.append([button(DRAFT_BUTTONS.get(draft_type, "Confirm"), f"confirm:{draft_id}")])
-    elif ask:
-        keyboard.append([button("Ask the coordinator", "nav:ask")])
     operations = [button("My tasks", "nav:now")]
     if guest_lookup:
         operations.append(button("Find a guest", "nav:guest"))

@@ -64,7 +64,18 @@ class Chat:
         self.worker.tick()  # Deliver queued notices, so people can act on them.
         created = [n for n in self.notices(member, "bot_reply") if n.id not in before]
         assert len(created) == 1, f"expected one reply, got {len(created)}"
-        return created[0]
+        reply = created[0]
+        # A helper's reply without a draft carries the Ask the coordinator button as a one-tap offer.
+        # Tests read telegram_draft_id as "a draft to check", so the offer is set apart as
+        # ask_draft_id (on the detached object only; nothing is written).
+        reply.ask_draft_id = None
+        if reply.telegram_draft_id:
+            from wedding_ops.models import ActionDraft
+            with self.db.sessions() as s:
+                draft = s.get(ActionDraft, reply.telegram_draft_id)
+            if draft is not None and draft.offer == "button":
+                reply.ask_draft_id, reply.telegram_draft_id = reply.telegram_draft_id, None
+        return reply
 
     def send(self, member: str, text: str) -> Notification:
         sender = SENDERS[member]

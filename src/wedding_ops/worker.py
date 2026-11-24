@@ -199,8 +199,7 @@ class Worker:
             if n.topic == "bot_reply" and isinstance(self.transport, TelegramTransport):
                 markup = reply_markup(coordinator=a.coordinator, guest_lookup=a.permits("guests:seating"),
                                       draft_id=n.telegram_draft_id, app_url=self.settings.public_url,
-                                      draft_type=draft_type(s, self.wid, n.telegram_draft_id),
-                                      ask=not a.coordinator and a.permits("coordinator:ask"))
+                                      draft_type=draft_type(s, self.wid, n.telegram_draft_id))
             elif n.topic == "approval_requested" and isinstance(self.transport, TelegramTransport):
                 # notify() keys approval notices as "approval:<approval id>:<recipient>".
                 approval = s.scalar(select(Approval).where(Approval.wedding_id == self.wid,

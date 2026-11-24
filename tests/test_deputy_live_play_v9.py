@@ -39,12 +39,13 @@ def test_only_roles_that_look_up_seats_are_offered_the_lookup(deputy_chat):  # n
     planner = StubPlanner()
     chat = deputy_chat(planner)
     chat.send("family-liaison", "are the parents here")
-    assert planner.lookups is False and "cannot look up guest seats" in planner.calls[-1][1]["content"]
+    assert planner.lookups is False and "cannot look up guest seats" in planner.records()
     chat.send("usher", "where amelia tan sit")
-    assert planner.lookups is True and "can look up guest seats" in planner.calls[-1][1]["content"]
+    assert planner.lookups is True and "can look up guest seats" in planner.records()
 
 
-def test_a_reply_from_before_a_run_sheet_change_is_marked(deputy_chat, ops):  # noqa: F811
+def test_an_earlier_reply_carries_its_time_and_the_records_come_after_it(deputy_chat, ops):  # noqa: F811
+    # Live play v9 and v12: the bot repeated its own earlier reply over newer records.
     planner = StubPlanner({"where is the ceremony": DeputyPlan(answer="The garden ceremony is at 18:30.")})
     chat = deputy_chat(planner)
     chat.send("usher", "where is the ceremony")
@@ -52,8 +53,12 @@ def test_a_reply_from_before_a_run_sheet_change_is_marked(deputy_chat, ops):  # 
         "type": "change_item", "item_id": "ceremony", "shift_minutes": 10, "location_id": "ballroom",
         "reason": "Rain"}, "v9-rain")
     chat.send("usher", "where is the ceremony")
-    earlier = [m["content"] for m in planner.calls[-1] if m["role"] == "assistant"]
-    assert "written before the run sheet changed" in earlier[-1]
+    call = planner.calls[-1]
+    earlier = [m["content"] for m in call if m["role"] == "assistant"]
+    assert "earlier reply, sent at 17:45" in earlier[-1] and "use the RECORDS" in earlier[-1]
+    order = [m["role"] if not m["content"].startswith("RECORDS") else "records" for m in call]
+    assert order[-2:] == ["records", "user"] and order.index("assistant") < order.index("records")
+    assert call[-2]["content"].startswith("RECORDS as of 17:45")
 
 
 def test_a_decision_stated_as_a_predicate_is_removed(deputy_chat):  # noqa: F811
@@ -114,7 +119,7 @@ def test_a_replaced_draft_and_a_left_out_person_are_named(deputy_chat):  # noqa:
         both: DeputyPlan(action="send_message", to="Chris", message="Delay approved.")}))
     chat.send("coordinator", "tell asha speeches stay after dinner")
     reply = chat.send("coordinator", both)
-    assert "This message is not to Taylor Ng." in reply.message
+    assert "Your message also names Taylor Ng. This draft does not go to them" in reply.message
     assert "This replaces your unsent draft: Message to Asha Tan:" in reply.message
 
 

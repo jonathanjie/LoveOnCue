@@ -19,8 +19,7 @@ def test_an_arrival_names_who_was_told(deputy_chat):  # noqa: F811
 
 def test_taking_back_a_question_says_question_and_tells_nobody_else(deputy_chat):  # noqa: F811
     chat = deputy_chat(StubPlanner({"speech order how": DeputyPlan(answer="The records don't say.")}))
-    chat.send("mc", "speech order how")
-    chat.tap("mc", f"confirm:{chat.tap('mc', 'nav:ask').telegram_draft_id}")
+    chat.tap("mc", f"confirm:{chat.send('mc', 'speech order how').ask_draft_id}")
     draft = chat.send("mc", "/withdraw")
     assert "Take back your question: speech order how." in draft.message and "ignore it" not in draft.message
     done = chat.tap("mc", f"confirm:{draft.telegram_draft_id}")

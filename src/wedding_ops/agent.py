@@ -141,6 +141,16 @@ def ask_coordinator(snapshot: dict) -> str:
     return f"Ask {coordinator_contact(snapshot)}."
 
 
+def unmatched_name(name: str, count: int, snapshot: dict, listed: str = "guest list") -> str:
+    """What to say when a name does not match exactly one person. One wording for every path: a
+    guest lookup, an arrival and the deputy's lookups said it three ways, and an arrival merged "no
+    match" with "several", asking for a full name that had already been given (live play v12)."""
+    name = name.strip() or "That name"
+    if count:
+        return f"{name}: {count} {'guests' if listed == 'guest list' else 'people'} match; send me the full name."
+    return f"{name}: not on the {listed}. Check the spelling. If they are not on the list: {ask_coordinator(snapshot)}"
+
+
 def emergency_line(snapshot: dict) -> str:
     """The safety line on every urgent draft. Code writes it; the model never does."""
     contact = snapshot["wedding"].get("emergency_contact") or "venue security or the duty manager"
@@ -328,13 +338,7 @@ class Assistant:
         if intent.kind == "guest":
             query = guest_query(intent.query)
             found = self.queries.guests(actor, query)
-            if not found:
-                message = ("No matching guest. Check the spelling or try the last name only. If they are not on "
-                           f"the list: {ask_coordinator(snapshot)}")
-            elif len(found) > 1:
-                message = f"{len(found)} guests match. Which one? Send me their full name."
-            else:
-                message = "Matching guest record."
+            message = "Matching guest record." if len(found) == 1 else unmatched_name(intent.query, len(found), snapshot)
             return {"message": message, "kind": "guests", "data": found}
         if intent.kind == "family_status":
             found = self._family(actor, intent.query)
@@ -350,8 +354,10 @@ class Assistant:
             plural = bool(several) or ("parents" in intent.query.lower()
                                        and ("bride" in intent.query.lower() or "groom" in intent.query.lower()))
             if not found or (len(found) != 1 and not (intent.kind == "arrival" and plural and (several or len(found) == 2))):
-                who = "guest or family member" if intent.kind == "arrival" else "family member"
-                return {"kind": "clarification", "message": f"I could not tell which {who} you mean. Send me their full name.", "data": []}
+                guests = intent.kind == "arrival" and self._may_record_guests(snapshot)
+                line = unmatched_name(intent.query, len(found), snapshot, "guest list" if guests else "family list")
+                done = "Nothing was recorded. " if intent.kind == "arrival" else ""
+                return {"kind": "clarification", "message": done + line, "data": []}
             if intent.kind == "arrival":
                 command = {"type": "arrival", "person_ids": [p["id"] for p in found], "status": "onsite"}
                 family = any(p.get("relationship") for p in found)
@@ -552,10 +558,15 @@ class Assistant:
             people.append(matches[0])
         return list({person["id"]: person for person in people}.values())
 
+    @staticmethod
+    def _may_record_guests(snapshot: dict) -> bool:
+        """Registration and coordinators record any guest's arrival; others record family only."""
+        me = snapshot["me"]
+        return "*" in me["grants"] or ("guests:arrival" in me["grants"] and "registration" in me["roles"])
+
     def _guests_for_arrival(self, actor: Actor, query: str, snapshot: dict) -> list[dict]:
         """Regular guests, for roles that may record any guest's arrival (registration and coordinators)."""
-        me = snapshot["me"]
-        if not ("*" in me["grants"] or ("guests:arrival" in me["grants"] and "registration" in me["roles"])):
+        if not self._may_record_guests(snapshot):
             return []
         return self.queries.guests(actor, guest_query(query))  # The caller asks again unless exactly one matches.
 

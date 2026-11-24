@@ -164,8 +164,7 @@ class World:
                 access = load_access(s, Actor(WEDDING_ID, member_id), WEDDING_ID)
                 markup = reply_markup(coordinator=access.coordinator, guest_lookup=access.permits("guests:seating"),
                                       draft_id=notification.telegram_draft_id, app_url=self.settings.public_url,
-                                      draft_type=draft_type(s, WEDDING_ID, notification.telegram_draft_id),
-                                      ask=not access.coordinator and access.permits("coordinator:ask"))
+                                      draft_type=draft_type(s, WEDDING_ID, notification.telegram_draft_id))
         elif notification.topic == "approval_requested":
             with self.db.sessions() as s:
                 approval = s.scalar(select(Approval).where(Approval.id == notification.dedupe_key.split(":")[1]))

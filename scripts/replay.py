@@ -22,6 +22,7 @@ What is scored, per reply:
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import shutil
 import sys
@@ -44,7 +45,7 @@ from sqlalchemy import select
 from wedding_ops.deputy import DeputyAction, DeputyPlan
 from wedding_ops.models import ActionDraft, Notification
 from wedding_ops.policy import Actor, load_access
-from wedding_ops.telegram_ui import NAVIGATION
+from wedding_ops.telegram_ui import NAVIGATION, reply_markup
 
 # Words that come from code's own vocabulary and mean nothing to a person at a wedding.
 INTERNAL_NAMES = [name for name in [*get_args(DeputyAction), *DeputyPlan.model_fields] if "_" in name]
@@ -110,9 +111,16 @@ class Chat:
     def _replies(self, member: str) -> list[Notification]:
         fresh = self.world.unread(member)
         for notification in fresh:
-            if notification.topic == "bot_reply" and notification.telegram_draft_id:
+            if (notification.topic == "bot_reply" and notification.telegram_draft_id
+                    and self.offer(notification.telegram_draft_id) != "button"):
                 self.drafts[member] = notification.telegram_draft_id
         return [n for n in fresh if n.topic == "bot_reply"]
+
+    def offer(self, draft_id: str) -> str | None:
+        """"button" for the Ask the coordinator button under a reply, which is not a draft."""
+        with self.world.db.sessions() as s:
+            draft = s.scalar(select(ActionDraft).where(ActionDraft.wedding_id == WEDDING_ID, ActionDraft.id == draft_id))
+        return draft.offer if draft else None
 
     def send(self, member: str, text: str) -> list[Notification]:
         from simulate import WEBHOOK_SECRET, message_update
@@ -163,8 +171,11 @@ def run_case(case: Case, run: int, stage: Path, root: Path) -> dict:
         replies = chat.send(case.member, case.text)
         reply = "\n\n".join(n.message for n in replies)
         draft_id = next((n.telegram_draft_id for n in replies if n.telegram_draft_id), None)
-        outcome = outcome_of(chat.command(draft_id))
-        ask_button = draft_id is None and offers_ask_button(world, case.member)
+        if draft_id is not None and chat.offer(draft_id) == "button":
+            outcome, ask_button = "none", True
+        else:
+            outcome = outcome_of(chat.command(draft_id))
+            ask_button = draft_id is None and offers_ask_button(world, case.member)
         result |= {
             "reply": reply, "outcome": outcome, "ask_button": ask_button,
             "ok": meets_label(outcome, case.expect, ask_button),
@@ -181,9 +192,10 @@ def run_case(case: Case, run: int, stage: Path, root: Path) -> dict:
 
 
 def offers_ask_button(world: World, member: str) -> bool:
-    """Whether a reply without a draft has the Ask the coordinator button, as the worker decides.
-    Code from before that button (paired runs with WEDDING_OPS_SRC) never offers it."""
-    if "nav:ask" not in NAVIGATION:
+    """For code of v12 (paired runs with WEDDING_OPS_SRC), where the worker added the button to every
+    helper reply without a draft. Later code makes it an offer under the reply (Chat.offer), and code
+    from before v12 never offers it."""
+    if "nav:ask" not in NAVIGATION or "ask" not in inspect.signature(reply_markup).parameters:
         return False
     with world.db.transaction(WEDDING_ID) as (s, _):
         access = load_access(s, Actor(WEDDING_ID, member), WEDDING_ID)

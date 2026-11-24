@@ -18,6 +18,7 @@ from .db import Database
 from .errors import OpsError, denied
 from .models import InboundUpdate, new_id
 from .operations import Operations, audit, notify
+from .policy import Actor
 from .schemas import PhotoReview
 from .telegram_photo import MAX_PHOTO_BYTES, download_photo, render_photo
 from .telegram_ui import (
@@ -110,9 +111,6 @@ def render_reply(result: dict) -> str:
     zone = result.get("timezone")
     if result.get("degraded"):
         message = "Model unavailable; using deterministic commands.\n" + message
-    if (result.get("draft") or {}).get("light"):
-        # A question button: the reply already says what the tap sends.
-        return message[:3900]
     if result.get("draft"):
         draft = result["draft"]
         note = ("\nTimeline changes still need the coordinator's approval."
@@ -164,6 +162,9 @@ def overtaken_line(result: dict) -> str:
 def confirmation_reply(result: dict) -> str:
     """Tell the reporter what their confirmed report did, in plain words."""
     if result.get("replayed"):
+        # The Ask the coordinator button is tapped twice by habit, and Telegram can deliver a tap twice.
+        if result.get("kind") == "question":
+            return "Already sent\nThe coordinator has this question. Nothing new was sent."
         return "Already recorded\nThis report was confirmed earlier. No new change was made."
     kind = result.get("command_type")
     if kind in {"propose_delay", "change_item"} and result.get("status") == "approved":
@@ -334,6 +335,15 @@ class TelegramIngress:
             ))
         return acknowledgment or {"ok": True, "queued": True}
 
+    def _send_draft(self, actor: Actor, draft_id: str) -> tuple[str, str | None]:
+        """Send a draft the person tapped. A question just sent gets a one-tap Undo."""
+        outcome = self.operations.confirm(actor, draft_id)
+        undo = None
+        if outcome.get("kind") == "question" and outcome.get("status") == "open" and not outcome.get("replayed"):
+            undo = self.operations.draft(actor, {"type": "withdraw_report", "request_id": f"draft:{draft_id}"},
+                                         "Take back your question.", offer="undo")["id"]
+        return confirmation_reply(outcome), undo
+
     def process_one(self) -> bool:
         now = self.clock.now()
         with self.db.transaction(self.wid, write=True) as (s,w):
@@ -369,14 +379,7 @@ class TelegramIngress:
                 member_id = actor.member_id
                 confirmation = re.fullmatch(r"/confirm\s+([a-zA-Z0-9_-]{1,64})", text)
                 if confirmation:
-                    outcome = self.operations.confirm(actor, confirmation[1])
-                    result = confirmation_reply(outcome)
-                    if (outcome.get("kind") == "question" and outcome.get("status") == "open"
-                            and not outcome.get("replayed")):
-                        # A question just sent can be taken back with one tap.
-                        draft_id = self.operations.draft(
-                            actor, {"type": "withdraw_report", "request_id": f"draft:{confirmation[1]}"},
-                            "Take back your question.", offer="undo")["id"]
+                    result, draft_id = self._send_draft(actor, confirmation[1])
                 elif decision := re.fullmatch(r"/(approve|reject)\s+([A-Za-z0-9_-]{1,64})(?:\s+(.+))?", text, re.DOTALL):
                     result = self._decide(actor, decision[1], decision[2], (decision[3] or "").strip())
                 elif deputy_command := re.fullmatch(r"/(quiet|unquiet|deputy\s+(?:on|off)|taskack\s+[A-Za-z0-9_-]{1,64})", text):
@@ -401,10 +404,12 @@ class TelegramIngress:
                     # Without the deputy there is no chat memory to send: say who to ask.
                     result = ask_coordinator(self.assistant.queries.snapshot(actor))
                 elif text == "/ask":
+                    # Typed /ask sends their latest message at once, as the button under a reply does.
                     response = self.deputy.ask_from_last_message(actor)
-                    result = render_reply(response)
-                    if response.get("draft"):
-                        draft_id = response["draft"]["id"]
+                    if response.get("ask_draft"):
+                        result, draft_id = self._send_draft(actor, response["ask_draft"]["id"])
+                    else:
+                        result = render_reply(response)
                 else:
                     responder = self.deputy if self.deputy is not None else self.assistant
                     response = responder.ask(actor, text)
@@ -413,6 +418,9 @@ class TelegramIngress:
                         draft_id = response["draft"]["id"]
                     # Beside a draft, a second button would compete with the one the preview is for.
                     chase = self.deputy is not None and draft_id is None
+                    if draft_id is None and response.get("ask_draft"):
+                        # The reply's own Ask the coordinator button sends the message it answers.
+                        draft_id = response["ask_draft"]["id"]
                     permission = {"guests": "guests:seating", "family": "family:status",
                                   "knowledge": "knowledge:read"}.get(response["kind"])
             failure, retry = None, False

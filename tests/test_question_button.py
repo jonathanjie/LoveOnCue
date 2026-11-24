@@ -1,7 +1,7 @@
 """The question button and the code-written lines around it (docs/plans/2026-11-22-deputy-claim-check.md).
 
-Every helper reply has an Ask the coordinator button. Its tap offers the person's own latest
-message as a question; a second tap sends it (tests/test_ask_button.py).
+Every helper reply has an Ask the coordinator button. One tap sends the message that reply
+answered, as a question (tests/test_ask_button.py).
 """
 from sqlalchemy import select
 from test_deputy import StubPlanner, deputy_chat  # noqa: F401  (fixture)
@@ -17,27 +17,25 @@ UNKNOWN = DeputyPlan(answer="The records don't say.")
 
 
 def ask(chat, member: str, text: str):
-    """Send a message, then tap Ask the coordinator under the reply."""
-    chat.send(member, text)
-    return chat.tap(member, "nav:ask")
+    """Send a message, then tap Ask the coordinator under the reply. Returns the reply to the tap."""
+    return chat.tap(member, f"confirm:{chat.send(member, text).ask_draft_id}")
 
 
-def button(db, reply) -> str:
+def button(db, draft_id: str) -> str:
     with db.sessions() as s:
-        return DRAFT_BUTTONS[draft_type(s, WEDDING, reply.telegram_draft_id)]
+        return DRAFT_BUTTONS[draft_type(s, WEDDING, draft_id)]
 
 
 def test_the_button_sends_the_persons_own_message_and_can_be_undone(deputy_chat, db):  # noqa: F811
     chat = deputy_chat(StubPlanner({"how to say groom surname ah": UNKNOWN}))
-    reply = ask(chat, "mc", "how to say groom surname ah")
-    assert button(db, reply) == "Ask the coordinator"
-    sent = chat.tap("mc", f"confirm:{reply.telegram_draft_id}")
+    assert button(db, chat.send("mc", "how to say groom surname ah").ask_draft_id) == "Ask the coordinator"
+    sent = chat.tap("mc", f"confirm:{chat.send('mc', 'how to say groom surname ah').ask_draft_id}")
     assert sent.message.startswith("Question sent\nThe coordinator has your message.")
     with db.sessions() as s:
         question = s.scalars(select(Incident)).one()
     assert (question.kind, question.title, question.details) == ("question", "how to say groom surname ah",
                                                                  "how to say groom surname ah")
-    assert button(db, sent) == "Undo"
+    assert button(db, sent.telegram_draft_id) == "Undo"
     chat.tap("mc", f"confirm:{sent.telegram_draft_id}")
     with db.sessions() as s:
         assert s.scalars(select(Incident)).one().status == "withdrawn"
@@ -46,10 +44,10 @@ def test_the_button_sends_the_persons_own_message_and_can_be_undone(deputy_chat,
 def test_a_question_taken_back_is_withdrawn_not_answered(deputy_chat):  # noqa: F811
     planner = StubPlanner({"how to say groom surname ah": UNKNOWN})
     chat = deputy_chat(planner)
-    sent = chat.tap("mc", f"confirm:{ask(chat, 'mc', 'how to say groom surname ah').telegram_draft_id}")
+    sent = ask(chat, "mc", "how to say groom surname ah")
     chat.tap("mc", f"confirm:{sent.telegram_draft_id}")
     chat.send("mc", "did the coordinator answer?")
-    context = planner.calls[-1][1]["content"]
+    context = planner.records()
     # Before migration 0007 an undone question was stored as resolved, and the deputy said "answered".
     assert "question “how to say groom surname ah”: withdrawn" in context
 
@@ -59,13 +57,11 @@ def test_each_tap_asks_a_new_question_until_the_persons_limit(deputy_chat, db): 
     asks = [f"question {number}?" for number in range(QUESTIONS_PER_PERSON + 1)]
     chat = deputy_chat(StubPlanner({text: UNKNOWN for text in asks}))
     for text in asks[:-1]:
-        reply = ask(chat, "mc", text)
         # Code cannot tell whether two messages are about the same thing, so each is its own question.
-        assert button(db, reply) == "Ask the coordinator"
-        chat.tap("mc", f"confirm:{reply.telegram_draft_id}")
-    reply = ask(chat, "mc", asks[-1])
-    assert button(db, reply) == "Add to my question" and f"You have {QUESTIONS_PER_PERSON} questions open" in reply.message
-    chat.tap("mc", f"confirm:{reply.telegram_draft_id}")
+        assert ask(chat, "mc", text).message.startswith("Question sent")
+    reply = chat.send("mc", asks[-1])
+    assert button(db, reply.ask_draft_id) == "Add to my question"
+    assert chat.tap("mc", f"confirm:{reply.ask_draft_id}").message.startswith("Added to your question")
     with db.sessions() as s:
         questions = s.scalars(select(Incident).order_by(Incident.created_at)).all()
     assert len(questions) == QUESTIONS_PER_PERSON and questions[-1].details.endswith(f": {asks[-1]}")
@@ -76,18 +72,18 @@ def test_a_question_is_never_filed_under_an_open_report(deputy_chat, db):  # noq
                                                                 text="Bridal car flat tyre"),
                                     "bride need the car or not?": UNKNOWN}))
     chat.tap("driver", f"confirm:{chat.send('driver', 'car flat tyre').telegram_draft_id}")
-    reply = ask(chat, "driver", "bride need the car or not?")
-    assert button(db, reply) == "Ask the coordinator"
+    reply = chat.send("driver", "bride need the car or not?")
+    assert button(db, reply.ask_draft_id) == "Ask the coordinator"
 
 
-def test_the_next_message_makes_the_button_stale(deputy_chat, db):  # noqa: F811
+def test_the_next_message_makes_the_undo_stale(deputy_chat, db):  # noqa: F811
     chat = deputy_chat(StubPlanner({"speech order how": UNKNOWN}))
-    stale = ask(chat, "mc", "speech order how")
+    sent = ask(chat, "mc", "speech order how")
     chat.send("mc", "never mind")
-    late = chat.tap("mc", f"confirm:{stale.telegram_draft_id}")
+    late = chat.tap("mc", f"confirm:{sent.telegram_draft_id}")
     assert "expired" in late.message
     with db.sessions() as s:
-        assert s.scalars(select(Incident)).all() == []
+        assert s.scalars(select(Incident)).one().status == "open"
 
 
 def test_no_button_for_the_coordinator_or_over_a_waiting_draft(deputy_chat):  # noqa: F811
@@ -108,7 +104,9 @@ def test_past_the_cap_no_button_is_offered(deputy_chat, ops):  # noqa: F811
     for number in range(QUESTION_CAP):
         ops.execute(Actor(WEDDING, "usher"), {"type": "report_incident", "kind": "question",
                                               "title": f"Question {number}", "details": "x"}, f"q-{number}")
-    reply = ask(deputy_chat(StubPlanner({"speech order how": UNKNOWN})), "mc", "speech order how")
+    chat = deputy_chat(StubPlanner({"speech order how": UNKNOWN}))
+    assert not chat.send("mc", "speech order how").ask_draft_id
+    reply = chat.tap("mc", "nav:ask")
     assert not reply.telegram_draft_id and "many open questions" in reply.message
 
 
@@ -117,7 +115,7 @@ def test_the_coordinators_context_names_the_people_they_can_message(deputy_chat)
         action="send_message", to="Asha", message="Speeches stay after dinner.")})
     chat = deputy_chat(planner)
     draft = chat.send("coordinator", "tell asha speeches stay after dinner")
-    context = planner.calls[-1][1]["content"]
+    context = planner.records()
     assert "[record] People you can message" in context and "- Asha Tan: couple" in context
     assert "Message to Asha Tan" in draft.message
 

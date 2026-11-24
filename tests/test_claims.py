@@ -118,11 +118,10 @@ def test_status_asked_by_reference_is_stated_from_the_record(deputy_chat):  # no
     assert "“Bridal car flat tyre”: open." in chat.send("driver", "my report how").message
 
 
-def test_an_answer_with_nothing_supported_says_so_and_offers_to_ask(deputy_chat):  # noqa: F811
+def test_an_answer_with_nothing_supported_says_so_with_the_ask_button(deputy_chat):  # noqa: F811
     planner = StubPlanner({"which table uncle lee": DeputyPlan(answer="He is at Table 99.")})
     reply = deputy_chat(planner).send("usher", "which table uncle lee")
-    assert reply.message == CANNOT_CONFIRM + "\nTap Ask the coordinator to send them your message: \u201cwhich table uncle lee\u201d"
-    assert reply.telegram_draft_id
+    assert reply.message == CANNOT_CONFIRM and reply.ask_draft_id and not reply.telegram_draft_id
 
 
 def test_the_lookup_line_states_the_seat_not_the_answer(deputy_chat):  # noqa: F811

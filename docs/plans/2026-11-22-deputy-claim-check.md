@@ -872,6 +872,92 @@ and "is the ceremony still outdoors? its raining" (a report about rain). Tests: 
 
 Not yet measured: whether people tap the ask button when they need it. Only live play shows that.
 
+## Live-play round v12 (24 November)
+
+Build 4de06af, same method as v11: four casts at once (rounds 1 and 2, 13 Haiku players and 13
+GPT-6-Luna players). Reports, transcripts and records: scratchpad `live-v12/` (not kept in the
+repository); `live-v12/verified.md` lists each finding with its transcript lines.
+
+| Cast | Ease | Clarity | Trust |
+|---|---|---|---|
+| Haiku, 13 players (v11) | 3.5 | 3.5 | 2.8 |
+| Haiku, 13 players (v12) | 3.8 | 3.4 | 2.8 |
+| Luna, 13 players (v11) | 3.0 | 3.0 | 2.6 |
+| Luna, 13 players (v12) | 2.8 | 3.1 | 3.0 |
+
+Many Luna reports again say "no visible reply" or "records returned no output" where the
+transcript shows both; Luna scores move with those artefacts.
+
+### The ask button in use
+12 replies in 9 chats sent the person to the coordinator. 4 players tapped Ask the coordinator;
+2 questions arrived, both after two taps. One MC read the first tap as a failure, answered a notice
+in between, and later retyped the request, which became a problem report. Another tapped the
+button under the reply to "What did I miss?" and was offered that message, not the request they
+typed next.
+
+### Findings, by cause (each checked in a transcript)
+1. The ask button needed two taps and acted on the latest message, not the reply it was under.
+2. An action that code could not draft kept the answer written for it. "Grace Tay arrived, please
+   log her" (Grace Tay is on no list): "Logging Grace Tay's arrival now." and "Grace Tay is
+   recorded as arrived." above "I could not tell which guest or family member you mean. Send me
+   their full name." (both registration players). The v11 re-plan ran only for a veto before
+   acting. Name resolution had three wordings, and the arrival one merged "no match" with
+   "several".
+3. The coordinator's records gave an open report as a title and "Review this open incident in
+   LoveOnCue". "What happened with the car" got "no details on the car's condition" (the driver
+   wrote that it cannot move); Taylor's own lateness report was called "a note from the brief";
+   "any open approvals or reports I must handle?" got only the coordinator's own change.
+4. With no draft, any sentence that said "tap" replaced the whole answer with "I didn't make a
+   draft for that": "got need to do anything else?" got only that line.
+5. A request's status came from two channels (code's guard and the model's status_of) and was
+   printed twice.
+6. A name only asked about ("is Ryan on it now or not") was named as left out of a draft; and a
+   message draft took its recipient from an earlier message.
+7. The model repeated its earlier reply over newer records: "None of the nine have acknowledged"
+   word for word, when the records said 2 of 9. The records came before the chat, so the stale
+   reply was the newest text on the subject.
+
+Not faults: "still 18:30 at the Garden terrace" and "0 of 9" were true when sent; "speeches
+first" was the coordinator's own word; "Your draft is still unsent" was true.
+
+### Built, after Fable's review (v12)
+- 1: each helper reply without a draft carries its own one-tap offer (an `ActionDraft` with
+  offer "button", kept as long as chat memory), so Ask the coordinator sends the message that
+  reply answered, at once, with Undo. The offer never replaces a draft or is replaced by one. A
+  second tap sends nothing new ("Already sent"). Typed `/ask` sends the latest message. The old
+  two-step path, the inline offer and the separate `nav:ask` row are gone (`nav:ask` stays for
+  buttons already in chats). When the model classes a message as the coordinator's and the
+  answer sends them there, code adds "Tap Ask the coordinator to send them your message."
+- 2: one re-plan path (`_answer_only`) for a veto and for an action whose result is a
+  clarification; for the second, the model is told what happened and code's line follows. One
+  wording for a name that matches nobody or several (`agent.unmatched_name`): "Nothing was
+  recorded. Grace Tay: not on the guest list. Check the spelling. If they are not on the list:
+  Ask …".
+- 3: the coordinator's records list what waits for them: pending run-sheet requests (A), open
+  reports (P) and questions (Q), each with who, when, and their quoted words; code prints an item
+  when the model names its reference. Those items leave the brief lines; the coordinator's own
+  decided change is no longer one of "their reports".
+- 4: only a sentence that points at a button the reply does not show is removed.
+- 5: code's guards return a reference, and every status line goes through `_status_lines`; the
+  reply never prints a line twice.
+- 6: a message's recipient must be named in this message (or the message asks to send); a name
+  counts as left out only in a sentence that does not ask.
+- 7: the RECORDS come after the chat ("RECORDS as of HH:MM, newer than every reply above"), and
+  every earlier reply carries its time; this replaces the run-sheet-version note.
+
+### Evidence (paired replay, 2 rounds of 3 runs, run at the same time)
+| Measure (sum of 6 runs) | 4de06af | This build |
+|---|---|---|
+| Outcome matches the label, tuned set | 369 of 378 | 374 of 378 |
+| Outcome matches the label, held-out set | 138 of 138 | 138 of 138 |
+| False full drafts | 4 | 4 |
+| False question buttons | 0 | 0 |
+
+No regression. All 4 false drafts in this build are driver-who-call (a report made from "boss not
+answering"). The replay does not exercise most v12 causes, which are reply texts; the tests in
+`tests/test_deputy_live_play_v12.py` and `tests/test_ask_button.py` cover them. Not measured: a
+count of verbatim repeated replies (Fable suggested logging it in the replay).
+
 ## Checks
 - Unit: extractor (each token type, Singlish time forms); `unsupported` with
   cited and uncited lines; quoted spans do not ground; self-acts with and without
@@ -888,8 +974,9 @@ in 71; trust ≥ 3.5 with no fall in ease or clarity.
 
 ## Resume point
 Read this file, then `git log` on the branch. Done: Fable's build order through gate v8, the
-gate v8 open items, live-play rounds v9, v10 and v11 (26 players each, Haiku and GPT-6-Luna) and
-their fixes, and the ask button (the person, not the model, decides when to ask the coordinator). Tools: `scripts/replay.py` (tuned and held-out cases), `scripts/ab.py` with
+gate v8 open items, live-play rounds v9, v10, v11 and v12 (26 players each, Haiku and GPT-6-Luna)
+and their fixes, and the one-tap ask button (the person, not the model, decides when to ask the
+coordinator). Tools: `scripts/replay.py` (tuned and held-out cases), `scripts/ab.py` with
 `WEDDING_OPS_SRC` (paired comparison), `scripts/gate.py` and
 `simulate.py records|transcript|realtime` (live play; Luna players run as `codex exec -m
 gpt-6-luna -s workspace-write -c sandbox_workspace_write.network_access=true --add-dir <world>`).
@@ -897,7 +984,9 @@ On a slow network the replay needs a longer connect limit than the product's 2 s
 Residual model behaviours with no general check: hearsay restated as fact, a missed record, a
 problem report made from a question ("its raining, where do I send guests"), an unsent report that collects later
 messages when the model drafts it again under a new title, and a place-only move sent as a
-message (only a new time redirects to a run-sheet change).
-Next: a live-play round to see whether people use the ask button, then decide on a staging deploy (message the Mini App session first, and tell it about the
-neutral badge for "withdrawn"). Staging runs release 406bf7c; migrations 0007 and 0008 are new
+message (only a new time redirects to a run-sheet change), a chef's correction that makes a second
+run-sheet request instead of revising the pending one, and miscounts in the model's own words.
+Next: a live-play round on the v12 fixes (does one tap get questions through?), then decide on a
+staging deploy (message the Mini App session first, and tell it about the neutral badge for
+"withdrawn"). Staging runs release 406bf7c; migrations 0007 and 0008 are new
 since then.
